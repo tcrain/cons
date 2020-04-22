@@ -1,0 +1,23 @@
+{
+    "FailRounds": 5,
+    "NumFailProcs": 1,
+    "FailDuration": 1000,
+    "TestID": 3,
+    "ConsType": 4,
+    "MaxRounds": 10,
+    "NumTotalProcs": 8,
+    "NetworkType": 0,
+    "FanOut": 0,
+    "ConnectionType": 0,
+    "IncludeProofs": true,
+    "SigType": 3,
+    "UsePubIndex": true,
+    "SleepValidate": false,
+    "MCType": 0,
+    "BufferForwarder": false,
+    "UseMultisig": false,
+    "BlsMultiNew": false,
+    "CheckDecisions": false,
+    "MvProposalSizeBytes": 10,
+    "BinConsPercentOnes": 0
+}

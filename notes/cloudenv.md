@@ -1,0 +1,6 @@
+- Cloud environment variables
+  - $GITBRANCH - default git branch to use
+  - $KEYPATH - path to ssh key file
+  - $PROJECTID - name of google cloud project
+  - $OAUTHPATH - path to google cloud oauth2 file
+  - $BENCHUSER - username of user of the benchmark nodes

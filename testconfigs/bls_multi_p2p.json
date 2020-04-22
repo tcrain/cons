@@ -1,0 +1,18 @@
+{
+    "MaxRounds": 10,
+    "NumTotalProcs": 8,
+    "NetworkType": 2,
+    "FanOut": 4,
+    "ConnectionType": 0,
+    "IncludeProofs": false,
+    "SigType": 4,
+    "UsePubIndex": true,
+    "SleepValidate": false,
+    "MCType": 0,
+    "BufferForwarder": true,
+    "UseMultisig": true,
+    "BlsMultiNew": true,
+    "CheckDecisions": false,
+    "MvProposalSizeBytes": 10,
+    "BinConsPercentOnes": 50
+}

@@ -1,0 +1,27 @@
+What benchmarks to run:
+- 4 algorithms per graph
+
+1. Normal - w/w-o coin-presets - 10 nodes single DC (s-coin(presets))
+2. Normal - w/w-o coin-presets - 10 nodes distribued DC (s-coin(presets))
+3. Byz - 10 nodes distributed (s-coinbyz)
+4. Byz w/ coin-presets - 10 nodes distributed (s-coinbyz-presets)
+6. Coin2 - proofs/no-proofs - 10 nodes single dc (s-coin2)
+5. Coin2/EchoCoin2 - 10 nodes single dc (s-coin2echo)
+7. Combine messages - 10 nodes distributed (s-coincombine)
+7. Scale - 10, 20, 40, 100 - w-o coin presets (s-coinscale)
+8. Scale - 10, 20, 40, 100 - w coin presets (s-coinscalepresets)
+
+To bench sign time run:
+
+bash ./scripts/benchsigtime.sh
+
+go test -v ./consensus/auth/sig/bls/... -run=None -bench=BenchmarkBLSShareVerify
+go test -v ./consensus/auth/sig/bls/... -run=None -bench=BenchmarkBLSCoinSign
+go test -v ./consensus/auth/sig/bls/... -run=None -bench=BenchmarkBlsCoinGen
+
+go test -v ./consensus/auth/sig/ed/... -run=None -bench=BenchmarkCoinShares
+go test -v ./consensus/auth/sig/ed/... -run=None -bench=BenchmarkEdCoinSign
+go test -v ./consensus/auth/sig/ed/... -run=None -bench=BenchmarkEdCoinVerify
+
+go test -v ./consensus/auth/sig/ed/... -run=None -bench=BenchmarkEncrypt
+go test -v ./consensus/auth/sig/ed/... -run=None -bench=BenchmarkDecrypt

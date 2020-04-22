@@ -1,0 +1,38 @@
+{
+    "OrderingType": 0,
+    "ConsType": 2,
+    "StateMachineType": 0,
+    "MCType": 0,
+    "NumTotalProcs": 4,
+    "NumNonMembers": 0,
+    "RndMemberCount": 0,
+    "RndMemberType": 0,
+    "GenRandBytes": false,
+    "SigType": 5,
+    "CoinType": 3,
+
+    "FailRounds": 5,
+    "FailDuration": 2000,
+    "ClearDiskOnRestart": true,
+    "NumFailProcs": 0,
+    "NumMsgProcessThreads": 5,
+    "CPUProfile": false,
+    "MemProfile": false,
+
+    "ByzType": 0,
+    "NumByz": 0,
+    "MaxRounds": 10,
+    "NetworkType": 0,
+    "FanOut": 0,
+    "ConnectionType": 1,
+    "IncludeProofs": false,
+
+    "UsePubIndex": true,
+    "SleepValidate": true,
+    "BufferForwarder": false,
+    "UseMultisig": false,
+    "BlsMultiNew": false,
+    "CheckDecisions": true,
+    "MvProposalSizeBytes": 1000,
+    "BinConsPercentOnes": 50
+}

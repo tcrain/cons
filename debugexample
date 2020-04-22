@@ -1,0 +1,8 @@
+1 st Compile:
+GOCACHE=off go test -c -ldflags="-linkmode=internal" -gcflags=all=-N -l -race -v -test.run=TestBinCons1UDP ./...
+
+Now run:
+./cons.test -test.v -test.run=TestBinCons1UDP
+
+Now attach:
+dlv attach {ProcessID}
