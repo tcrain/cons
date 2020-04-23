@@ -24,7 +24,7 @@ WORKDIR $GOPATH/src/github.com/open-quantum-safe/
 RUN git clone https://github.com/open-quantum-safe/liboqs-go
 
 WORKDIR $GOPATH/src/github.com/tcrain
-RUN git clone git@github.com:tcrain/cons.git
+RUN git clone https://github.com/tcrain/cons.git
 
 WORKDIR $GOPATH/src/github.com/tcrain/cons
 
