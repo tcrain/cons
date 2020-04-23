@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
+
 /*
 The consinterface package defines the interfaces for implementations of the consensus objects.
 It also contains the core functionalities that will be used by most consensus object, including

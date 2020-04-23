@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
+
 /*
 General configuration settings (see issue https://github.com/tcrain/cons/issues/8)
 */

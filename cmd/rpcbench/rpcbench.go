@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
+
 /*
 This package runs a benchmark over the network given a test configuration stored in a json file.
 There must be a Preg (participant register) process running an accessable through RPC.

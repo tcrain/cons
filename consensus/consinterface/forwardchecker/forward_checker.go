@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
+
 /*
 ForwardCheckers keep track of successfully processes consensus messages and decide if they should be forwarded on the network or not.
 */
