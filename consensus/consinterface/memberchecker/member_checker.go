@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
+
 /*
 Membercheckers are responsible for tracking who can participate in consensus by having a list of their public keys.
 Membership can change on each iteration of consenus depding on the implementation of the application and memberchecker.

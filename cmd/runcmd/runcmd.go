@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
+
 /*
 Code for a binary that will run a command on an list of nodes through ssh.
 It has an option to run rsync directly instead.

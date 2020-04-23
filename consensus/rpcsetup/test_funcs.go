@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
+
 /*
 This package contains functions for running nodes over a network, who communicate using RPC for test setup. It also provided client interfaces to RPC functions.
 See the cmd package for the running the actual binaries.

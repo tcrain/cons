@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
+
 /* MessageState tracks the signed messages received for each consensus instance,
 and does things like reject duplicates and check message thresholds.
 SignedItem messages are those that implement sig.MultiSigMsgHeader.

@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
+
 /*
 Package storage contains objects for storing decided value and consensus state to disk, or in memory if desired.
 */

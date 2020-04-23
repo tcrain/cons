@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
+
 /*
 In order to describe which nodes have signed a multi-signature, the indecies of the sorted list of consensus
 participants public keys are encoded into binary objects called BitIDs, this is still in development.
