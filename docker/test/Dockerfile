@@ -16,7 +16,7 @@ RUN cmake -GNinja -DBUILD_SHARED_LIBS=ON ..
 RUN ninja
 RUN ninja install
 
-RUN go get github.com/go-delve/delve/cmd/dlv
+# RUN go get github.com/go-delve/delve/cmd/dlv
 
-WORKDIR $GOPATH/src/github.com/open-quantum-safe/
-RUN git clone https://github.com/open-quantum-safe/liboqs-go
+# WORKDIR $GOPATH/src/github.com/open-quantum-safe/
+# RUN git clone https://github.com/open-quantum-safe/liboqs-go
