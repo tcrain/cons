@@ -8,7 +8,7 @@ env:
 
 before_install:
   - sudo apt-get update
-  - sudo apt-get -y install rsync wget git gnuplot jq pkg-config autoconf automake libtool gcc libssl-dev python3-pytest unzip xsltproc doxygen graphviz make cmake ninja-build python3-pytest-xdist xsltproc sudo
+  - sudo apt-get -y install rsync wget git gnuplot jq pkg-config autoconf automake libtool gcc libssl-dev python3-pytest unzip xsltproc doxygen graphviz make cmake ninja-build xsltproc # python3-pytest-xdist sudo
   - git clone -b master https://github.com/open-quantum-safe/liboqs.git
   - pwd
   - cd liboqs/build
