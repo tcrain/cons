@@ -2,8 +2,6 @@ FROM golang:buster
 
 WORKDIR  /
 
-RUN go env
-
 RUN apt-get update
 
 RUN apt-get -y install rsync wget git gnuplot jq pkg-config autoconf automake libtool gcc libssl-dev python3-pytest unzip xsltproc doxygen graphviz make cmake ninja-build python3-pytest-xdist xsltproc sudo

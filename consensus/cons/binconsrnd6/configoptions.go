@@ -34,6 +34,18 @@ func (Config) ComputeSigAndEncoding(options types.TestOptions) (noSignatures, en
 	return
 }
 
+// GetStopOnCommitTypes returns the types to test when to terminate.
+func (Config) GetStopOnCommitTypes(optionType cons.GetOptionType) []types.StopOnCommitType {
+	switch optionType {
+	case cons.AllOptions:
+		return []types.StopOnCommitType{types.Immediate, types.SendProof, types.NextRound}
+	case cons.MinOptions:
+		return []types.StopOnCommitType{types.NextRound}
+	default:
+		panic(optionType)
+	}
+}
+
 // GetCoinTypes returns the types of coins allowed.
 func (Config) GetCoinTypes(optionType cons.GetOptionType) []types.CoinType {
 	switch optionType {
