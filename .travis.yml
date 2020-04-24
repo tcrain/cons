@@ -8,15 +8,15 @@ env:
   - PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$GOPATH/src/github.com/open-quantum-safe/liboqs-go/.config
 
 before_install:
-  - apt-get update
-  - apt-get -y install rsync wget git gnuplot jq pkg-config autoconf automake libtool gcc libssl-dev python3-pytest unzip xsltproc doxygen graphviz make cmake ninja-build python3-pytest-xdist xsltproc sudo
+  - sudo apt-get update
+  - sudo apt-get -y install rsync wget git gnuplot jq pkg-config autoconf automake libtool gcc libssl-dev python3-pytest unzip xsltproc doxygen graphviz make cmake ninja-build python3-pytest-xdist xsltproc sudo
   - git clone -b master https://github.com/open-quantum-safe/liboqs.git
   - pwd
   - cd liboqs/build
   - pwd
   - cmake -GNinja -DBUILD_SHARED_LIBS=ON ..
   - ninja
-  - ninja install
+  - sudo ninja install
   - go get github.com/go-delve/delve/cmd/dlv
   - cd $GOPATH/src/github.com/open-quantum-safe/
   - git clone https://github.com/open-quantum-safe/liboqs-go
