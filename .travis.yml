@@ -20,12 +20,14 @@ before_install:
   - git clone https://github.com/open-quantum-safe/liboqs-go
   - cd $GOPATH/src/github.com/tcrain/cons
 
+install: travis_wait 30 mvn install
+
 addons:
   apt:
     update: true
 
 script:
-  - go test -timeout=30m -v -coverprofile=coverage.txt -covermode=atomic ./...
+  - go test -timeout=25m -v -coverprofile=coverage.txt -covermode=atomic ./...
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
