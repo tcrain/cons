@@ -35,7 +35,7 @@ func TestCTRSource(t *testing.T) {
 	assert.Nil(t, err)
 
 	var nonce [16]byte
-	n = copy(nonce[:], config.CsID)
+	n = copy(nonce[:], config.RandID)
 	assert.Equal(t, 16, n)
 
 	// Create some randoms
