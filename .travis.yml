@@ -16,9 +16,9 @@ before_install:
   - ninja
   - sudo ninja install
   - cd $GOPATH/src/github.com/tcrain/cons
-#  - mkdir -p $GOPATH/src/github.com/open-quantum-safe/
-#  - cd $GOPATH/src/github.com/open-quantum-safe/
-#  - git clone https://github.com/open-quantum-safe/liboqs-go
+  - mkdir -p $GOPATH/src/github.com/open-quantum-safe/
+  - cd $GOPATH/src/github.com/open-quantum-safe/
+  - git clone https://github.com/open-quantum-safe/liboqs-go
 
 addons:
   apt:

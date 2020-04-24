@@ -18,8 +18,8 @@ RUN ninja install
 
 RUN go get github.com/go-delve/delve/cmd/dlv
 
-# WORKDIR $GOPATH/src/github.com/open-quantum-safe/
-# RUN git clone https://github.com/open-quantum-safe/liboqs-go
+WORKDIR $GOPATH/src/github.com/open-quantum-safe/
+RUN git clone https://github.com/open-quantum-safe/liboqs-go
 
 WORKDIR $GOPATH/src/github.com/tcrain
 RUN git clone https://github.com/tcrain/cons.git
