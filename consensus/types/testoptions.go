@@ -398,7 +398,7 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 
 	switch consType {
 	case BinConsRnd1Type, BinConsRnd2Type, BinConsRnd3Type, BinConsRnd4Type, BinConsRnd5Type,
-		BinConsRnd5OldType, BinConsRnd6Type, MvBinConsRnd1Type:
+		BinConsRnd6Type, MvBinConsRnd1Type:
 		if !to.UsePubIndex {
 			err = fmt.Errorf("must use pub index for BinConsRnd1Type/MvBinConsRnd1Type")
 			return

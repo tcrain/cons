@@ -328,22 +328,21 @@ var AllMC = []MemberCheckerType{TrueMC, CurrentTrueMC, BinRotateMC, CurrencyMC}
 type ConsType int
 
 const (
-	BinCons1Type       ConsType = iota // Binary consensus
-	BinConsRnd1Type                    // Randomized binary consensus
-	BinConsRnd2Type                    // Randomized binary consensus no signatures needed
-	BinConsRnd3Type                    // Randomized binary consensus weak coin
-	BinConsRnd4Type                    // Randomized binary consensus weak coin no signatures needed
-	BinConsRnd5Type                    // Randomized binary consensus combination of BinConsRnd1 and BinConsRnd3
-	BinConsRnd5OldType                 // Randomized binary consensus combination of BinConsRnd1 and BinConsRnd3
-	BinConsRnd6Type                    // Randomized binary consensus combination of BinConsRnd2 and BinConsRnd4
-	MvBinCons1Type                     // Multivalue reduction to binary consensus BinCons1
-	MvBinConsRnd1Type                  // Multivalue reduction to binary consensus BinConsRnd1
-	MvCons2Type                        // Multivalue PBFT like
-	MvCons3Type                        // Multivalue HotStuff like
-	RbBcast1Type                       // Reliable broadcast like
-	RbBcast2Type                       // Reliable broadcast
-	SimpleConsType                     // Nodes broadcast their id and public key and wait to recieve this from all other nodes, just for testing.
-	MockTestConsType                   // Test object
+	BinCons1Type      ConsType = iota // Binary consensus
+	BinConsRnd1Type                   // Randomized binary consensus
+	BinConsRnd2Type                   // Randomized binary consensus no signatures needed
+	BinConsRnd3Type                   // Randomized binary consensus weak coin
+	BinConsRnd4Type                   // Randomized binary consensus weak coin no signatures needed
+	BinConsRnd5Type                   // Randomized binary consensus combination of BinConsRnd1 and BinConsRnd3
+	BinConsRnd6Type                   // Randomized binary consensus combination of BinConsRnd2 and BinConsRnd4
+	MvBinCons1Type                    // Multivalue reduction to binary consensus BinCons1
+	MvBinConsRnd1Type                 // Multivalue reduction to binary consensus BinConsRnd1
+	MvCons2Type                       // Multivalue PBFT like
+	MvCons3Type                       // Multivalue HotStuff like
+	RbBcast1Type                      // Reliable broadcast like
+	RbBcast2Type                      // Reliable broadcast
+	SimpleConsType                    // Nodes broadcast their id and public key and wait to recieve this from all other nodes, just for testing.
+	MockTestConsType                  // Test object
 )
 
 // String returns the consensus type in a human readable format.
@@ -361,8 +360,6 @@ func (ct ConsType) String() string {
 		return "BinConsRnd4"
 	case BinConsRnd5Type:
 		return "BinConsRnd5"
-	case BinConsRnd5OldType:
-		return "BinConsRnd5Old"
 	case BinConsRnd6Type:
 		return "BinConsRnd6"
 	case MvBinCons1Type:

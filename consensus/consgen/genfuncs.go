@@ -27,7 +27,6 @@ import (
 	"github.com/tcrain/cons/consensus/cons/binconsrnd3"
 	"github.com/tcrain/cons/consensus/cons/binconsrnd4"
 	"github.com/tcrain/cons/consensus/cons/binconsrnd5"
-	binconsrnd5old "github.com/tcrain/cons/consensus/cons/binconsrnd5old"
 	"github.com/tcrain/cons/consensus/cons/binconsrnd6"
 	"github.com/tcrain/cons/consensus/cons/mvcons1"
 	"github.com/tcrain/cons/consensus/cons/mvcons2"
@@ -53,8 +52,6 @@ func GetConsItem(to types.TestOptions) (consItem consinterface.ConsItem) {
 		consItem = &binconsrnd4.BinConsRnd4{}
 	case types.BinConsRnd5Type:
 		consItem = &binconsrnd5.BinConsRnd5{}
-	case types.BinConsRnd5OldType:
-		consItem = &binconsrnd5old.BinConsRnd5{}
 	case types.BinConsRnd6Type:
 		consItem = &binconsrnd6.BinConsRnd6{}
 	case types.MvBinCons1Type:
@@ -90,8 +87,6 @@ func GetConsConfig(to types.TestOptions) (consConfig cons.ConfigOptions) {
 		consConfig = binconsrnd4.Config{}
 	case types.BinConsRnd5Type:
 		consConfig = binconsrnd5.Config{}
-	case types.BinConsRnd5OldType:
-		consConfig = binconsrnd5old.Config{}
 	case types.BinConsRnd6Type:
 		consConfig = binconsrnd6.Config{}
 	case types.MvBinCons1Type:
