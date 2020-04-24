@@ -4,8 +4,7 @@ go:
   - 1.14.x
 
 env:
-  - LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
-  - PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$GOPATH/src/github.com/open-quantum-safe/liboqs-go/.config
+  - LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$GOPATH/src/github.com/open-quantum-safe/liboqs-go/.config
 
 before_install:
   - sudo apt-get update
@@ -20,6 +19,10 @@ before_install:
   - go get github.com/go-delve/delve/cmd/dlv
   - cd $GOPATH/src/github.com/open-quantum-safe/
   - git clone https://github.com/open-quantum-safe/liboqs-go
+
+addons:
+  apt:
+    update: true
 
 script:
   - pwd
