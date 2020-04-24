@@ -94,10 +94,10 @@ const (
 
 	// For tests
 	AllowConcurrentTests = false // Allow this to run tests concurrently for the same package (it creates different storage files for each test) // TODO not currently supported because of globals
-	ProcCount            = 10    // Total number of nodes
-	NonMembers           = 2     // Number of nodes not participating in consensus (i.e. so here we have 10-2=8 consensus participants)
+	ProcCount            = 5     // Total number of nodes
+	NonMembers           = 1     // Number of nodes not participating in consensus (i.e. so here we have 10-2=8 consensus participants)
 	MaxBenchRounds       = 10
-	FanOut               = 6
+	FanOut               = 4
 	TestSleepValidate    = true // if sleeps are performed instead of singaure validations in the unit tests
 	MaxRounds            = 10
 	TestMsgSize          = 100000

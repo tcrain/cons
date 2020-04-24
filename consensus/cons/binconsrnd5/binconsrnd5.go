@@ -273,14 +273,13 @@ func (sc *BinConsRnd5) CheckRound(nmt int, t int, round types.ConsensusRound,
 		}
 	}
 
-	if round > 0 {
+	if round > 1 {
 		prvRoundStruct := sc.getMsgState().getAuxRoundStruct(round-1, sc.ConsItems.MC)
-		if round == 1 || round == 2 {
+		if round == 2 {
 			if sc.CheckMemberLocal() && !prvRoundStruct.sentAuxProof {
 				return false
 			}
-		}
-		if round > 2 {
+		} else if round > 2 {
 			if sc.CheckMemberLocal() && (!prvRoundStruct.sentAuxProof ||
 				!prvRoundStruct.sentAuxBoth || (!prvRoundStruct.sentCoin && !sc.GeneralConfig.AllowSupportCoin)) {
 
@@ -459,14 +458,13 @@ func (sc *BinConsRnd5) beforeBcastSanityCheck(
 	nmt := sc.ConsItems.MC.MC.GetMemberCount() - t
 
 	localMember := sc.CheckMemberLocal()
-	if round == 1 || round == 2 {
+	if round == 2 {
 		prevRoundState := binMsgState.getAuxRoundStruct(round-1, sc.ConsItems.MC)
 		if prevRoundState == nil ||
 			(localMember && !prevRoundState.sentAuxProof) {
 			panic("invalid ordering")
 		}
-	}
-	if round > 3 {
+	} else if round > 3 {
 		// Sanity check
 		prevRoundState := binMsgState.getAuxRoundStruct(round-1, sc.ConsItems.MC)
 		if prevRoundState == nil ||

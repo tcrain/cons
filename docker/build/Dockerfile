@@ -28,6 +28,6 @@ WORKDIR $GOPATH/src/github.com/tcrain/cons
 
 RUN go get -t -u -v github.com/tcrain/cons/...
 
-RUN bash ./scripts/imagesetup.sh root
+# RUN bash ./scripts/imagesetup.sh root # Cant set these thing in docker image
 
 RUN bash ./scripts/buildgo.sh 1
