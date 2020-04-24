@@ -27,4 +27,7 @@ addons:
 script:
   - pwd
   - cd consensus/cons/bincons1
-  - go test -v ./...
+  - go test -v -coverprofile=coverage.txt -covermode=atomic ./...
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
