@@ -25,7 +25,7 @@ addons:
     update: true
 
 script:
-  - travis_wait go test -timeout=25m -v -coverprofile=coverage.txt -covermode=atomic ./...
+  - travis_wait go test -timeout=25m -v -coverprofile=coverage.txt -covermode=atomic ./consensus/cons/...
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
