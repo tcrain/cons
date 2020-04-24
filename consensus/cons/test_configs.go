@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/config"
+	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/types"
@@ -498,8 +499,12 @@ func runConsDebug(initItem consinterface.ConsItem,
 	to types.TestOptions,
 	t assert.TestingT) {
 
+	sv := sig.SleepValidate
+	sig.SetSleepValidate(config.TestSleepValidate)
+
 	labels := pprof.Labels("consFunc", to.ConsType.String())
 	pprof.Do(context.Background(), labels, func(_ context.Context) {
 		RunConsType(initItem, broadcastFunc, options, to, t)
 	})
+	sig.SetSleepValidate(sv)
 }

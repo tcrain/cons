@@ -62,7 +62,7 @@ type mvCons1TestItems struct {
 
 func createMvConsTestItems(keyIndex int, privKeys []sig.Priv, pubKeys []sig.Pub, idx types.ConsensusIndex,
 	to types.TestOptions) *mvCons1TestItems {
-
+	sig.SetSleepValidate(false)
 	if to.RotateCord {
 		coordIndex = 1
 	}
