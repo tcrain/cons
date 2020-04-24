@@ -25,6 +25,7 @@ addons:
     update: true
 
 script:
-  - pwd
-  - cd consensus/cons/bincons1
-  - go test -v ./...
+  - go test -v -coverprofile=coverage.txt -covermode=atomic ./consensus/cons/bincons1/...
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
