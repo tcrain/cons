@@ -15,10 +15,10 @@ before_install:
   - cmake -GNinja -DBUILD_SHARED_LIBS=ON ..
   - ninja
   - sudo ninja install
-  - cd $GOPATH/src/github.com/tcrain/cons
   - mkdir -p $GOPATH/src/github.com/open-quantum-safe/
   - cd $GOPATH/src/github.com/open-quantum-safe/
   - git clone https://github.com/open-quantum-safe/liboqs-go
+  - cd $GOPATH/src/github.com/tcrain/cons
 
 addons:
   apt:
