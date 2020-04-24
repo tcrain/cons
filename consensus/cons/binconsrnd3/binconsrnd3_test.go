@@ -34,7 +34,7 @@ func getBinConsStateMachineTypes() []types.StateMachineType {
 	return []types.StateMachineType{types.BinaryProposer}
 }
 
-var binTO = types.TestOptions{SigType: types.TBLSDual, BinConsPercentOnes: 50, CoinType: types.StrongCoin1Type, UseFixedCoinPresets: false, IncludeProofs: true, StopOnCommit: types.SendProof, UseFixedSeed: false}
+var binTO = types.TestOptions{SigType: types.TBLSDual, BinConsPercentOnes: 50, CoinType: types.StrongCoin1Type, IncludeProofs: true, StopOnCommit: types.SendProof, UseFixedSeed: false}
 var binTODual = types.TestOptions{SigType: types.CoinDual, BinConsPercentOnes: 50, CoinType: types.StrongCoin1Type}
 
 // var binTO = types.TestOptions{SigType: types.TBLS, BinConsPercentOnes: 50, CoinType: types.StrongCoin1Type, IncludeProofs:true, StopOnCommit:types.SendProof, AllowSupportCoin:true}

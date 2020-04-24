@@ -21,8 +21,21 @@ package bincons1
 
 import (
 	"github.com/tcrain/cons/consensus/cons"
+	"github.com/tcrain/cons/consensus/types"
 )
 
 type Config struct {
 	cons.StandardBinConfig
+}
+
+// GetIncludeProofTypes returns the values for if the consensus supports including proofs or not or both.
+func (Config) GetIncludeProofsTypes(gt cons.GetOptionType) []bool {
+	switch gt {
+	case cons.AllOptions:
+		return types.WithBothBool
+	case cons.MinOptions:
+		return types.WithTrue
+	default:
+		panic(gt)
+	}
 }

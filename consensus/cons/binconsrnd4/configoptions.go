@@ -28,6 +28,18 @@ type Config struct {
 	cons.StandardBinConfig
 }
 
+// GetStopOnCommitTypes returns the types to test when to terminate.
+func (Config) GetStopOnCommitTypes(optionType cons.GetOptionType) []types.StopOnCommitType {
+	switch optionType {
+	case cons.AllOptions:
+		return []types.StopOnCommitType{types.Immediate, types.SendProof, types.NextRound}
+	case cons.MinOptions:
+		return []types.StopOnCommitType{types.NextRound}
+	default:
+		panic(optionType)
+	}
+}
+
 // ComputeSigAndEncoding returns whether signatures should be used or messages should be encoded
 func (Config) ComputeSigAndEncoding(options types.TestOptions) (noSignatures, encryptChannels bool) {
 	// return cons.NonSigComputeSigAndEncoding(options)

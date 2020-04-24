@@ -28,6 +28,30 @@ type Config struct {
 	cons.StandardBinConfig
 }
 
+// GetStopOnCommitTypes returns the types to test when to terminate.
+func (Config) GetStopOnCommitTypes(optionType cons.GetOptionType) []types.StopOnCommitType {
+	switch optionType {
+	case cons.AllOptions:
+		return []types.StopOnCommitType{types.Immediate, types.SendProof, types.NextRound}
+	case cons.MinOptions:
+		return []types.StopOnCommitType{types.SendProof}
+	default:
+		panic(optionType)
+	}
+}
+
+// GetIncludeProofTypes returns the values for if the consensus supports including proofs or not or both.
+func (Config) GetIncludeProofsTypes(gt cons.GetOptionType) []bool {
+	switch gt {
+	case cons.AllOptions:
+		return types.WithBothBool
+	case cons.MinOptions:
+		return types.WithTrue
+	default:
+		panic(gt)
+	}
+}
+
 // GetCoinTypes returns the types of coins allowed.
 func (Config) GetCoinTypes(optionType cons.GetOptionType) []types.CoinType {
 	switch optionType {
@@ -59,7 +83,7 @@ func (Config) GetSigTypes(gt cons.GetOptionType) []types.SigType {
 	case cons.AllOptions:
 		return types.CoinSigTypes
 	case cons.MinOptions:
-		return []types.SigType{types.TBLS}
+		return []types.SigType{types.TBLSDual}
 	default:
 		panic(gt)
 	}

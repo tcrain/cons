@@ -108,8 +108,11 @@ func sendForward(idx types.ConsensusIndex, memberCheckerState consinterface.Cons
 					}
 					// w.SetSigItems(nil)                                // First clear the sigs
 					msg.Header, err = msgState.SetupSignedMessage(w.InternalSignedMsgHeader, false, sigNum, mc) // Now add all we have seen
-					if err != nil {
+					if err != nil && err != types.ErrNotEnoughSigs {
 						logging.Error(err)
+						continue
+					}
+					if msg.Header == nil {
 						panic(err)
 					}
 				}

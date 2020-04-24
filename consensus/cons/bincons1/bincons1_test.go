@@ -34,7 +34,7 @@ func getBinConsStateMachineTypes() []types.StateMachineType {
 	return []types.StateMachineType{types.BinaryProposer}
 }
 
-var binTO = types.TestOptions{BinConsPercentOnes: 50}
+var binTO = types.TestOptions{BinConsPercentOnes: 50, IncludeProofs: true}
 
 func TestBinCons1Basic(t *testing.T) {
 	cons.RunBasicTests(binTO, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)

@@ -78,7 +78,7 @@ This allows you to just run the unit tests.
 - Clone this project to the folder ```$GOPATH/src/github.com/tcrain/```.
 
 ### Full install
-See the dockerfile: [Dockerfile](docker/Dockerfile).
+See the dockerfile: [Dockerfile](docker/build/Dockerfile).
 This shows how to install everything and configure the nodes on a Debian image with golang.
 
 ## To run unit tests:

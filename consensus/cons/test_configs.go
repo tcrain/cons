@@ -92,9 +92,6 @@ func RunByzTests(to types.TestOptions, consType types.ConsType, initItem consint
 	if config.AllowConcurrentTests {
 		t.Parallel()
 	}
-	to.UseFixedCoinPresets = true
-	to.UseFixedSeed = true
-
 	to.ByzType = types.HalfHalfFixedBin
 	to.MaxRounds = config.MaxRounds
 	to.NumTotalProcs = config.ProcCount
