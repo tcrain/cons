@@ -267,7 +267,7 @@ func LaunchInstanceGroups(singleZone bool, numNodes int, baseInstanceName, insta
 func UpdateInstanceTemplateInstanceType(newInstanceType, templateName, project string,
 	service *compute.Service) error {
 
-	logging.Printf("Updating instance template %v with instance type", templateName, newInstanceType)
+	logging.Printf("Updating instance template %v with instance type %v", templateName, newInstanceType)
 	// get the template
 	it, err := service.InstanceTemplates.Get(project, templateName).Do()
 	if err != nil {
