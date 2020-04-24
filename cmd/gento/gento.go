@@ -230,7 +230,6 @@ func GenBinNormalCoinSig(useCoinPresets bool, uniqueFolder bool) {
 	if useCoinPresets {
 		folderName = "s-coinpresets"
 	} else {
-		// binRndSig = []types.ConsType{types.BinConsRnd5Type, types.BinConsRnd5OldType}
 		folderName = "s-coin"
 	}
 	if uniqueFolder {

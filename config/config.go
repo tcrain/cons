@@ -24,10 +24,19 @@ package config
 
 import (
 	"encoding/binary"
+	"os"
 	"time"
 )
 
 type Logtype int
+
+var PrintMinimum bool // if true the tests wont print the configs
+
+func init() {
+	if os.Getenv("PRINT_MIN") != "" {
+		PrintMinimum = true
+	}
+}
 
 const (
 	GOLOG Logtype = iota // uses the default go logger
