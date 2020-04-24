@@ -22,7 +22,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package qsafe
 
 import (
-	"fmt"
 	"github.com/open-quantum-safe/liboqs-go/oqs"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/types"
@@ -99,7 +98,6 @@ func NewQsafePriv() (sig.Priv, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(priv.Details())
 
 	return &QsafePriv{
 		priv: priv,

@@ -269,10 +269,7 @@ func (sms *SimpleMessageState) SetupSignedMessage(hdr messages.InternalSignedMsg
 	// add the signatures
 	myVrf = mc.MC.GetMyVRF(hdr.GetMsgID())
 	_, err := sms.msgMap.setupSigs(sm, priv, generateMySig, myVrf, addOthersSigsCount, mc)
-	if err != nil {
-		return nil, err
-	}
-	return sm, nil
+	return sm, err
 }
 
 func (sms *SimpleMessageState) SetupUnsignedMessage(hdr messages.InternalSignedMsgHeader,

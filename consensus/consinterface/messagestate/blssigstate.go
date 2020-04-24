@@ -494,8 +494,10 @@ func (smm *blsSigState) setupSigs(sm *sig.MultipleSignedMessage, priv sig.Priv, 
 
 	sigCount := sm.GetSigCount()
 
-	if sigCount < maxCount {
-		panic(fmt.Sprint(sigCount, maxCount)) // sanity check
+	if addOtherSigsCount > 0 {
+		if sigCount < maxCount && sigCount < addOtherSigsCount {
+			panic(fmt.Sprint(sigCount, maxCount)) // sanity check
+		}
 	}
 	if sigCount < addOtherSigsCount {
 		err = types.ErrNotEnoughSigs
