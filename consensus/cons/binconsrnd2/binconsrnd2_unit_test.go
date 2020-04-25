@@ -59,6 +59,7 @@ type binCons1TestItems struct {
 }
 
 func createBinConsTestItems(idx types.ConsensusIndex, to types.TestOptions) *binCons1TestItems {
+	sig.SetSleepValidate(false)
 	privKeys, pubKeys := cons.MakeKeys(to)
 
 	// sci.SetTestConfig(0, binCons1UnitTestOptions)

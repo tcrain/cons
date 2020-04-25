@@ -20,13 +20,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package cons
 
 import (
+	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/config"
+	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
+	"runtime/pprof"
 	"testing"
 )
 
@@ -206,7 +209,7 @@ func RunMsgDropTest(to types.TestOptions, consType types.ConsType, initItem cons
 	}
 
 	to.NetworkType = types.P2p
-	to.FanOut = 6
+	to.FanOut = config.FanOut
 	fmt.Println("Running msg drop test with peer to peer network")
 	iter, err = NewTestOptIter(MinOptions, consConfigs, NewSingleIter(tconfig, to))
 	assert.Nil(t, err)
@@ -219,8 +222,6 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 	if config.AllowConcurrentTests {
 		t.Parallel()
 	}
-
-	to.FanOut = 6
 
 	to.MaxRounds = config.MaxRounds
 	to.GenRandBytes = true
@@ -239,6 +240,7 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 	// to.StorageType = types.Memstorage
 	to.NumTotalProcs = 30
 	to.RndMemberCount = 20
+	to.FanOut = 6
 	to.NumNonMembers = config.NonMembers
 
 	fmt.Println("Running with VRF type random member selection")
@@ -304,7 +306,7 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 	to.NumTotalProcs = config.ProcCount
 	to.ClearDiskOnRestart = false
 	to.NetworkType = types.P2p
-	to.FanOut = 5
+	to.FanOut = config.FanOut
 	to.CheckDecisions = true
 	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs)
 	to.ConnectionType = types.TCP
@@ -359,7 +361,7 @@ func RunP2pNwTests(to types.TestOptions, consType types.ConsType, initItem consi
 	to.NumTotalProcs = config.ProcCount
 	to.ClearDiskOnRestart = false
 	to.NetworkType = types.P2p
-	to.FanOut = 6
+	to.FanOut = config.FanOut
 	to.CheckDecisions = true
 	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs)
 	to.ConnectionType = types.TCP
@@ -471,7 +473,7 @@ func runIterTests(initItem consinterface.ConsItem, consConfigs ConfigOptions,
 		_, err := prv.CheckValid(prv.ConsType, consConfigs.GetIsMV())
 		assert.Nil(t, err)
 
-		RunConsType(initItem, consConfigs.GetBroadcastFunc(prv.ByzType), consConfigs, prv, t)
+		runConsDebug(initItem, consConfigs.GetBroadcastFunc(prv.ByzType), consConfigs, prv, t)
 	}
 
 	for hasNxt {
@@ -484,9 +486,25 @@ func runIterTests(initItem consinterface.ConsItem, consConfigs ConfigOptions,
 			fmt.Println("Changing config: ", prv.StringDiff(nxt))
 			_, err := nxt.CheckValid(nxt.ConsType, consConfigs.GetIsMV())
 			assert.Nil(t, err)
-			RunConsType(initItem, consConfigs.GetBroadcastFunc(nxt.ByzType), consConfigs, nxt, t)
+			runConsDebug(initItem, consConfigs.GetBroadcastFunc(nxt.ByzType), consConfigs, nxt, t)
 		}
 		prv = nxt
 	}
 
+}
+
+func runConsDebug(initItem consinterface.ConsItem,
+	broadcastFunc consinterface.ByzBroadcastFunc,
+	options ConfigOptions,
+	to types.TestOptions,
+	t assert.TestingT) {
+
+	sv := sig.SleepValidate
+	sig.SetSleepValidate(config.TestSleepValidate)
+
+	labels := pprof.Labels("consFunc", to.ConsType.String())
+	pprof.Do(context.Background(), labels, func(_ context.Context) {
+		RunConsType(initItem, broadcastFunc, options, to, t)
+	})
+	sig.SetSleepValidate(sv)
 }

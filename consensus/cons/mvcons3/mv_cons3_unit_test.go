@@ -61,7 +61,7 @@ type mvCons1TestItems struct {
 
 func createMvConsTestItems(privKeys []sig.Priv, pubKeys []sig.Pub, privKeyIdx int, idx types.ConsensusIndex,
 	to types.TestOptions) *mvCons1TestItems {
-
+	sig.SetSleepValidate(false)
 	preHeader := make([]messages.MsgHeader, 1)
 	preHeader[0] = messagetypes.NewConsMessage()
 	eis := (generalconfig.ExtraInitState)(cons.ConsInitState{IncludeProofs: to.IncludeProofs})

@@ -60,6 +60,7 @@ type binCons1TestItems struct {
 }
 
 func createBinConsTestItems(idx types.ConsensusIndex, to types.TestOptions) *binCons1TestItems {
+	sig.SetSleepValidate(false)
 	privKeys, pubKeys := cons.MakeKeys(to)
 
 	// sci.SetTestConfig(0, binCons1UnitTestOptions)
@@ -97,6 +98,7 @@ func createBinConsTestItems(idx types.ConsensusIndex, to types.TestOptions) *bin
 }
 
 func TestBinConsRnd1UnitGotMsg(t *testing.T) {
+	sig.SetSleepValidate(false)
 	for _, supportCoin := range []bool{false, true} {
 		idx := types.SingleComputeConsensusIDShort(1)
 		to := binCons1UnitTestOptions

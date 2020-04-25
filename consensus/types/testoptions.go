@@ -228,6 +228,10 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 			err = fmt.Errorf("cannot support coin when using known coin type or local coin type")
 			return
 		}
+		if consType == MvBinConsRnd1Type {
+			err = fmt.Errorf("TODO allow support coin with reduction")
+			return
+		}
 	}
 
 	if to.CoinType != NoCoinType {

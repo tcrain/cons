@@ -215,8 +215,7 @@ func (sc *BinConsRnd4) ProcessMessage(
 
 // CanSkipMvTimeout returns true if the during the multivalue reduction the echo timeout can be skipped
 func (sc *BinConsRnd4) CanSkipMvTimeout() bool {
-	return sc.getMsgState().getAuxRoundStruct(2, sc.ConsItems.MC).TotalAuxBinMsgCount >
-		sc.ConsItems.MC.MC.GetMemberCount()-sc.ConsItems.MC.MC.GetFaultCount()
+	panic("TODO")
 }
 
 // SetInitialState does noting for this algorithm.

@@ -22,6 +22,7 @@ package bincons1
 import (
 	"bytes"
 	"github.com/stretchr/testify/assert"
+	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/stats"
 	"testing"
@@ -54,6 +55,7 @@ type binCons1TestItems struct {
 }
 
 func createBinConsTestItems(idx types.ConsensusIndex, to types.TestOptions) *binCons1TestItems {
+	sig.SetSleepValidate(false)
 	privKeys, pubKeys := cons.MakeKeys(to)
 
 	// sci.SetTestConfig(0, binCons1UnitTestOptions)

@@ -27,20 +27,21 @@ import (
 
 func TestGenConfig(t *testing.T) {
 	a := make(map[types.TestOptions]bool)
-	i := NewAllConfigIter(AllTestConfig, types.TestOptions{})
+	/*	i := NewAllConfigIter(AllTestConfig, types.TestOptions{})
 
+		hasNxt := true
+		var nxt types.TestOptions
+		for hasNxt {
+			nxt, hasNxt = i.Next()
+			assert.False(t, a[nxt])
+			a[nxt] = true
+		}
+		assert.Equal(t, AllTestConfig.ComputeMaxConfigs(), len(a))*/
+
+	i := NewSingleIter(AllTestConfig, types.TestOptions{})
+	a = make(map[types.TestOptions]bool)
 	hasNxt := true
 	var nxt types.TestOptions
-	for hasNxt {
-		nxt, hasNxt = i.Next()
-		assert.False(t, a[nxt])
-		a[nxt] = true
-	}
-	assert.Equal(t, AllTestConfig.ComputeMaxConfigs(), len(a))
-
-	i = NewSingleIter(AllTestConfig, types.TestOptions{})
-	a = make(map[types.TestOptions]bool)
-	hasNxt = true
 	for hasNxt {
 		nxt, hasNxt = i.Next()
 		assert.False(t, a[nxt])

@@ -90,6 +90,7 @@ var ErrWrongMessageType = fmt.Errorf("tried to deserialize wrong message type")
 var ErrNotEnoughBytes = fmt.Errorf("not enough bytes to read")
 var ErrDecryptionFailed = fmt.Errorf("decryption failed")
 var ErrInvalidStage = fmt.Errorf("invalid message stage")
+var ErrNilMsg = fmt.Errorf("nil msg")
 
 // var ErrInvalidMsgSize = fmt.Errorf("Invalid msg size")
 

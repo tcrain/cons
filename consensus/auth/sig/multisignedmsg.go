@@ -177,9 +177,6 @@ func (sm *MultipleSignedMessage) Sign(m *messages.Message, l, offset, endOffset,
 	if sm.Hash == nil || sm.Msg == nil {
 		panic("should call FinishSerialize before sign")
 	}
-	if len(sm.SigItems) == 0 {
-		return l, nil
-	}
 	// Include any already serialized sigs in case they are included
 	for _, sigItem := range sm.SigItems {
 		if sigItem.WasEncrypted {

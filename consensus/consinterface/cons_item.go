@@ -229,6 +229,11 @@ func ProcessConsMessageList(isLocal types.LocalMessageType, unmarFunc types.Cons
 			errors = append(errors, err)
 			break
 		}
+		if len(nxt) == 0 {
+			err = types.ErrNilMsg
+			errors = append(errors, err)
+			break
+		}
 		nxtMsg := msg.NewEncodedMsgCopy(nxt)
 
 		deser, err := FinishUnwrapMessage(isLocal, hdrType, nxtMsg,
