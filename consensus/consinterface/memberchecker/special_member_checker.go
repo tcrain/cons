@@ -136,7 +136,7 @@ func (msm *MultiSigMemChecker) CheckMember(idx types.ConsensusIndex, pub sig.Pub
 			// The bitid contains an invalid index
 			return nil, types.ErrInvalidBitID
 		}
-		mrgPub.MergeBlsPubPartial(msm.originPubList[i].(*bls.Blspub))
+		mrgPub.MergePubPartial(msm.originPubList[i].(*bls.Blspub))
 	}
 	// finish the merge
 	mrgPub.DonePartialMerge(bid)

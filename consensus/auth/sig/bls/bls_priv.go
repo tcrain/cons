@@ -27,6 +27,7 @@ import (
 	"github.com/tcrain/cons/consensus/types"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/util/random"
+	"golang.org/x/crypto/blake2b"
 )
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -90,10 +91,12 @@ func (priv *Blspriv) Evaluate(m sig.SignedMessage) (index [32]byte, proof sig.VR
 		panic(err)
 	}
 	proof = VRFProof(buff.Bytes())
-	n := copy(index[:], proof.(VRFProof))
-	if n != 32 {
-		panic("error copy")
+	hf, err := blake2b.New256(nil)
+	if err != nil {
+		panic(err)
 	}
+	hf.Write(proof.(VRFProof))
+	hf.Sum(index[:0])
 	return
 }
 

@@ -21,15 +21,13 @@ package sig
 
 import (
 	"bytes"
-	"crypto/rand"
+	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
 	"math/bits"
 	"sort"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/tcrain/cons/consensus/messages"
 )
@@ -46,22 +44,6 @@ var EncryptMsgSize = 46
 var EncryptOverhead = config.EncryptOverhead // 24
 var Coin2ShareSize = 212
 
-var EncryptTestMsg []byte
-var SignTestMsg []byte
-
-func init() {
-	EncryptTestMsg = make([]byte, EncryptMsgSize)
-	_, err := rand.Read(EncryptTestMsg)
-	if err != nil {
-		panic(err)
-	}
-	SignTestMsg = make([]byte, SignMsgSize)
-	_, err = rand.Read(SignTestMsg)
-	if err != nil {
-		panic(err)
-	}
-}
-
 // var Thrshn2, Thrsht2 = 10, 4
 var TestKeyIndex = PubKeyIndex(0)
 var TestIndex types.ConsensusInt = 10
@@ -70,6 +52,143 @@ var AdditionalIndecies = []types.ConsensusID{
 	types.ConsensusHash(types.GetHash(utils.Uint64ToBytes(uint64(TestIndex + 1)))),
 	types.ConsensusHash(types.GetHash(utils.Uint64ToBytes(uint64(TestIndex + 2)))),
 	types.ConsensusHash(types.GetHash(utils.Uint64ToBytes(uint64(TestIndex + 3)))),
+}
+
+func getTime(toRun func() error, t *testing.T) testing.BenchmarkResult {
+	return testing.Benchmark(
+		func(b *testing.B) {
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if err := toRun(); err != nil {
+					panic(err)
+				}
+			}
+		})
+}
+
+func SigTestPrintStats(newPriv func() (Priv, error), t *testing.T) {
+	SetUsePubIndex(true)
+	priv, err := newPriv()
+	assert.Nil(t, err)
+
+	buff := bytes.NewBuffer(nil)
+
+	// priv := p.(*Blspriv)
+	msg := BasicSignedMessage("message to encode")
+	asig, err := priv.Sign(msg)
+	assert.Nil(t, err)
+
+	sigSize, err := asig.Encode(buff)
+	assert.Nil(t, err)
+	t.Log("sigSize", sigSize)
+	t.Log("sign time: ", getTime(func() error {
+		_, err := priv.Sign(msg)
+		return err
+	}, t))
+
+	pub := priv.GetPub()
+	pubSize, err := pub.Encode(buff)
+	assert.Nil(t, err)
+	t.Log("pubSize", pubSize)
+	t.Log("sig verify time: ", getTime(func() error {
+		ok, err := pub.VerifySig(msg, asig)
+		if !ok {
+			err = types.ErrInvalidSig
+		}
+		return err
+	}, t))
+
+	_, ti := priv.(ThreshStateInterface)
+	_, ci := priv.GetPub().(CoinProofPubInterface)
+	var privs []Priv
+	var n, nt int
+	if ti || ci {
+		n, nt = priv.(ThresholdCountInterface).GetN(), priv.(ThresholdCountInterface).GetT()
+		privs = make([]Priv, n)
+		privs[0] = priv
+		for i := 1; i < n; i++ {
+			np, err := newPriv()
+			assert.Nil(t, err)
+			privs[i] = np
+		}
+	}
+
+	if _, ok := priv.(ThreshStateInterface); ok {
+		sigItems := make([]Sig, len(privs))
+		for i := range sigItems {
+			sigItem, err := privs[i].GenerateSig(msg, nil, types.NormalSignature)
+			assert.Nil(t, err)
+			sigItems[i] = sigItem.Sig
+		}
+
+		t.Logf("combine %v thresh shares time: %v", nt, getTime(func() error {
+			_, err = privs[0].(ThreshStateInterface).CombinePartialSigs(sigItems)
+			return err
+		}, t))
+
+	}
+
+	if cp, ok := pub.(CoinProofPubInterface); ok {
+		si, err := priv.GenerateSig(msg, nil, types.CoinProof)
+		assert.Nil(t, err)
+		shareSize, err := si.Sig.Encode(buff)
+		assert.Nil(t, err)
+		t.Log("coinShareSize", shareSize)
+		t.Log("coin share gen time: ", getTime(func() error {
+			_, err := priv.GenerateSig(msg, nil, types.CoinProof)
+			return err
+		}, t))
+
+		t.Log("coin share verify time: ", getTime(func() error {
+			return cp.CheckCoinProof(msg, si.Sig)
+		}, t))
+
+		sigItems := make([]*SigItem, len(privs))
+		for i := range sigItems {
+			sigItems[i], err = privs[i].GenerateSig(msg, nil, types.CoinProof)
+			assert.Nil(t, err)
+		}
+
+		t.Logf("combine coin %v shares time: %v", nt, getTime(func() error {
+			_, err = privs[0].GetPub().(CoinProofPubInterface).CombineProofs(privs[0], sigItems)
+			return err
+		}, t))
+	}
+
+	if pv, ok := priv.(VRFPriv); ok {
+		_, prf := pv.Evaluate(msg)
+		vrfSize, err := prf.Encode(buff)
+		assert.Nil(t, err)
+		t.Log("vrfSize", vrfSize)
+		t.Log("vrf gen time: ", getTime(func() error {
+			_, _ = pv.Evaluate(msg)
+			return nil
+		}, t))
+
+		t.Log("vrf verify time: ", getTime(func() error {
+			_, err := pub.(VRFPub).ProofToHash(msg, prf)
+			return err
+		}, t))
+	}
+
+	if GetUseMultisig() {
+		if pb, ok := pub.(MultiPub); ok {
+			priv2, err := newPriv()
+			assert.Nil(t, err)
+			priv.SetIndex(1)
+			priv2.SetIndex(2)
+			nwpb, err := pb.MergePub(priv2.GetPub().(MultiPub))
+			assert.Nil(t, err)
+			pbSize, err := nwpb.(Pub).Encode(buff)
+			t.Log("mgPub", pbSize)
+
+			t.Log("multi merge time: ", getTime(func() error {
+				_, err := pb.MergePub(priv2.GetPub().(MultiPub))
+				return err
+			}, t))
+		}
+	}
+
 }
 
 func SigTestComputeSharedSecret(newPriv func() (Priv, error), t *testing.T) {
@@ -144,7 +263,7 @@ func SigTestRand(newPriv func() (Priv, error), t *testing.T) {
 		assert.True(t, valid)
 		assert.Nil(t, err)
 
-		binCount[sig.GetRand()]++
+		binCount[sig.(ThrshSig).GetRand()]++
 	}
 	// This can fail because of randomness
 	assert.True(t, binCount[0] > 30)
@@ -157,17 +276,26 @@ func SigTestVRF(newPriv func() (Priv, error), t *testing.T) {
 	defer priv.Clean()
 	pub := priv.GetPub()
 
-	msg := BasicSignedMessage("message to encode")
-	index, proof := priv.Evaluate(msg)
+	priv2, err := newPriv()
+	assert.Nil(t, err)
+	defer priv2.Clean()
+	priv2.SetIndex(1)
 
-	indexCheck, err := pub.ProofToHash(msg, proof)
+	msg := BasicSignedMessage("message to encode")
+	index, proof := priv.(VRFPriv).Evaluate(msg)
+	indexP2, proofP2 := priv2.(VRFPriv).Evaluate(msg)
+
+	assert.NotEqual(t, index, indexP2)
+	assert.NotEqual(t, proof, proofP2)
+
+	indexCheck, err := pub.(VRFPub).ProofToHash(msg, proof)
 	assert.Nil(t, err)
 	assert.Equal(t, index, indexCheck)
 
 	msg2 := BasicSignedMessage("message to encode 2")
-	index2, proof2 := priv.Evaluate(msg2)
+	index2, proof2 := priv.(VRFPriv).Evaluate(msg2)
 
-	indexCheck2, err := pub.ProofToHash(msg2, proof2)
+	indexCheck2, err := pub.(VRFPub).ProofToHash(msg2, proof2)
 	assert.Nil(t, err)
 	assert.Equal(t, index2, indexCheck2)
 
@@ -241,10 +369,12 @@ func SigTestSign(newPriv func() (Priv, error), signType types.SignType, t *testi
 	assert.Nil(t, err)
 	assert.True(t, v)
 
-	asig.Sig.Corrupt()
-	v, err = verifyFunc(msg, asig.Sig)
-	// assert.Nil(t, err)
-	assert.False(t, v)
+	if ci, ok := asig.Sig.(CorruptInterface); ok {
+		ci.Corrupt()
+		v, err = verifyFunc(msg, asig.Sig)
+		// assert.Nil(t, err)
+		assert.False(t, v)
+	}
 
 	v, err = verifyFunc(msg, asig2.Sig)
 	assert.Nil(t, err)
@@ -316,10 +446,11 @@ func SigTestSerialize(newPriv func() (Priv, error), signType types.SignType, t *
 	hdrs := make([]messages.MsgHeader, 2)
 	hdrs[0] = pub
 	if signType == types.CoinProof {
-		hdrs[1] = asig.CoinProof
+		assert.NotNil(t, asig.Sig)
 	} else {
-		hdrs[1] = asig.Sig
+		assert.NotNil(t, asig.Sig)
 	}
+	hdrs[1] = asig.Sig
 
 	buff, err := messages.CreateMsg(hdrs)
 	assert.Nil(t, err)
@@ -363,7 +494,7 @@ func SigTestSerialize(newPriv func() (Priv, error), signType types.SignType, t *
 	ht, err = msg.PeekHeaderType()
 	assert.Nil(t, err)
 	if signType == types.CoinProof {
-		assert.Equal(t, asig.CoinProof.GetID(), ht)
+		assert.Equal(t, asig.Sig.GetID(), ht)
 	} else {
 		assert.Equal(t, asig.Sig.GetID(), ht)
 	}
@@ -400,20 +531,20 @@ func SigTestSerialize(newPriv func() (Priv, error), signType types.SignType, t *
 		assert.True(t, v)
 		//}
 	} else {
-		coinProof2 := asig.CoinProof.New()
+		coinProof2 := priv.GetPub().(CoinProofPubInterface).NewCoinProof()
 		_, err = coinProof2.Deserialize(msg, types.IntIndexFuns)
 		assert.Nil(t, err)
 
 		coinProof3, err := priv.GenerateSig(mockMsg, nil, signType)
 		assert.Nil(t, err)
 
-		err = pub2.(CoinProofPubInterface).CheckCoinProof(mockMsg, asig.CoinProof)
+		err = pub2.(CoinProofPubInterface).CheckCoinProof(mockMsg, asig.Sig)
 		assert.Nil(t, err)
 
 		err = pub2.(CoinProofPubInterface).CheckCoinProof(mockMsg, coinProof2)
 		assert.Nil(t, err)
 
-		err = pub2.(CoinProofPubInterface).CheckCoinProof(mockMsg, coinProof3.CoinProof)
+		err = pub2.(CoinProofPubInterface).CheckCoinProof(mockMsg, coinProof3.Sig)
 		assert.Nil(t, err)
 
 	}
@@ -747,13 +878,85 @@ func TestPartThrsh(privFunc func() (Priv, error), signType types.SignType, tval,
 			assert.Nil(t, err)
 			assert.True(t, valid)
 
-			thrshSig.Sig.Corrupt()
+			thrshSig.Sig.(CorruptInterface).Corrupt()
 			valid, err = thrsh.GetSharedPub().VerifySig(msg, thrshSig.Sig)
 			assert.NotNil(t, err)
 			assert.False(t, valid)
 		}
 	}
 
+}
+
+var multiSigCount = 10
+
+func TestSigMerge(newPriv func() (Priv, error), t *testing.T) {
+
+	privs := make([]Priv, multiSigCount)
+	sigs := make([]Sig, multiSigCount)
+	sigMsg := []byte("sign this message")
+	hash := types.GetHash(sigMsg)
+	toSign := &MultipleSignedMessage{Hash: hash, Msg: sigMsg}
+
+	var err error
+	for i := range privs {
+		privs[i], err = newPriv()
+		assert.Nil(t, err)
+
+		sigs[i], err = privs[i].Sign(toSign)
+		assert.Nil(t, err)
+
+		pub := privs[i].GetPub()
+		pub.SetIndex(PubKeyIndex(i))
+
+		msg := &MultipleSignedMessage{Hash: hash, Msg: sigMsg}
+		v, err := pub.VerifySig(msg, sigs[i])
+		assert.Nil(t, err)
+		assert.True(t, v)
+	}
+
+	mergeSig := sigs[0]
+	mergePub := privs[0].GetPub()
+	for i := 1; i < multiSigCount; i++ {
+		newMergeSig, err := mergeSig.(AllMultiSig).MergeSig(sigs[i].(MultiSig))
+		assert.Nil(t, err)
+		mergeSig = newMergeSig.(AllMultiSig)
+
+		newMergePub, err := mergePub.(MultiPub).MergePub(privs[i].GetPub().(MultiPub))
+		assert.Nil(t, err)
+		mergePub = newMergePub.(AllMultiPub)
+
+		msg := &MultipleSignedMessage{Hash: hash, Msg: sigMsg}
+		v, err := mergePub.(AllMultiPub).VerifySig(msg, mergeSig.(AllMultiSig))
+		assert.Nil(t, err)
+		assert.True(t, v)
+	}
+
+	subSig := mergeSig
+	subPub := mergePub
+	for i := 1; i < multiSigCount; i++ {
+		newSubSig, err := subSig.(AllMultiSig).SubSig(sigs[i].(AllMultiSig))
+		assert.Nil(t, err)
+		subSig = newSubSig.(AllMultiSig)
+
+		newSubPub, err := subPub.(MultiPub).SubMultiPub(privs[i].GetPub().(MultiPub))
+		assert.Nil(t, err)
+		subPub = newSubPub.(AllMultiPub)
+
+		msg := &MultipleSignedMessage{Hash: hash, Msg: sigMsg}
+		v, err := subPub.VerifySig(msg, subSig)
+		assert.Nil(t, err)
+		assert.True(t, v)
+	}
+
+	msg := &MultipleSignedMessage{Hash: hash, Msg: sigMsg}
+	v, err := subPub.VerifySig(msg, sigs[0])
+	assert.Nil(t, err)
+	assert.True(t, v)
+
+	msg = &MultipleSignedMessage{Hash: hash, Msg: sigMsg}
+	v, err = privs[0].GetPub().VerifySig(msg, subSig)
+	assert.Nil(t, err)
+	assert.True(t, v)
 }
 
 func RunFuncWithConfigSetting(toRun func(), usePubIndex types.BoolSetting, useMultisig types.BoolSetting,

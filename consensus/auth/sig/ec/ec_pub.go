@@ -24,7 +24,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"github.com/google/keytransparency/core/crypto/vrf/p256"
-	"github.com/tcrain/cons/consensus/auth/coinproof"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/types"
 	"io"
@@ -83,7 +82,7 @@ func (pub *Ecpub) CheckSignature(msg *sig.MultipleSignedMessage, sigItem *sig.Si
 
 	// Check if this is a coin proof or a signature
 	signType := msg.GetSignType()
-	if signType == types.CoinProof || sigItem.CoinProof != nil {
+	if signType == types.CoinProof {
 		return types.ErrCoinProofNotSupported
 	}
 	valid, err := pub.VerifySig(msg, sigItem.Sig)
@@ -99,10 +98,6 @@ func (pub *Ecpub) CheckSignature(msg *sig.MultipleSignedMessage, sigItem *sig.Si
 // NewVRFProof returns an empty VRFProof object, and is not supported for ed.
 func (pub *Ecpub) NewVRFProof() sig.VRFProof {
 	return VRFProof(make([]byte, ecVRFlen))
-}
-
-func (*Ecpub) DeserializeCoinProof(*messages.Message) (coinProof *coinproof.CoinProof, size int, err error) {
-	panic("unsupported")
 }
 
 // FromPubBytes generates an ECDSA public key object from the bytes of a public key

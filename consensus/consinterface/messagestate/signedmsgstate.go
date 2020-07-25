@@ -524,24 +524,8 @@ func joinSigs(sigms *signedMsgState, addOthersSigsCount int, priv sig.Priv, mc *
 			panic(err)
 		}
 
-		if thrsh, ok := priv.GetPub().(sig.CoinProofPubInterface); ok && signType == types.CoinProof { // We use a coin proof
-			// thrsh := priv.GetPub().(sig.CoinProofPubInterface)
-			t := thrsh.GetT()
-			if sigms.coinVal == nil && len(sigms.SigMap) >= t {
-				var coinSigs []*sig.SigItem
-				for _, nxt := range sigms.SigMap {
-					coinSigs = append(coinSigs, nxt)
-				}
-				if sigms.coinVal == nil {
-					coinVal, err := thrsh.CombineProofs(coinSigs)
-					if err != nil {
-						panic(err)
-					}
-					sigms.coinVal = &coinVal
-					mc.MC.GetStats().ComputedCoin()
-				}
-			}
-		} else if thrsh, ok := priv.(sig.ThreshStateInterface); ok { // We use a threshold signature
+		// Check if this is a threshold signature, or a coin threshold message
+		if thrsh, ok := priv.(sig.ThreshStateInterface); ok { // We use a threshold signature
 			// add threshold sigs first
 			if tSig := sigms.thrshSig; tSig != nil {
 				sigItems = append(sigItems, tSig)
@@ -570,6 +554,23 @@ func joinSigs(sigms *signedMsgState, addOthersSigsCount int, priv sig.Priv, mc *
 					sigms.thrshSigCount = tSig.Pub.GetSigMemberNumber()
 					sigItems = append(sigItems, tSig)
 					totalCount += tSig.Pub.GetSigMemberNumber()
+				}
+			}
+		} else if thrsh, ok := priv.GetPub().(sig.CoinProofPubInterface); ok && signType == types.CoinProof { // We use a coin proof
+			// thrsh := priv.GetPub().(sig.CoinProofPubInterface)
+			t := thrsh.GetT()
+			if sigms.coinVal == nil && len(sigms.SigMap) >= t {
+				var coinSigs []*sig.SigItem
+				for _, nxt := range sigms.SigMap {
+					coinSigs = append(coinSigs, nxt)
+				}
+				if sigms.coinVal == nil {
+					coinVal, err := thrsh.CombineProofs(priv, coinSigs)
+					if err != nil {
+						panic(err)
+					}
+					sigms.coinVal = &coinVal
+					mc.MC.GetStats().ComputedCoin()
 				}
 			}
 		}

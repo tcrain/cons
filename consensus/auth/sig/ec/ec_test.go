@@ -39,6 +39,11 @@ import (
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+func TestECPrintStats(t *testing.T) {
+	t.Log("EC stats")
+	sig.SigTestPrintStats(NewEcpriv, t)
+}
+
 func TestEcSharedSecret(t *testing.T) {
 	sig.RunFuncWithConfigSetting(func() { sig.SigTestComputeSharedSecret(NewEcpriv, t) },
 		types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)

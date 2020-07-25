@@ -46,11 +46,6 @@ func (pub *QsafePub) ShallowCopy() sig.Pub {
 	return &newPub
 }
 
-// NewVRFProof is not supported.
-func (pub *QsafePub) NewVRFProof() sig.VRFProof {
-	panic("VRF not supported")
-}
-
 // CheckSignature validates the signature with the public key, it returns an error if a coin proof is included.
 func (pub *QsafePub) CheckSignature(msg *sig.MultipleSignedMessage, sigItem *sig.SigItem) error {
 
@@ -154,11 +149,6 @@ func (pub *QsafePub) VerifySig(msg sig.SignedMessage, aSig sig.Sig) (bool, error
 	default:
 		return false, types.ErrInvalidSigType
 	}
-}
-
-// ProofToHash is not supported.
-func (pub *QsafePub) ProofToHash(m sig.SignedMessage, proof sig.VRFProof) (index [32]byte, err error) {
-	panic("VRF not supported")
 }
 
 // GetRealPubBytes returns the pub key as bytes (same as GetPubBytes for keys)

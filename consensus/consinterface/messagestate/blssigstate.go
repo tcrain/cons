@@ -37,8 +37,8 @@ import (
 )
 
 type blsSigItem struct {
-	pub      *bls.Blspub
-	sig      *bls.Blssig
+	pub      sig.AllMultiPub // *bls.Blspub
+	sig      sig.AllMultiSig // *bls.Blssig
 	proof    sig.VRFProof
 	sigBytes *[]byte
 }
@@ -380,7 +380,7 @@ func (smm *blsSigState) storeMsg(sm *sig.MultipleSignedMessage, invalidSigs []*s
 				// itemID.allSigs = sig.MergeBitIDType(itemID.allSigs, newBid, false)
 			}
 
-			item.fullSigList = append(item.fullSigList, &blsSigItem{pub: si.Pub.(*bls.Blspub),
+			item.fullSigList = append(item.fullSigList, &blsSigItem{pub: si.Pub.(sig.AllMultiPub),
 				sig: si.Sig.(*bls.Blssig), proof: si.VRFProof, sigBytes: &si.SigBytes})
 
 			// add it to the list of valids
@@ -524,16 +524,16 @@ func (ss *blsSigMsgState) checkSubSig(item *blsSigItem) {
 			if len(dupBid.CheckIntersection(nxt.pub.GetBitID())) == nxt.pub.GetBitID().GetNumItems() {
 				// panic(1)
 				// we can sub
-				newPub, err := bls.SubBlsPub(item.pub, nxt.pub)
+				newPub, err := item.pub.SubMultiPub(nxt.pub)
 				if err != nil {
 					panic(err)
 				}
-				newSig, err := bls.SubBlsSig(item.sig, nxt.sig)
+				newSig, err := item.sig.SubSig(nxt.sig)
 				if err != nil {
 					panic(err)
 				}
-				item.pub = newPub
-				item.sig = newSig
+				item.pub = newPub.(sig.AllMultiPub)
+				item.sig = newSig.(sig.AllMultiSig)
 				didSub = true
 				// we did a sub so we loop again from the beginning
 				break
@@ -710,18 +710,20 @@ func (ss *blsSigMsgState) createMergedSig(internalItemList []*blsSigItem, mc *co
 	// TODO merge at once1!!!
 
 	for _, nxtSigItem := range internalItemList[1:] {
-		comSig, err = bls.MergeBlsSig(comSig, nxtSigItem.sig)
+		newComSig, err := comSig.MergeSig(nxtSigItem.sig)
 		if err != nil {
 			panic(err)
 		}
+		comSig = newComSig.(sig.AllMultiSig)
 		// smc := mc.GetSpecialMemberChecker().(*MultiSigMemChecker)
 
 		// newPub := smc.getPub(sig.PubKeyID(sig.MergeBitIDType(comPub.GetBitID(), nxtSigItem.pub.GetBitID(), true).GetStr()))
 		//if newPub == nil {
-		comPub, err = bls.MergeBlsPub(comPub, nxtSigItem.pub)
+		newComPub, err := comPub.MergePub(nxtSigItem.pub)
 		if err != nil {
 			panic(err)
 		}
+		comPub = newComPub.(sig.AllMultiPub)
 		// So we generate the bitID
 		// _, err := newPub.InformState(nil)
 		// if err != nil {

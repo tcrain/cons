@@ -22,7 +22,6 @@ package bls
 import (
 	"bytes"
 	"fmt"
-	"github.com/tcrain/cons/consensus/auth/coinproof"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
@@ -105,7 +104,7 @@ func (priv *PartPriv) Sign(msg sig.SignedMessage) (sig.Sig, error) {
 
 // GenerateSig signs a message and returns the SigItem object containing the signature
 func (priv *PartPriv) GenerateSig(header sig.SignedMessage, vrfProof sig.VRFProof,
-	_ types.SignType) (*sig.SigItem, error) {
+	st types.SignType) (*sig.SigItem, error) {
 
 	m := messages.NewMessage(nil)
 	if err := sig.CheckSerVRF(vrfProof, m); err != nil {
@@ -202,31 +201,53 @@ func (pub *SharedPub) ShallowCopy() sig.Pub {
 
 type PartPub struct {
 	Blspub
-	idx sig.PubKeyIndex
+	idx  sig.PubKeyIndex
+	n, t int
+}
+
+// NewCoinProof returns an empty BLS partial signature object.
+func (bpp *PartPub) NewCoinProof() sig.CoinProof {
+	return (&PartSig{}).New()
+}
+
+// Get the number of signatures needed for the threshold.
+func (bpp *PartPub) GetT() int {
+	return bpp.t
+}
+
+// Get the number of participants.
+func (bpp *PartPub) GetN() int {
+	return bpp.n
+}
+
+// CombineProofs combines the signatures to get a random binary value.
+func (bpp *PartPub) CombineProofs(myPriv sig.Priv, items []*sig.SigItem) (coinVal types.BinVal, err error) {
+	ps := make([]sig.Sig, len(items))
+	for i, nxt := range items {
+		ps[i] = nxt.Sig
+	}
+	var si *sig.SigItem
+	if si, err = myPriv.(*PartPriv).CombinePartialSigs(ps); err != nil {
+		return
+	}
+	coinVal = si.Sig.(*Blssig).GetRand()
+	return
+}
+
+func NewBlsPartPub(idx sig.PubKeyIndex, n, t int, p kyber.Point) *PartPub {
+	pub := Blspub{pub: p, newPub: p}
+	pub.SetIndex(idx)
+	return &PartPub{
+		Blspub: pub,
+		idx:    idx,
+		n:      n,
+		t:      t}
 }
 
 // Shallow copy makes a copy of the object without following pointers.
 func (bpp *PartPub) ShallowCopy() sig.Pub {
 	newPub := *bpp
 	return &newPub
-}
-
-// func (pub *BlsPartPub) FromPubBytes(b PubKeyBytes) (Pub, error) {
-// 	newPub, err := pub.Blspub.FromPubBytes(b)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return &BlsPartPub{
-// 		Blspub: newPub,
-// 		idx:
-// }
-
-func NewBlsPartPub(idx sig.PubKeyIndex, p kyber.Point) *PartPub {
-	pub := Blspub{pub: p, newPub: p}
-	pub.SetIndex(idx)
-	return &PartPub{
-		Blspub: pub,
-		idx:    idx}
 }
 
 // New generates an empty Blspub object
@@ -246,14 +267,23 @@ func (bpp *PartPub) GetIndex() sig.PubKeyIndex {
 	return bpp.idx
 }
 
+// CheckCoinProof calls VerifySignature since coin proofs are signatures here.
+func (bpp *PartPub) CheckCoinProof(msg sig.SignedMessage, prf sig.CoinProof) error {
+	valid, err := bpp.VerifySig(msg, prf.(sig.Sig))
+	if err != nil {
+		return err
+	}
+	if !valid {
+		return types.ErrInvalidSig
+	}
+	return nil
+}
+
 // CheckSignature validates the partial threshold signature with the public key, it returns an error if a coin proof is included.
 // Coin messages are verified as partial threshold signatures.
 func (bpp *PartPub) CheckSignature(msg *sig.MultipleSignedMessage, sigItem *sig.SigItem) error {
 
 	// Check if this is a coin proof or a signature
-	if sigItem.CoinProof != nil {
-		return types.ErrCoinProofNotSupported
-	}
 	valid, err := bpp.VerifySig(msg, sigItem.Sig)
 	if err != nil {
 		return err
@@ -279,10 +309,6 @@ func (bpp *PartPub) VerifySig(msg sig.SignedMessage, asig sig.Sig) (bool, error)
 	default:
 		return false, types.ErrInvalidSigType
 	}
-}
-
-func (bpp *PartPub) DeserializeCoinProof(_ *messages.Message) (coinProof *coinproof.CoinProof, size int, err error) {
-	panic("unsupported")
 }
 
 // DeserializeSig takes a message and returns a BLS public key object and partial signature object as well as the number of bytes read

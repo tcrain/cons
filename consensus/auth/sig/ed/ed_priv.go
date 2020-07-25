@@ -109,11 +109,6 @@ func (priv *Edpriv) GetBaseKey() sig.Priv {
 	return priv
 }
 
-// Evaluate is for generating VRFs and not supported for ed.
-func (priv *Edpriv) Evaluate(m sig.SignedMessage) (index [32]byte, proof sig.VRFProof) {
-	panic("unsupported")
-}
-
 // GetPub returns the coreesponding EDDSA public key object
 func (priv *Edpriv) GetPub() sig.Pub {
 	return priv.pub

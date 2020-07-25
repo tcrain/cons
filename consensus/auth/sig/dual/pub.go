@@ -29,6 +29,7 @@ import (
 
 type DualPub struct {
 	sig.Pub
+	sig.VRFPub
 	pub2            sig.Pub
 	useForCoin      types.SignType
 	useForSecondary types.SignType
@@ -36,17 +37,24 @@ type DualPub struct {
 
 // New creates a new empty DualPub object.
 func (dpp *DualPub) New() sig.Pub {
-	return &DualPub{
+	ret := &DualPub{
 		Pub:             dpp.Pub.New(),
 		pub2:            dpp.pub2.New(),
 		useForCoin:      dpp.useForCoin,
 		useForSecondary: dpp.useForSecondary,
 	}
+	if vrfp, ok := ret.Pub.(sig.VRFPub); ok {
+		ret.VRFPub = vrfp
+	}
+	return ret
 }
 
 func (pub *DualPub) SetPubs(pub1, pub2 sig.Pub) {
 	pub.Pub = pub1
 	pub.pub2 = pub2
+	if vrfp, ok := pub.Pub.(sig.VRFPub); ok {
+		pub.VRFPub = vrfp
+	}
 }
 
 func (pub *DualPub) DeserializeSig(m *messages.Message, signType types.SignType) (*sig.SigItem, int, error) {
@@ -149,6 +157,9 @@ func (dpp *DualPub) FromPubBytes(inBuff sig.PubKeyBytes) (sig.Pub, error) {
 		return nil, err
 	}
 	ret.Pub = p1
+	if vrfp, ok := ret.Pub.(sig.VRFPub); ok {
+		ret.VRFPub = vrfp
+	}
 	ret.pub2 = p2
 	return ret, nil
 }

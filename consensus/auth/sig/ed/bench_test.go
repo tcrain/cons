@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package ed
 
 import (
+	"crypto/rand"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/types"
@@ -32,10 +33,18 @@ import (
 	"go.dedis.ch/kyber/v3/util/key"
 )
 
-var sigMsg = sig.SignTestMsg
+var sigMsg []byte
+
+func init() {
+	sigMsg = make([]byte, sig.SignMsgSize)
+	_, err := rand.Read(sigMsg)
+	if err != nil {
+		panic(err)
+	}
+}
 
 func initBench() {
-	thrshdssshare = NewDSSShared(*thrshn, 0, *thrsht)
+	thrshdssshare = NewCoinShared(*thrshn, 0, *thrsht)
 }
 
 // BenchmarkEdCoinVerify measures the time to generate a coin, including verifying shares
@@ -60,10 +69,10 @@ func BenchmarkEdCoinVerify(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for j, nxt := range sigItems[:*thrsht] {
-			err = privs[j].GetPub().(sig.CoinProofPubInterface).CheckCoinProof(msg, nxt.CoinProof)
+			err = privs[j].GetPub().(sig.CoinProofPubInterface).CheckCoinProof(msg, nxt.Sig)
 			assert.Nil(b, err)
 		}
-		_, err = privs[0].GetPub().(sig.CoinProofPubInterface).CombineProofs(sigItems)
+		_, err = privs[0].GetPub().(sig.CoinProofPubInterface).CombineProofs(privs[0], sigItems)
 		assert.Nil(b, err)
 	}
 
@@ -90,7 +99,7 @@ func BenchmarkEdCoinGen(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = privs[0].GetPub().(sig.CoinProofPubInterface).CombineProofs(sigItems)
+		_, err = privs[0].GetPub().(sig.CoinProofPubInterface).CombineProofs(privs[0], sigItems)
 		assert.Nil(b, err)
 	}
 
@@ -132,7 +141,7 @@ func BenchmarkCoinShares(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err = pub.CheckCoinProof(msg, sigItems.CoinProof)
+		err = pub.CheckCoinProof(msg, sigItems.Sig)
 		assert.Nil(b, err)
 	}
 }

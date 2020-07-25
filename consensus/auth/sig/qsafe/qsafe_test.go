@@ -36,6 +36,11 @@ import (
 }
 */
 
+func TestQsafePrintStats(t *testing.T) {
+	t.Log("Qsafe stats")
+	sig.SigTestPrintStats(NewQsafePriv, t)
+}
+
 func TestQsafeEncode(t *testing.T) {
 	sig.RunFuncWithConfigSetting(func() { sig.SigTestEncode(NewQsafePriv, t) },
 		types.WithFalse, types.WithFalse, types.WithFalse, types.WithBothBool)

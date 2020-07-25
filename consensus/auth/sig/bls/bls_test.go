@@ -79,13 +79,13 @@ func TestBLS3(t *testing.T) {
 		newPk := oldPubList[i].Clone().Mul(hpk, oldPubList[i])
 
 		// create the sig
-		sig, err := bls.Sign(suite, privList[i], msg)
+		asig, err := bls.Sign(suite, privList[i], msg)
 		assert.Nil(t, err)
-		err = bls.Verify(suite, oldPubList[i], msg, sig)
+		err = bls.Verify(suite, oldPubList[i], msg, asig)
 		assert.Nil(t, err)
 
 		s := suite.G1().Point()
-		err = s.UnmarshalBinary(sig)
+		err = s.UnmarshalBinary(asig)
 		assert.Nil(t, err)
 
 		newSig := s.Mul(hpk, s)
@@ -162,13 +162,13 @@ func TestBLS2(t *testing.T) {
 
 	for i := 0; i < sigCount; i++ {
 		private, public := bls.NewKeyPair(suite, random.New())
-		sig, err := bls.Sign(suite, private, msg)
+		asig, err := bls.Sign(suite, private, msg)
 		assert.Nil(t, err)
-		err = bls.Verify(suite, public, msg, sig)
+		err = bls.Verify(suite, public, msg, asig)
 		assert.Nil(t, err)
 
 		s := suite.G1().Point()
-		err = s.UnmarshalBinary(sig)
+		err = s.UnmarshalBinary(asig)
 		assert.Nil(t, err)
 
 		// create the new public key
@@ -190,6 +190,9 @@ func TestBLS2(t *testing.T) {
 		sigList = append(sigList, newSig)
 	}
 
+	if len(pubList) == 0 || len(sigList) == 0 {
+		panic("should not be nil")
+	}
 	msPub := pubList[0].Clone()
 	msSig := sigList[0].Clone()
 	sigbyt, err := sigList[0].MarshalBinary()
@@ -240,15 +243,15 @@ func TestBLS(t *testing.T) {
 	var sigList []kyber.Point
 	for i := 0; i < sigCount; i++ {
 		private, public := bls.NewKeyPair(suite, random.New())
-		sig, err := bls.Sign(suite, private, msg)
+		asig, err := bls.Sign(suite, private, msg)
 		assert.Nil(t, err)
-		err = bls.Verify(suite, public, msg, sig)
+		err = bls.Verify(suite, public, msg, asig)
 		assert.Nil(t, err)
 
 		pubList = append(pubList, public)
 
 		s2 := suite.G1().Point()
-		err = s2.UnmarshalBinary(sig)
+		err = s2.UnmarshalBinary(asig)
 		assert.Nil(t, err)
 		sigList = append(sigList, s2)
 
@@ -256,6 +259,9 @@ func TestBLS(t *testing.T) {
 		assert.Nil(t, err)
 		err = bls.Verify(suite, public, msg, msig)
 		assert.Nil(t, err)
+	}
+	if len(pubList) == 0 || len(sigList) == 0 {
+		panic("should not be nil")
 	}
 	msPub := pubList[0].Clone()
 	msSig := sigList[0].Clone()
@@ -360,14 +366,16 @@ func TestBlsMerge(t *testing.T) {
 	mergeSig := sigs[0]
 	mergePub := privs[0].GetPub()
 	for i := 1; i < multiSigCount; i++ {
-		mergeSig, err = MergeBlsSig(mergeSig.(*Blssig), sigs[i].(*Blssig))
+		newMergeSig, err := mergeSig.(sig.AllMultiSig).MergeSig(sigs[i].(sig.MultiSig))
 		assert.Nil(t, err)
+		mergeSig = newMergeSig.(sig.AllMultiSig)
 
-		mergePub, err = MergeBlsPub(mergePub.(*Blspub), privs[i].GetPub().(*Blspub))
+		newMergePub, err := mergePub.(sig.MultiPub).MergePub(privs[i].GetPub().(sig.MultiPub))
 		assert.Nil(t, err)
+		mergePub = newMergePub.(sig.AllMultiPub)
 
 		msg := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
-		v, err := mergePub.VerifySig(msg, mergeSig)
+		v, err := mergePub.(sig.AllMultiPub).VerifySig(msg, mergeSig.(sig.AllMultiSig))
 		assert.Nil(t, err)
 		assert.True(t, v)
 	}
@@ -375,11 +383,13 @@ func TestBlsMerge(t *testing.T) {
 	subSig := mergeSig
 	subPub := mergePub
 	for i := 1; i < multiSigCount; i++ {
-		subSig, err = SubBlsSig(subSig.(*Blssig), sigs[i].(*Blssig))
+		newSubSig, err := subSig.(sig.AllMultiSig).SubSig(sigs[i].(sig.AllMultiSig))
 		assert.Nil(t, err)
+		subSig = newSubSig.(sig.AllMultiSig)
 
-		subPub, err = SubBlsPub(subPub.(*Blspub), privs[i].GetPub().(*Blspub))
+		newSubPub, err := subPub.(sig.MultiPub).SubMultiPub(privs[i].GetPub().(sig.MultiPub))
 		assert.Nil(t, err)
+		subPub = newSubPub.(sig.AllMultiPub)
 
 		msg := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
 		v, err := subPub.VerifySig(msg, subSig)
@@ -401,6 +411,12 @@ func TestBlsMerge(t *testing.T) {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestBlsPrintStats(t *testing.T) {
+	t.Log("BLS stats")
+	sig.RunFuncWithConfigSetting(func() { sig.SigTestPrintStats(NewBlspriv, t) },
+		types.WithFalse, types.WithBothBool, types.WithTrue, types.WithFalse)
+}
 
 func TestBlsSharedSecret(t *testing.T) {
 	sig.RunFuncWithConfigSetting(func() { sig.SigTestComputeSharedSecret(NewBlspriv, t) },
@@ -455,4 +471,9 @@ func TestBlsMultiSignTestMsgSerialize(t *testing.T) {
 func TestBlsSignTestMsgSerialize(t *testing.T) {
 	sig.RunFuncWithConfigSetting(func() { sig.SigTestSignTestMsgSerialize(NewBlspriv, t) },
 		types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+}
+
+func TestBlsSignMerge(t *testing.T) {
+	sig.RunFuncWithConfigSetting(func() { sig.TestSigMerge(NewBlspriv, t) },
+		types.WithBothBool, types.WithBothBool, types.WithTrue, types.WithBothBool)
 }

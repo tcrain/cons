@@ -29,7 +29,7 @@ type PregInterface interface {
 	GenBlsShared(idx, numThresh int) error
 	GetBlsShared(idx int) (index int, blsShared *bls.BlsSharedMarshal)
 	GenDSSShared(numNonNumbers, numThresh int) error
-	GetDSSShared() ed.DSSSharedMarshaled
+	GetDSSShared() ed.CoinSharedMarshaled
 	//RegisterThrshKey(key sig.PubKeyStr, index int) error
 	//GetAllThrshKey() sig.PubKeyStrList
 	RegisterParticipant(parInfo *ParticipantInfo) error

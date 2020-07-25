@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package coinproof
 
 import (
+	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
 	"go.dedis.ch/kyber/v3"
@@ -39,7 +40,7 @@ func EmptyCoinProof(suite dleq.Suite) *CoinProof {
 	return &CoinProof{suite: suite, newScalar: suite.Scalar, newPoint: suite.Point}
 }
 
-func (cp *CoinProof) New() *CoinProof {
+func (cp *CoinProof) New() sig.Sig {
 	return EmptyCoinProof(cp.suite)
 }
 

@@ -46,11 +46,6 @@ func (sig *Ecsig) New() sig.Sig {
 	return &Ecsig{}
 }
 
-// GetRand is unsupported.
-func (sig *Ecsig) GetRand() types.BinVal {
-	panic("unsupported")
-}
-
 // PeekHeader returns the indices related to the messages without impacting m.
 func (*Ecsig) PeekHeaders(m *messages.Message, unmarFunc types.ConsensusIndexFuncs) (index types.ConsensusIndex, err error) {
 	_ = unmarFunc // we want a nil unmarFunc
@@ -114,12 +109,7 @@ func (sig *Ecsig) Serialize(m *messages.Message) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	// _, l1 := (*messages.MsgBuffer)(m).AddBigInt(sig.r)
-	// _, l2 := (*messages.MsgBuffer)(m).AddBigInt(sig.s)
-	// err := (*messages.MsgBuffer)(m).WriteUint32At(offset, uint32(l1+l2))
-	// if err != nil {
-	//	panic(err)
-	// }
+
 	return l, nil
 }
 

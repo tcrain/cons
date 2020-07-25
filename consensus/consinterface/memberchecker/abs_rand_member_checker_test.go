@@ -63,7 +63,7 @@ func intAbsRandKnownMemberCheckerTest(newPrivFunc func() (sig.Priv, error), t *t
 	privs.SetIndices()
 
 	initMsg := sig.BasicSignedMessage("some message")
-	initRnd, _ := privs[0].Evaluate(initMsg)
+	initRnd, _ := privs[0].(sig.VRFPriv).Evaluate(initMsg)
 	a := make([]absRandMemberInterface, len(privs))
 
 	pubs := make(sig.PubList, len(privs))
@@ -112,7 +112,7 @@ func intTestAbsRandMemberChecker(newPrivFunc func() (sig.Priv, error), newMCFunc
 	privs.SetIndices()
 
 	initMsg := sig.BasicSignedMessage("some message")
-	initRnd, _ := privs[0].Evaluate(initMsg)
+	initRnd, _ := privs[0].(sig.VRFPriv).Evaluate(initMsg)
 	a := make([]absRandMemberInterface, len(privs))
 	for i, priv := range privs {
 		a[i] = newMCFunc(priv).newRndMC(types.SingleComputeConsensusIDShort(types.ConsensusInt(0)), nil)

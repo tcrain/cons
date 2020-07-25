@@ -27,6 +27,11 @@ import (
 	// "github.com/tcrain/cons/consensus/messages"
 )
 
+func TestSchnorrPrintStats(t *testing.T) {
+	t.Log("Schnorr stats")
+	sig.SigTestPrintStats(NewSchnorrpriv, t)
+}
+
 func TestSchnorrSharedSecret(t *testing.T) {
 	sig.SigTestComputeSharedSecret(NewSchnorrpriv, t)
 }

@@ -31,7 +31,7 @@ type ParRegClientInterface interface {
 	GenBlsShared(id, idx, numThresh int) error
 	GetBlsShared(id, idx int) (*BlsSharedMarshalIndex, error)
 	GenDSSShared(id, numNonMembers, numThresh int) error
-	GetDSSShared(id int) (*ed.DSSSharedMarshaled, error)
+	GetDSSShared(id int) (*ed.CoinSharedMarshaled, error)
 	RegisterParticipant(id int, parInfo *network.ParticipantInfo) error
 	GetParticipants(id int, pub sig.PubKeyStr) (pi [][]*network.ParticipantInfo, err error)
 	GetAllParticipants(id int) (pi []*network.ParticipantInfo, err error)
@@ -85,8 +85,8 @@ func (pc *ParRegClient) GenDSSShared(id, numNonMembers, numThresh int) error {
 }
 
 // GetDSSShared calls ParticipantRegister.GetDSSShared on the server
-func (pc *ParRegClient) GetDSSShared(id int) (*ed.DSSSharedMarshaled, error) {
-	var reply *ed.DSSSharedMarshaled
+func (pc *ParRegClient) GetDSSShared(id int) (*ed.CoinSharedMarshaled, error) {
+	var reply *ed.CoinSharedMarshaled
 	err := pc.cli.Call("Preg.GetDSSShared", id, &reply)
 	return reply, err
 }

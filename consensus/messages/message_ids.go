@@ -61,10 +61,13 @@ const (
 	HdrMvCommit                         // A multivalue consensus commit message
 	HdrMvRecoverTimeout                 // A multivalue consensus recovery timeout message
 	HdrMvRequestRecover                 // A multivalue consensus message requesting the decided value
-	HdrDSSPartSig                       // A partial threshold signature message
+	// HdrDSSPartSig                       // A partial threshold signature message
 	// HdrDSSPartPub                       // A partial threshold public key message
 	HdrEdsig      // An EDDSA signature message
 	HdrEdpub      // An EDDSA public key message
+	HdrSleepPub   // A Sleep pub message
+	HdrSleepSig   // A sleep signature message
+	HdrSleepCoin  // A sleep coin message
 	HdrSchnorrsig // A schnorr signature message
 	HdrSchnorrpub // A schnorr public key message
 	HdrBlssig     // A BLS signature message
@@ -82,6 +85,12 @@ const (
 func (hi HeaderID) String() string {
 	var msg string
 	switch hi {
+	case HdrSleepPub:
+		msg = "HdrSleepPub"
+	case HdrSleepSig:
+		msg = "HdrSleepSig"
+	case HdrSleepCoin:
+		msg = "HdrSleepCoin"
 	case HdrBcons:
 		msg = "HdrBcons"
 	case HdrBconsAux:

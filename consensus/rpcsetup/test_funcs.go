@@ -69,7 +69,7 @@ type SingleConsState struct {
 	PrivKey            sig.Priv                       // The private key
 	RandKey            [32]byte                       // Key for random number generation
 	PubKeys            sig.PubList                    // The sorted list of public keys
-	DSSShared          *ed.DSSShared                  // Information for threshold keys
+	DSSShared          *ed.CoinShared                 // Information for threshold keys
 	To                 types.TestOptions              // The test setup
 	TestProc           channelinterface.MainChannel   // The main channel
 	NetNodeInfo        []channelinterface.NetNodeInfo // The local connection information
@@ -134,13 +134,16 @@ func getAllPubKeys(scs *SingleConsState) error {
 	case types.TBLS:
 		// TBLS keys we construct directly from the BlsShared object
 		for i := 0; i < scs.To.NumTotalProcs; i++ {
-			scs.PubKeys = append(scs.PubKeys, bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare.PubPoints[i]))
+			scs.PubKeys = append(scs.PubKeys, bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare.NumParticipants,
+				scs.blsShare.NumThresh, scs.blsShare.PubPoints[i]))
 		}
 	case types.TBLSDual:
 		priv := scs.PrivKey.(*dual.DualPriv)
 		for i := 0; i < scs.To.NumTotalProcs; i++ {
-			pub1 := bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare.PubPoints[i])
-			pub2 := bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare2.PubPoints[i])
+			pub1 := bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare.NumParticipants,
+				scs.blsShare.NumThresh, scs.blsShare.PubPoints[i])
+			pub2 := bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare.NumParticipants,
+				scs.blsShare.NumThresh, scs.blsShare2.PubPoints[i])
 			dpub := priv.GetPub().New().(*dual.DualPub)
 			dpub.SetPubs(pub1, pub2)
 			scs.PubKeys = append(scs.PubKeys, dpub)
@@ -154,7 +157,8 @@ func getAllPubKeys(scs *SingleConsState) error {
 				return err
 			}
 			// we gen the bls pub from the share
-			blsPub := bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare.PubPoints[i])
+			blsPub := bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare.NumParticipants,
+				scs.blsShare.NumThresh, scs.blsShare.PubPoints[i])
 			dpub := priv.GetPub().New().(*dual.DualPub)
 			dpub.SetPubs(dp.(*dual.DualPub).Pub, blsPub)
 			scs.PubKeys = append(scs.PubKeys, dpub)
@@ -166,7 +170,7 @@ func getAllPubKeys(scs *SingleConsState) error {
 	return nil
 }
 
-func getDssShared(preg ParRegClientInterface) (*ed.DSSShared, error) {
+func getDssShared(preg ParRegClientInterface) (*ed.CoinShared, error) {
 	dssMarshaled, err := preg.GetDSSShared(0)
 	if err != nil || dssMarshaled == nil {
 		return nil, types.ErrInvalidSharedThresh

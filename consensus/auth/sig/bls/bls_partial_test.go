@@ -30,6 +30,12 @@ func getBlsThresh() *BlsThrsh {
 	return NewBlsThrsh(*thrshn, *thrsht, index, Thrshblsshare.PriScalars[index], Thrshblsshare.PubPoints[index], Thrshblsshare.SharedPub)
 }
 
+func TestBlsThreshPrintStats(t *testing.T) {
+	t.Log("BLS Thresh stats")
+	sig.SetUseMultisig(false)
+	sig.SigTestPrintStats(GetBlsPartPrivFunc(), t)
+}
+
 func TestBlsPartShareVerify(t *testing.T) {
 	blsThrsh := getBlsThresh()
 	sig.RunFuncWithConfigSetting(func() {
@@ -50,6 +56,11 @@ func TestBlsPartialSign(t *testing.T) {
 
 func TestBlsPartialSerialize(t *testing.T) {
 	sig.RunFuncWithConfigSetting(func() { sig.SigTestSerialize(GetBlsPartPrivFunc(), types.NormalSignature, t) },
+		types.WithTrue, types.WithFalse, types.WithFalse, types.WithBothBool)
+}
+
+func TestBlsCoinProofSerialize(t *testing.T) {
+	sig.RunFuncWithConfigSetting(func() { sig.SigTestSerialize(GetBlsPartPrivFunc(), types.CoinProof, t) },
 		types.WithTrue, types.WithFalse, types.WithFalse, types.WithBothBool)
 }
 

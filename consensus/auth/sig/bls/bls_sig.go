@@ -51,14 +51,14 @@ func makeBlsSig(isSub bool, sig1, sig2 *Blssig) (*Blssig, error) {
 	return &Blssig{s1, sigByt}, nil
 }
 
-// MergeBlsSig combines two signatures, it assumes the sigs are valid to be merged
-func MergeBlsSig(sig1, sig2 *Blssig) (*Blssig, error) {
-	return makeBlsSig(false, sig1, sig2)
+// MergeSig combines two signatures, it assumes the sigs are valid to be merged
+func (sig1 *Blssig) MergeSig(sig2 sig.MultiSig) (sig.MultiSig, error) {
+	return makeBlsSig(false, sig1, sig2.(*Blssig))
 }
 
-// SubBlsSig removes sig2 from sig1, it assumes sig 1 already contains sig2
-func SubBlsSig(sig1, sig2 *Blssig) (*Blssig, error) {
-	return makeBlsSig(true, sig1, sig2)
+// SubSig removes sig2 from sig1, it assumes sig 1 already contains sig2
+func (sig1 *Blssig) SubSig(sig2 sig.MultiSig) (sig.MultiSig, error) {
+	return makeBlsSig(true, sig1, sig2.(*Blssig))
 }
 
 // GetMsgID returns the message id for a bls signature message
@@ -68,8 +68,8 @@ func (sig *Blssig) GetMsgID() messages.MsgID {
 
 // GetRand returns a random binary from the signature if supported.
 func (sig *Blssig) GetRand() types.BinVal {
-	// TODO is this correct?
-	return types.BinVal(sig.sigBytes[0] % 2)
+	// TODO this is only for coin using threshold signatures, should cleanup
+	return types.BinVal(types.GetHash(sig.sigBytes)[0] % 2)
 }
 
 // GetSigBytes returns the bytes of the serialized signature

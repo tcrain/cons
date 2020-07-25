@@ -71,7 +71,7 @@ func (spi *AbsRandSM) GetRand() [32]byte {
 // It uses the rand bytes input to NewAbsRandSM to generate the new bytes.
 func (spi *AbsRandSM) RandGetProposal(buff io.Writer) {
 	if spi.useRand {
-		_, proof := spi.gc.Priv.Evaluate(sig.BasicSignedMessage(spi.randBytes[:]))
+		_, proof := spi.gc.Priv.(sig.VRFPriv).Evaluate(sig.BasicSignedMessage(spi.randBytes[:]))
 		if _, err := proof.Encode(buff); err != nil {
 			panic(err)
 		}
@@ -82,7 +82,7 @@ func (spi *AbsRandSM) RandGetProposal(buff io.Writer) {
 // were not generated correctly. TODO actually verify the proof
 func (spi *AbsRandSM) RandCheckDecision(buf io.Reader) (err error) {
 	if spi.useRand {
-		vrPrf := spi.gc.Priv.GetPub().NewVRFProof()
+		vrPrf := spi.gc.Priv.GetPub().(sig.VRFPub).NewVRFProof()
 		_, err = vrPrf.Decode(buf)
 		// The previous random is used as the input to the next TODO verify this is correct
 		// _, err = proposer.ProofToHash(sig.BasicSignedMessage(spi.randBytes[:]), vrPrf)
@@ -104,14 +104,14 @@ func (spi *AbsRandSM) GetRndNumBytes() (n int) {
 // It returns an error if the bytes were not generated correctly.
 func (spi *AbsRandSM) RandHasDecided(proposer sig.Pub, buf io.Reader, setBytes bool) (n int, err error) {
 	if spi.useRand {
-		vrPrf := spi.gc.Priv.GetPub().NewVRFProof()
+		vrPrf := spi.gc.Priv.GetPub().(sig.VRFPub).NewVRFProof()
 		n, err = vrPrf.Decode(buf)
 		if err != nil {
 			return
 		}
 		// The previous random is used as the input to the next
 		var rnd [32]byte
-		rnd, err = proposer.ProofToHash(sig.BasicSignedMessage(spi.randBytes[:]), vrPrf)
+		rnd, err = proposer.(sig.VRFPub).ProofToHash(sig.BasicSignedMessage(spi.randBytes[:]), vrPrf)
 		if err != nil {
 			return
 		}

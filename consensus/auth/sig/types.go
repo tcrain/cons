@@ -29,6 +29,16 @@ import (
 // Types
 //////////////////////////////////////////////////////////
 
+type SigStats struct {
+	PubSize, SigSize, ThrshShareSize, VRFSize        int
+	SigVerifyTime, SignTime                          time.Duration
+	ShareVerifyTime, ShareGenTime                    time.Duration
+	ShareCombineTime                                 time.Duration
+	MultiCombineTime                                 time.Duration
+	VRFGenTime, VRFVerifyTime                        time.Duration
+	AllowsCoin, AllowsMulti, AllowsThresh, AllowsVRF bool
+}
+
 // ConsIDPub contains a consensus id and a public key.
 type ConsIDPub struct {
 	ID  types.ConsensusID

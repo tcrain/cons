@@ -27,6 +27,11 @@ import (
 	// "github.com/tcrain/cons/consensus/messages"
 )
 
+func TestEdPrintStats(t *testing.T) {
+	t.Log("EDDSA stats")
+	sig.SigTestPrintStats(NewEdpriv, t)
+}
+
 func TestEdSharedSecret(t *testing.T) {
 	sig.RunFuncWithConfigSetting(func() { sig.SigTestComputeSharedSecret(NewEdpriv, t) },
 		types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)

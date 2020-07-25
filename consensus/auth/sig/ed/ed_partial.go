@@ -25,6 +25,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
+	"github.com/tcrain/cons/consensus/utils"
 	"go.dedis.ch/kyber/v3"
 	"io"
 	"time"
@@ -32,11 +33,15 @@ import (
 
 type PartPub struct {
 	edPub *Edpub
-	*EdThresh
+	*EdCoinThresh
 }
 
 func (pub *PartPub) gets() sig.CoinProofPubInterface {
 	return pub
+}
+
+func (pub *PartPub) NewCoinProof() sig.CoinProof {
+	return coinproof.EmptyCoinProof(sig.EdSuite)
 }
 
 func (pub *PartPub) GetMsgID() messages.MsgID {
@@ -47,16 +52,6 @@ func (pub *PartPub) GetMsgID() messages.MsgID {
 func (pub *PartPub) ShallowCopy() sig.Pub {
 	newPub := *pub
 	return &newPub
-}
-
-// ProofToHash is for validating VRFs and not supported for ed.
-func (pub *PartPub) ProofToHash(sig.SignedMessage, sig.VRFProof) (index [32]byte, err error) {
-	panic("unsupported")
-}
-
-// NewVRFProof returns an empty VRFProof object, and is not supported for ed.
-func (pub *PartPub) NewVRFProof() sig.VRFProof {
-	panic("unsupported")
 }
 
 func (pub *PartPub) FromPubBytes(b sig.PubKeyBytes) (sig.Pub, error) {
@@ -85,7 +80,7 @@ func (pub *PartPub) GetIndex() sig.PubKeyIndex {
 	return pub.index
 }
 
-func NewEdPartPub(index sig.PubKeyIndex, point kyber.Point, edThresh *EdThresh) *PartPub {
+func NewEdPartPub(index sig.PubKeyIndex, point kyber.Point, edThresh *EdCoinThresh) *PartPub {
 	// NewEdpub(partPub)
 	if index != edThresh.index {
 		panic("invalid index")
@@ -96,8 +91,8 @@ func NewEdPartPub(index sig.PubKeyIndex, point kyber.Point, edThresh *EdThresh) 
 	}
 	edPub.SetIndex(index)
 	return &PartPub{
-		edPub:    edPub,
-		EdThresh: edThresh}
+		edPub:        edPub,
+		EdCoinThresh: edThresh}
 }
 
 func (pub *PartPub) GetSigMemberNumber() int {
@@ -117,16 +112,12 @@ func (pub *PartPub) CheckSignature(msg *sig.MultipleSignedMessage, sigItem *sig.
 	// Check if this is a coin proof or a signature
 	var err error
 	signType := msg.GetSignType()
-	if signType == types.CoinProof { // sanity check
-		if sigItem.CoinProof == nil {
-			panic("should have coin proof")
-		}
-	} else if sigItem.CoinProof != nil {
-		panic("should not have coin proof")
+	if sigItem.Sig == nil {
+		panic("should not be nil")
 	}
-	if sigItem.CoinProof != nil { // Check if the coin proof is valid
+	if signType == types.CoinProof { // Check if the coin proof is valid
 		if thrsh, ok := sigItem.Pub.(sig.CoinProofPubInterface); ok {
-			if err = thrsh.CheckCoinProof(msg, sigItem.CoinProof); err != nil {
+			if err = thrsh.CheckCoinProof(msg, sigItem.Sig); err != nil {
 				return err
 			}
 		} else {
@@ -174,11 +165,11 @@ func (pub *PartPub) GetPubString() (sig.PubKeyStr, error) {
 }
 
 func (pub *PartPub) New() sig.Pub {
-	return &PartPub{EdThresh: nil, edPub: pub.edPub.New().(*Edpub)}
+	return &PartPub{EdCoinThresh: nil, edPub: pub.edPub.New().(*Edpub)}
 }
-func (pub *PartPub) DeserializeCoinProof(m *messages.Message) (coinProof *coinproof.CoinProof, size int, err error) {
+func (pub *PartPub) DeserializeCoinProof(m *messages.Message) (coinProof sig.CoinProof, size int, err error) {
 	coinProof = coinproof.EmptyCoinProof(sig.EdSuite)
-	size, err = coinProof.Deserialize(m, types.NilIndexFuns)
+	size, err = coinProof.(*coinproof.CoinProof).Deserialize(m, types.NilIndexFuns)
 	return
 }
 
@@ -193,23 +184,40 @@ func (pub *PartPub) DeserializeSig(m *messages.Message, signType types.SignType)
 			return nil, n, err
 		}
 		n += l1
-		var coinProof *coinproof.CoinProof
+		var coinProof sig.CoinProof
 		if coinProof, l1, err = pub.DeserializeCoinProof(m); err != nil {
 			return nil, l1, err
 		}
 		n += l1
-		return &sig.SigItem{Pub: newPub, CoinProof: coinProof}, n, nil
+		return &sig.SigItem{Pub: newPub, Sig: coinProof}, n, nil
 	} else {
 		return pub.edPub.DeserializeSig(m, signType)
 	}
 }
 
-func (pub *PartPub) Encode(io.Writer) (n int, err error) {
-	panic("unused")
+func (pub *PartPub) Encode(w io.Writer) (n int, err error) {
+	var n1 int
+	if n1, err = utils.EncodeUvarint(uint64(pub.index), w); err != nil {
+		return
+	}
+	n += n1
+	n1, err = pub.edPub.Encode(w)
+	n += n1
+	return
 }
 
-func (pub *PartPub) Decode(io.Reader) (n int, err error) {
-	panic("unused")
+func (pub *PartPub) Decode(r io.Reader) (n int, err error) {
+	var v uint64
+	var n1 int
+	v, n1, err = utils.ReadUvarint(r)
+	if err != nil {
+		return
+	}
+	n += n1
+	pub.index = sig.PubKeyIndex(v)
+	n1, err = pub.edPub.Decode(r)
+	n += n1
+	return
 }
 
 func (pub *PartPub) Serialize(m *messages.Message) (int, error) {
@@ -236,7 +244,7 @@ func (pub *PartPub) GetID() messages.HeaderID {
 
 // EdPartialPriv represents the ECDSA private key object.
 type PartialPriv struct {
-	*EdThresh
+	*EdCoinThresh
 	edPriv *Edpriv
 }
 
@@ -256,11 +264,6 @@ func (priv *PartialPriv) SetIndex(index sig.PubKeyIndex) {
 	}
 }
 
-// Evaluate is for generating VRFs and not supported for ed.
-func (priv *PartialPriv) Evaluate(sig.SignedMessage) (index [32]byte, proof sig.VRFProof) {
-	panic("unsupported")
-}
-
 // GetBaseKey returns the key as a normal Schnorr private key.
 func (priv *PartialPriv) GetBaseKey() sig.Priv {
 	return NewSchnorrprivFrom(priv.secret)
@@ -276,20 +279,20 @@ func (priv *PartialPriv) GetPub() sig.Pub {
 	return priv.GetPartialPub()
 }
 
-// GetEdThresh returns the EdThresh object.
-func (priv *PartialPriv) GetEdThresh() *EdThresh {
-	return priv.EdThresh
+// GetEdThresh returns the EdCoinThresh object.
+func (priv *PartialPriv) GetEdThresh() *EdCoinThresh {
+	return priv.EdCoinThresh
 }
 
 // NewEdPartialPriv creates a new partial priv given the thrsh structure.
-func NewEdPartPriv(thrsh *EdThresh) (sig.Priv, error) {
+func NewEdPartPriv(thrsh *EdCoinThresh) (sig.Priv, error) {
 	p := NewSchnorrprivFrom(thrsh.secret).(*Edpriv)
 	p.SetIndex(thrsh.index)
-	return &PartialPriv{EdThresh: thrsh,
+	return &PartialPriv{EdCoinThresh: thrsh,
 		edPriv: p}, nil
 }
 
-// ComputeSharedSecret is unsupported.
+// ComputeSharedSecret returns the hash of Diffie-Hellman.
 func (priv *PartialPriv) ComputeSharedSecret(pub sig.Pub) [32]byte {
 	return priv.edPriv.ComputeSharedSecret(pub.(*PartPub).edPub)
 }
@@ -337,8 +340,7 @@ func (priv *PartialPriv) GenerateSig(header sig.SignedMessage, proof sig.VRFProo
 		return nil, err
 	}
 	return &sig.SigItem{
-		Pub:       priv.edPriv.GetPub(),
-		Sig:       nil,
-		CoinProof: coinProof,
-		SigBytes:  m.GetBytes()}, nil
+		Pub:      priv.edPriv.GetPub(),
+		Sig:      coinProof,
+		SigBytes: m.GetBytes()}, nil
 }

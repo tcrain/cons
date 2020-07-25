@@ -558,7 +558,7 @@ func MakeKeys(to types.TestOptions) ([]sig.Priv, []sig.Pub) {
 
 	case types.EDCOIN:
 		thrsh := GetCoinThresh(to)
-		dssShared := ed.NewDSSShared(to.NumTotalProcs, to.NumNonMembers, thrsh)
+		dssShared := ed.NewCoinShared(to.NumTotalProcs, to.NumNonMembers, thrsh)
 		var err error
 		for i := 0; i < to.NumTotalProcs; i++ {
 			edThresh := ed.NewEdThresh(sig.PubKeyIndex(i), dssShared)

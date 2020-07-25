@@ -207,7 +207,7 @@ func signMsgAndSerialize(hdr messages.InternalSignedMsgHeader, pub sig.Pub, priv
 		_, err := msm.Serialize(messages.NewMessage(nil))
 		assert.Nil(t, err)
 		// Add a VRF for fun
-		_, vrfProof := priv.Evaluate(rndMsg)
+		_, vrfProof := priv.(sig.VRFPriv).Evaluate(rndMsg)
 		mySig, err := priv.GenerateSig(msm, vrfProof, msm.GetSignType())
 		assert.Nil(t, err)
 		msm.SetSigItems([]*sig.SigItem{mySig})
@@ -267,7 +267,7 @@ func checkSigs(dser *sig.MultipleSignedMessage, priv sig.Priv, t *testing.T) {
 		assert.Nil(t, err)
 		assert.True(t, valid)
 		// Check the VRF
-		_, err = sigItem.Pub.ProofToHash(rndMsg, sigItem.VRFProof)
+		_, err = sigItem.Pub.(sig.VRFPub).ProofToHash(rndMsg, sigItem.VRFProof)
 		assert.Nil(t, err)
 		sigItems = append(sigItems, sigItem)
 	}
@@ -776,7 +776,7 @@ func TestVRFProofMsgSerialize(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	index, proof := priv.Evaluate(bm)
+	index, proof := priv.(sig.VRFPriv).Evaluate(bm)
 
 	hdr := NewVRFProofMessage(tstMsgIdxObj, proof)
 	hdrs := make([]messages.MsgHeader, 1)
@@ -793,7 +793,7 @@ func TestVRFProofMsgSerialize(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, tstMsgIndex, newHdr.GetIndex().Index)
 
-	newIdx, err := priv.GetPub().ProofToHash(bm, newHdr.VRFProof)
+	newIdx, err := priv.GetPub().(sig.VRFPub).ProofToHash(bm, newHdr.VRFProof)
 	assert.Nil(t, err)
 	assert.Equal(t, index, newIdx)
 }

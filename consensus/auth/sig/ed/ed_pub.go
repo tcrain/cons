@@ -97,16 +97,6 @@ func NewSchnorrpub(pub kyber.Point) (*Edpub, error) {
 	return ed, err
 }
 
-// NewVRFProof returns an empty VRFProof object, and is not supported for ed.
-func (pub *Edpub) NewVRFProof() sig.VRFProof {
-	panic("unsupported")
-}
-
-// ProofToHash is for validating VRFs and not supported for ed.
-func (pub *Edpub) ProofToHash(sig.SignedMessage, sig.VRFProof) (index [32]byte, err error) {
-	panic("unsupported")
-}
-
 // FromPubBytes generates an EDDSA public key object from the bytes of a public key
 func (pub *Edpub) FromPubBytes(b sig.PubKeyBytes) (sig.Pub, error) {
 	p := pub.New().(*Edpub)
@@ -160,7 +150,7 @@ func (pub *Edpub) CheckSignature(msg *sig.MultipleSignedMessage, sigItem *sig.Si
 
 	// Check if this is a coin proof or a signature
 	signType := msg.GetSignType()
-	if signType == types.CoinProof || sigItem.CoinProof != nil {
+	if signType == types.CoinProof {
 		return types.ErrCoinProofNotSupported
 	}
 	valid, err := pub.VerifySig(msg, sigItem.Sig)

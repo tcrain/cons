@@ -85,11 +85,6 @@ func (priv *QsafePriv) GetPub() sig.Pub {
 	return priv.pub
 }
 
-// Evaluate is for generating VRFs.
-func (priv *QsafePriv) Evaluate(m sig.SignedMessage) (index [32]byte, proof sig.VRFProof) {
-	panic("vrf not supported")
-}
-
 // NewQsafePriv creates a new random ECDSA private key object
 func NewQsafePriv() (sig.Priv, error) {
 	var priv oqs.Signature
