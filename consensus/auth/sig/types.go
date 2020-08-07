@@ -21,6 +21,7 @@ package sig
 
 import (
 	"github.com/tcrain/cons/consensus/types"
+	"github.com/tcrain/cons/consensus/utils"
 	"go.dedis.ch/kyber/v3/group/edwards25519"
 	"time"
 )
@@ -28,6 +29,16 @@ import (
 ///////////////////////////////////////////////////////////
 // Types
 //////////////////////////////////////////////////////////
+
+type SigStats struct {
+	PubSize, SigSize, ThrshShareSize, VRFSize        int
+	SigVerifyTime, SignTime                          time.Duration
+	ShareVerifyTime, ShareGenTime                    time.Duration
+	ShareCombineTime                                 time.Duration
+	MultiCombineTime                                 time.Duration
+	VRFGenTime, VRFVerifyTime                        time.Duration
+	AllowsCoin, AllowsMulti, AllowsThresh, AllowsVRF bool
+}
 
 // ConsIDPub contains a consensus id and a public key.
 type ConsIDPub struct {
@@ -110,4 +121,20 @@ func SetBlsMultiNew(val bool) {
 
 func GetBlsMultiNew() bool {
 	return BlsMultiNew
+}
+
+// GetDSSThresh returns the threshold for threshold signatures
+func GetDSSThresh(to types.TestOptions) (primary int, secondary int) {
+	numMembers := to.NumTotalProcs - to.NumNonMembers
+	t := utils.GetOneThirdBottom(numMembers)
+	return numMembers - t, t + 1
+}
+
+func GetCoinThresh(to types.TestOptions) int {
+	if types.UseTp1CoinThresh(to) {
+		_, thrsh := GetDSSThresh(to)
+		return thrsh
+	}
+	thrsh, _ := GetDSSThresh(to)
+	return thrsh
 }

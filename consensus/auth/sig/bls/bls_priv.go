@@ -27,6 +27,7 @@ import (
 	"github.com/tcrain/cons/consensus/types"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/util/random"
+	"golang.org/x/crypto/blake2b"
 )
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -90,10 +91,12 @@ func (priv *Blspriv) Evaluate(m sig.SignedMessage) (index [32]byte, proof sig.VR
 		panic(err)
 	}
 	proof = VRFProof(buff.Bytes())
-	n := copy(index[:], proof.(VRFProof))
-	if n != 32 {
-		panic("error copy")
+	hf, err := blake2b.New256(nil)
+	if err != nil {
+		panic(err)
 	}
+	hf.Write(proof.(VRFProof))
+	hf.Sum(index[:0])
 	return
 }
 
@@ -162,7 +165,7 @@ func NewBlspriv() (sig.Priv, error) {
 
 // GenerateSig signs a message and returns the SigItem object containing the signature
 func (priv *Blspriv) GenerateSig(header sig.SignedMessage, vrfProof sig.VRFProof, signType types.SignType) (*sig.SigItem, error) {
-	return sig.GenerateSigHelper(priv, header, vrfProof, signType)
+	return sig.GenerateSigHelper(priv, header, true, vrfProof, signType)
 }
 
 // NewSig returns an empty sig object of the same type.

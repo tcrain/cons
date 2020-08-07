@@ -47,11 +47,6 @@ func (sig *QsafeSig) New() sig.Sig {
 	return &QsafeSig{algDetails: sig.algDetails}
 }
 
-// GetRand is unsupported.
-func (sig *QsafeSig) GetRand() types.BinVal {
-	panic("unsupported")
-}
-
 // PeekHeader returns the indices related to the messages without impacting m.
 func (*QsafeSig) PeekHeaders(m *messages.Message, unmarFunc types.ConsensusIndexFuncs) (index types.ConsensusIndex, err error) {
 	return messages.PeekHeaderHead(types.NilIndexFuns, (*messages.MsgBuffer)(m))

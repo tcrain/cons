@@ -46,6 +46,13 @@ func TestBinConsRnd1Basic(t *testing.T) {
 		Config{}, []int{}, t)
 }
 
+func TestBinConsRnd1SleepBasic(t *testing.T) {
+	to := binTO
+	to.SleepCrypto = true
+	cons.RunBasicTests(to, types.BinConsRnd1Type, &BinConsRnd1{},
+		Config{}, []int{}, t)
+}
+
 func TestBinConsRnd1BasicKnown(t *testing.T) {
 	cons.RunBasicTests(binTOKnown, types.BinConsRnd1Type, &BinConsRnd1{},
 		Config{}, []int{}, t)
@@ -56,13 +63,36 @@ func TestBinConsRnd1BasicStrongCoin1Echo(t *testing.T) {
 		Config{}, []int{}, t)
 }
 
+func TestBinConsRnd1SleepBasicStrongCoin1Echo(t *testing.T) {
+	to := binTOStrongCoin1Echo
+	to.SleepCrypto = true
+	cons.RunBasicTests(to, types.BinConsRnd1Type, &BinConsRnd1{},
+		Config{}, []int{}, t)
+}
+
 func TestBinConsRnd1BasicStrongCoin2(t *testing.T) {
 	cons.RunBasicTests(binTOStrongCoin2, types.BinConsRnd1Type, &BinConsRnd1{},
 		Config{}, []int{}, t)
 }
 
+func TestBinConsRnd1SleepBasicStrongCoin2(t *testing.T) {
+	to := binTOStrongCoin2
+	to.SleepCrypto = true
+	to.NumMsgProcessThreads = 1
+	cons.RunBasicTests(to, types.BinConsRnd1Type, &BinConsRnd1{},
+		Config{}, []int{}, t)
+}
+
 func TestBinConsRnd1BasicStrongCoin2Echo(t *testing.T) {
 	cons.RunBasicTests(binTOStrongCoin2Echo, types.BinConsRnd1Type, &BinConsRnd1{},
+		Config{}, []int{}, t)
+}
+
+func TestBinConsRnd1SleepBasicStrongCoin2Echo(t *testing.T) {
+	to := binTOStrongCoin2Echo
+	to.SleepCrypto = true
+	to.NumMsgProcessThreads = 1
+	cons.RunBasicTests(to, types.BinConsRnd1Type, &BinConsRnd1{},
 		Config{}, []int{}, t)
 }
 

@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package bls
 
 import (
+	"crypto/rand"
 	"fmt"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/logging"
@@ -33,7 +34,15 @@ import (
 	"go.dedis.ch/kyber/v3/util/random"
 )
 
-var sigMsg = sig.SignTestMsg
+var sigMsg []byte
+
+func init() {
+	sigMsg = make([]byte, sig.SignMsgSize)
+	_, err := rand.Read(sigMsg)
+	if err != nil {
+		panic(err)
+	}
+}
 
 func initBench() {
 	Thrshblsshare = NewBlsShared(*thrshn, *thrsht)
@@ -127,7 +136,7 @@ func BenchmarkBLSCoinSign(b *testing.B) {
 	priv, err := privFunc()
 	assert.Nil(b, err)
 
-	sigMsg = sig.SignTestMsg
+	sigMsg = sigMsg
 	hash := types.GetHash(sigMsg)
 	msg := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
 	var sigItem *sig.SigItem
@@ -148,7 +157,6 @@ func BenchmarkBLSShareVerify(b *testing.B) {
 	priv, err := privFunc()
 	assert.Nil(b, err)
 
-	sigMsg = sig.SignTestMsg
 	hash := types.GetHash(sigMsg)
 	msg := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
 	var sigItem *sig.SigItem

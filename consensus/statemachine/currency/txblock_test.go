@@ -101,7 +101,7 @@ func TestInitBlock(t *testing.T) {
 	newPrivFunc := ec.NewEcpriv
 	priv, err := newPrivFunc()
 	assert.Nil(t, err)
-	newPubFunc := priv.New().GetPub().New
+	newPubFunc := priv.GetPub().New
 
 	blockSize := 100
 	var initAmmount uint64 = 10

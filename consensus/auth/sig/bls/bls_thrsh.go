@@ -52,7 +52,7 @@ func NewBlsThrsh(n, t int, idx sig.PubKeyIndex, secret kyber.Scalar, pub kyber.P
 		secret:    secret,
 		idx:       idx,
 		sharedPub: sPub}
-	partPub := NewBlsPartPub(idx, pub)
+	partPub := NewBlsPartPub(idx, n, t, pub)
 	thrsh.partPub = partPub
 	return thrsh
 }
@@ -74,7 +74,7 @@ func NewNonMemberBlsThrsh(n, t int, idx sig.PubKeyIndex, sharedPub kyber.Point) 
 		secret:    sec,
 		idx:       idx,
 		sharedPub: sPub}
-	partPub := NewBlsPartPub(idx, pub)
+	partPub := NewBlsPartPub(idx, n, t, pub)
 	thrsh.partPub = partPub
 	return thrsh
 }

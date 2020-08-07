@@ -26,6 +26,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
 	"github.com/tcrain/cons/consensus/auth/sig/ed"
+	"github.com/tcrain/cons/consensus/auth/sig/sleep"
 	"sync"
 	"testing"
 )
@@ -41,7 +42,13 @@ func genMsg(size int, t *testing.T) []byte {
 }
 
 func TestEncrypterBasic(t *testing.T) {
-	for _, nxtPriv := range []func() (sig.Priv, error){ec.NewEcpriv, ed.NewEdpriv, bls.NewBlspriv} {
+	var i sig.PubKeyIndex
+	for _, nxtPriv := range []func() (sig.Priv, error){ec.NewEcpriv, ed.NewEdpriv, bls.NewBlspriv,
+		func() (sig.Priv, error) {
+			p, err := sleep.NewECPriv(i)
+			i++
+			return p, err
+		}} {
 		runBasicTest(nxtPriv, t)
 	}
 }
@@ -65,7 +72,9 @@ func runBasicTest(newPriv func() (sig.Priv, error), t *testing.T) {
 		assert.True(t, len(myMsg) < len(cyt2))
 
 		// be sure the encryptions are different
-		assert.NotEqual(t, cyt, cyt2)
+		if _, ok := enc1.(*Encrypter); ok {
+			assert.NotEqual(t, cyt, cyt2)
+		}
 
 		ct, err := enc2.Decode(cyt, includeSize)
 		assert.Nil(t, err)
@@ -113,7 +122,7 @@ func TestEncryptBadRand(t *testing.T) {
 	assert.Equal(t, n, len(randomBytes))
 
 	// change the random bytes
-	pubBytes, err := enc1.myPriv.GetPub().GetRealPubBytes()
+	pubBytes, err := enc1.(*Encrypter).myPriv.GetPub().GetRealPubBytes()
 	assert.Nil(t, err)
 	err = enc2.GotPub(pubBytes, randomBytes[:])
 	assert.Nil(t, err)
@@ -133,7 +142,7 @@ func TestEncryptBadRand(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func encryptSetup(newPrivFunc func() (sig.Priv, error), t assert.TestingT) (enc1, enc2 *Encrypter,
+func encryptSetup(newPrivFunc func() (sig.Priv, error), t assert.TestingT) (enc1, enc2 EncryptInterface,
 	randomBytes *[24]byte) {
 
 	priv1, err := newPrivFunc()
@@ -142,8 +151,8 @@ func encryptSetup(newPrivFunc func() (sig.Priv, error), t assert.TestingT) (enc1
 	priv2, err := newPrivFunc()
 	assert.Nil(t, err)
 
-	enc1 = NewEcrypter(priv1, false, priv2.GetPub())
-	enc2 = NewEcrypter(priv2, true, nil)
+	enc1 = GenerateEncrypter(priv1, false, priv2.GetPub())
+	enc2 = GenerateEncrypter(priv2, true, nil)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -159,8 +168,12 @@ func encryptSetup(newPrivFunc func() (sig.Priv, error), t assert.TestingT) (enc1
 	assert.Nil(t, err)
 	wg.Wait()
 
-	assert.Equal(t, enc1.mySharedSecret, enc2.otherSharedSecret)
-	assert.Equal(t, enc1.otherSharedSecret, enc2.mySharedSecret)
+	enc1E, ok1 := enc1.(*Encrypter)
+	enc2E, ok2 := enc2.(*Encrypter)
+	if ok1 && ok2 {
+		assert.Equal(t, enc1E.mySharedSecret, enc2E.otherSharedSecret)
+		assert.Equal(t, enc1E.otherSharedSecret, enc2E.mySharedSecret)
+	}
 
 	return
 }

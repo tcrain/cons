@@ -22,6 +22,7 @@ package strongcoin1echo
 import (
 	"fmt"
 	"github.com/tcrain/cons/config"
+	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/generalconfig"
@@ -175,7 +176,7 @@ func (sms *MsgState) GotMsg(msgState consinterface.MessageState, deser *channeli
 				case true: // we use a predetermined coin so benchmarks have the same results
 					roundStruct.coinVal = utils.GetBitAt(uint(w.Round)%64, sms.fixedCoinUint)
 				default:
-					roundStruct.coinVal = item.Sig.GetRand()
+					roundStruct.coinVal = item.Sig.(sig.ThrshSig).GetRand()
 				}
 				logging.Infof("id %v, index %v, round %v, coin %v\n", gc.TestIndex, msgState.GetIndex().Index,
 					w.Round, roundStruct.coinVal)

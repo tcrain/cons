@@ -27,9 +27,9 @@ import (
 	"go.dedis.ch/kyber/v3/share"
 )
 
-// DSSShared represents precomputed information used to create
-// threshold keys.
-type DSSShared struct {
+// CoinShared represents precomputed information used to create
+// threshold secrets for generating random coins.
+type CoinShared struct {
 	NumParticipants  int
 	NumThresh        int
 	MemberScalars    []kyber.Scalar
@@ -39,9 +39,9 @@ type DSSShared struct {
 	SharePoint       kyber.Point
 }
 
-// NewDSSShared creates a DSSShared object for creating threshold coin keys.
+// NewCoinShared creates a CoinShared object for creating threshold coin keys.
 // It generates private values centrally so is only for testing.
-func NewDSSShared(numTotalNodes, numNonMembers, numThresh int) *DSSShared {
+func NewCoinShared(numTotalNodes, numNonMembers, numThresh int) *CoinShared {
 	logging.Warning("Generating unsafe shared threshold keys for testing")
 	nbParticipants := numTotalNodes - numNonMembers
 	suite := sig.EdSuite
@@ -69,7 +69,7 @@ func NewDSSShared(numTotalNodes, numNonMembers, numThresh int) *DSSShared {
 		nonMemberPoints[i] = suite.Point().Mul(nonMemberScalars[i], suite.Point().Base())
 	}
 
-	return &DSSShared{
+	return &CoinShared{
 		NumParticipants:  nbParticipants,
 		NumThresh:        numThresh,
 		SharePoint:       sharedPub,
@@ -83,10 +83,10 @@ func NewDSSShared(numTotalNodes, numNonMembers, numThresh int) *DSSShared {
 // Marshalling
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-// DssSharedMarshaled is a partially marshalled version of DSSShared.
+// CoinSharedMarshaled is a partially marshalled version of CoinShared.
 // It can then be input to the go json marshaller for example.
-// It doesn't include the PartSec field of DSSShared.
-type DSSSharedMarshaled struct {
+// It doesn't include the PartSec field of CoinShared.
+type CoinSharedMarshaled struct {
 	NumParticipants  int
 	NumThresh        int
 	MemberScalars    [][]byte
@@ -96,10 +96,10 @@ type DSSSharedMarshaled struct {
 	SharePoint       []byte
 }
 
-// PartialUnmartial takes a DSSSharedMarshalled object, unmarshals it, and returns a DSSShared object.
-func (dsm DSSSharedMarshaled) PartialUnMartial() (ret *DSSShared, err error) {
+// PartialUnmartial takes a CoinSharedMarshaled object, unmarshals it, and returns a CoinShared object.
+func (dsm CoinSharedMarshaled) PartialUnMartial() (ret *CoinShared, err error) {
 	suite := sig.EdSuite
-	ret = &DSSShared{}
+	ret = &CoinShared{}
 	ret.NumParticipants = dsm.NumParticipants
 	ret.NumThresh = dsm.NumThresh
 
@@ -143,9 +143,9 @@ func (dsm DSSSharedMarshaled) PartialUnMartial() (ret *DSSShared, err error) {
 	return
 }
 
-// PartialMartial partially martials a DSSShared object into a DSSSharedMarshaled object,
+// PartialMartial partially martials a CoinShared object into a CoinSharedMarshaled object,
 // which can then be mashaled into json for example.
-func (ds *DSSShared) PartialMarshal() (ret DSSSharedMarshaled, err error) {
+func (ds *CoinShared) PartialMarshal() (ret CoinSharedMarshaled, err error) {
 	ret.NumParticipants = ds.NumParticipants
 	ret.NumThresh = ds.NumThresh
 

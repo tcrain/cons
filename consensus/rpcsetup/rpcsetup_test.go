@@ -88,7 +88,7 @@ func (p *PregTestInterface) GetBlsShared(id, idx int) (*BlsSharedMarshalIndex, e
 func (p *PregTestInterface) GenDSSShared(id, numNonMembers, numThresh int) error {
 	return p.pregs[id].GenDSSShared(numNonMembers, numThresh)
 }
-func (p *PregTestInterface) GetDSSShared(id int) (*ed.DSSSharedMarshaled, error) {
+func (p *PregTestInterface) GetDSSShared(id int) (*ed.CoinSharedMarshaled, error) {
 	ret := p.pregs[id].GetDSSShared()
 	return &ret, nil
 }

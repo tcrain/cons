@@ -19,7 +19,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package config
 
-import "golang.org/x/crypto/nacl/secretbox"
+import (
+	"golang.org/x/crypto/nacl/secretbox"
+)
 
 // CsID is a unique value that should be changed each time the consensus is run.
 // This is included in each message (see doc.go) so that the verifier of the signature

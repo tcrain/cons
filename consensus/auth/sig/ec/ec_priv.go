@@ -106,7 +106,7 @@ func NewEcpriv() (sig.Priv, error) {
 
 // GenerateSig signs a message and returns the SigItem object containing the signature
 func (priv *Ecpriv) GenerateSig(header sig.SignedMessage, vrfProof sig.VRFProof, signType types.SignType) (*sig.SigItem, error) {
-	return sig.GenerateSigHelper(priv, header, vrfProof, signType)
+	return sig.GenerateSigHelper(priv, header, true, vrfProof, signType)
 }
 
 // Returns key that is used for signing the sign type.

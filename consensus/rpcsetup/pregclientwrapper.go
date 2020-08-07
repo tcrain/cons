@@ -61,7 +61,7 @@ func (pr *PregClientWrapper) GetBlsShared(idx int) (index int, blsShared *bls.Bl
 func (pr *PregClientWrapper) GenDSSShared(numNonNumbers, numThresh int) error {
 	return pr.ParRegClientInterface.GenDSSShared(pr.id, numNonNumbers, numThresh)
 }
-func (pr *PregClientWrapper) GetDSSShared() ed.DSSSharedMarshaled {
+func (pr *PregClientWrapper) GetDSSShared() ed.CoinSharedMarshaled {
 	ret, err := pr.ParRegClientInterface.GetDSSShared(pr.id)
 	if err != nil {
 		panic(err)

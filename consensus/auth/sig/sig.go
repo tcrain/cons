@@ -22,7 +22,6 @@ package sig
 import (
 	"bytes"
 	"github.com/tcrain/cons/config"
-	"github.com/tcrain/cons/consensus/auth/coinproof"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
 )
@@ -33,13 +32,13 @@ import (
 
 // SigItem tracks a signature and public key object that should verify the signature
 type SigItem struct {
-	WasEncrypted bool                 // Set to true if this was an encrypted message
-	Pub          Pub                  // The public key that will be used to verify the signature
-	Sig          Sig                  // The signature
-	VRFProof     VRFProof             // The VRF proof if enabled
-	VRFID        uint64               // The first uint64 computed by the vrf
-	SigBytes     []byte               // The bytes of the signature
-	CoinProof    *coinproof.CoinProof // Proof for the coin
+	WasEncrypted bool     // Set to true if this was an encrypted message
+	Pub          Pub      // The public key that will be used to verify the signature
+	Sig          Sig      // The signature
+	VRFProof     VRFProof // The VRF proof if enabled
+	VRFID        uint64   // The first uint64 computed by the vrf
+	SigBytes     []byte   // The bytes of the signature
+	//CoinProof    CoinProof // Proof for the coin
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -323,7 +322,7 @@ func DeserVRF(pub Pub, m *messages.Message) (*SigItem, int, error) {
 	switch byt {
 	case 0: // no VRF proof
 	case 1: // VRF proof included
-		ret.VRFProof = pub.NewVRFProof()
+		ret.VRFProof = pub.(VRFPub).NewVRFProof()
 		l1, err := ret.VRFProof.Decode((*messages.MsgBuffer)(m))
 		l += l1
 		if err != nil {
@@ -336,13 +335,15 @@ func DeserVRF(pub Pub, m *messages.Message) (*SigItem, int, error) {
 }
 
 // GenerateSigHelper is a helper function for implementations of GenerateSig
-func GenerateSigHelper(priv Priv, header SignedMessage, vrfProof VRFProof, signType types.SignType) (*SigItem, error) {
+func GenerateSigHelper(priv Priv, header SignedMessage, allowsVRF bool, vrfProof VRFProof, signType types.SignType) (*SigItem, error) {
 	if signType == types.CoinProof {
 		panic(types.ErrCoinProofNotSupported)
 	}
 	m := messages.NewMessage(nil)
-	if err := CheckSerVRF(vrfProof, m); err != nil {
-		return nil, err
+	if allowsVRF {
+		if err := CheckSerVRF(vrfProof, m); err != nil {
+			return nil, err
+		}
 	}
 	_, err := priv.GetPub().Serialize(m) // priv.SerializePub(m)
 	if err != nil {

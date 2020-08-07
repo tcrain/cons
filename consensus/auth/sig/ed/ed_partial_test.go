@@ -29,12 +29,12 @@ import (
 	// "github.com/tcrain/cons/consensus/messages"
 )
 
-var thrshdssshare *DSSShared
+var thrshdssshare *CoinShared
 var thrshn = flag.Int("thrshn", config.Thrshn, "benchmark threshold signature n")
 var thrsht = flag.Int("thrsht", config.Thrsht, "benchmark threshold signature t")
 
 func init() {
-	thrshdssshare = NewDSSShared(*thrshn, 0, *thrsht)
+	thrshdssshare = NewCoinShared(*thrshn, 0, *thrsht)
 }
 
 func GetEdPartPrivFunc() func() (sig.Priv, error) {
@@ -44,6 +44,11 @@ func GetEdPartPrivFunc() func() (sig.Priv, error) {
 		index += 1
 		return NewEdPartPriv(edThresh)
 	}
+}
+
+func TestEdPartPrintStats(t *testing.T) {
+	t.Log("ED threshold stats")
+	sig.SigTestPrintStats(GetEdPartPrivFunc(), t)
 }
 
 func TestEdPartSort(t *testing.T) {

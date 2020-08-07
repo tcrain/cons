@@ -40,8 +40,21 @@ func TestMvBinCons1Basic(t *testing.T) {
 	cons.RunBasicTests(types.TestOptions{}, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, []int{}, t)
 }
 
+func TestMvBinCons1BasicSleep(t *testing.T) {
+	to := types.TestOptions{}
+	to.SleepCrypto = true
+	cons.RunBasicTests(to, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, []int{}, t)
+}
+
 func TestMvBinCons1RandMC(t *testing.T) {
 	cons.RunRandMCTests(types.TestOptions{}, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, true,
+		[]int{}, t)
+}
+
+func TestMvBinCons1RandMCSleep(t *testing.T) {
+	to := types.TestOptions{}
+	to.SleepCrypto = true
+	cons.RunRandMCTests(to, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, true,
 		[]int{}, t)
 }
 
@@ -59,6 +72,12 @@ func TestMvBinCons1MsgDrop(t *testing.T) {
 
 func TestMvCons1MultiSig(t *testing.T) {
 	cons.RunMultiSigTests(types.TestOptions{}, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, []int{}, t)
+}
+
+func TestMvCons1MultiSigSleep(t *testing.T) {
+	to := types.TestOptions{}
+	to.SleepCrypto = true
+	cons.RunMultiSigTests(to, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, []int{}, t)
 }
 
 func TestMvCons1P2p(t *testing.T) {

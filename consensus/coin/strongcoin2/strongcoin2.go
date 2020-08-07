@@ -30,7 +30,7 @@ import (
 	"github.com/tcrain/cons/consensus/types"
 )
 
-// StrongCoin2 represents a strong coin implemented by an n-t threshold signautre.
+// StrongCoin2 represents a strong coin implemented by an n-t (or t+1) threshold random coin (cachin'05)
 type StrongCoin2 struct {
 }
 

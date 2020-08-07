@@ -230,6 +230,7 @@ func (sms *SimpleMessageState) CheckGenThresholdCoin(hdr messages.InternalSigned
 	myPriv := mc.MC.GetMyPriv()
 	if _, ok := myPriv.GetPub().(sig.CoinProofPubInterface); !ok {
 		err = types.ErrThresholdSigsNotSupported
+		_ = myPriv.GetPub().(sig.CoinProofPubInterface)
 		return
 	}
 	var count int

@@ -23,7 +23,6 @@ import (
 	"crypto/sha512"
 	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/auth/sig"
-	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
 	"go.dedis.ch/kyber/v3"
 	"go.dedis.ch/kyber/v3/sign/eddsa"
@@ -109,11 +108,6 @@ func (priv *Edpriv) GetBaseKey() sig.Priv {
 	return priv
 }
 
-// Evaluate is for generating VRFs and not supported for ed.
-func (priv *Edpriv) Evaluate(m sig.SignedMessage) (index [32]byte, proof sig.VRFProof) {
-	panic("unsupported")
-}
-
 // GetPub returns the coreesponding EDDSA public key object
 func (priv *Edpriv) GetPub() sig.Pub {
 	return priv.pub
@@ -169,28 +163,7 @@ func (priv *Edpriv) GenerateSig(header sig.SignedMessage, proof sig.VRFProof, si
 	if proof != nil {
 		panic("vrf not supported by ED")
 	}
-	m := messages.NewMessage(nil)
-	if signType == types.CoinProof {
-		panic("coin proof only supported for ")
-	}
-
-	_, err := priv.GetPub().Serialize(m) // priv.SerializePub(m)
-	if err != nil {
-		return nil, err
-	}
-	si, err := priv.Sign(header)
-	if err != nil {
-		return nil, err
-	}
-	_, err = si.Serialize(m)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sig.SigItem{
-		Pub:      priv.GetPub(),
-		Sig:      si,
-		SigBytes: m.GetBytes()}, nil
+	return sig.GenerateSigHelper(priv, header, false, nil, signType)
 }
 
 // Sign signs a message and returns the signature.

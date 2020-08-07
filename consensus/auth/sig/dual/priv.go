@@ -27,6 +27,7 @@ import (
 type DualPriv struct {
 	sig.Priv
 	sig.ThreshStateInterface
+	sig.VRFPriv
 	Priv2           sig.Priv
 	pub             *DualPub
 	useForCoin      types.SignType
@@ -54,13 +55,15 @@ func NewDualprivCustomThresh(priv1, priv2 sig.Priv, useForCoin, useForSecondary 
 	if thrsh, ok := ret.Priv.(sig.ThreshStateInterface); ok {
 		ret.ThreshStateInterface = thrsh
 	}
+	if vrfp, ok := ret.Priv.(sig.VRFPriv); ok {
+		ret.VRFPriv = vrfp
+	}
 
 	ret.pub = &DualPub{
 		useForSecondary: useForSecondary,
 		useForCoin:      useForCoin,
-		Pub:             ret.Priv.GetPub(),
-		pub2:            ret.Priv2.GetPub(),
 	}
+	ret.pub.SetPubs(ret.Priv.GetPub(), ret.Priv2.GetPub())
 	return &ret, nil
 }
 

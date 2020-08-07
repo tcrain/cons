@@ -10,6 +10,7 @@
     "GenRandBytes": false,
     "SigType": 5,
     "CoinType": 3,
+    "SleepCrypto": true,
 
     "FailRounds": 5,
     "FailDuration": 2000,

@@ -143,7 +143,7 @@ func (arm *absRandMemberCheckerByID) getMyVRF(msgID messages.MsgID) sig.VRFProof
 	}
 
 	newMsg := arm.computeNewMsg(msgID)
-	_, prf := arm.myPriv.Evaluate(newMsg)
+	_, prf := arm.myPriv.(sig.VRFPriv).Evaluate(newMsg)
 	if arm.rndStats != nil {
 		arm.rndStats.CreatedVRF()
 	}
@@ -256,7 +256,7 @@ func (arm *absRandMemberCheckerByID) GotVrf(pub sig.Pub, msgID messages.MsgID, p
 	arm.rndLock.Unlock()
 	if !ok {
 		newMsg := arm.computeNewMsg(msgID)
-		rndByte, err := pub.ProofToHash(newMsg, proof)
+		rndByte, err := pub.(sig.VRFPub).ProofToHash(newMsg, proof)
 		if arm.rndStats != nil {
 			arm.rndStats.ValidatedVRF()
 		}

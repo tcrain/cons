@@ -122,7 +122,7 @@ func (arm *absRandMemberChecker) gotRand(rnd [32]byte, participantNodeCount int,
 	arm.randBasicMsg = sig.BasicSignedMessage(m.GetRemainingBytes())
 
 	// compute our own vrf
-	_, prf := arm.myPriv.Evaluate(arm.randBasicMsg)
+	_, prf := arm.myPriv.(sig.VRFPriv).Evaluate(arm.randBasicMsg)
 	if arm.rndStats != nil {
 		arm.rndStats.CreatedVRF()
 	}
@@ -230,7 +230,7 @@ func (arm *absRandMemberChecker) GotVrf(pub sig.Pub, msgID messages.MsgID, proof
 	_, ok := arm.vrfRand[pid]
 	arm.rndLock.Unlock()
 	if !ok {
-		rndByte, err := pub.ProofToHash(arm.randBasicMsg, proof)
+		rndByte, err := pub.(sig.VRFPub).ProofToHash(arm.randBasicMsg, proof)
 		if arm.rndStats != nil {
 			arm.rndStats.ValidatedVRF()
 		}

@@ -1,0 +1,22 @@
+{
+    "TestID": 3,
+    "ConsType": 9,
+    "StateMachineType": 1,
+    "MaxRounds": 10,
+    "NumTotalProcs": 40,
+    "RndMemberCount": 20,
+    "GenRandBytes": true,
+    "NetworkType": 1,
+    "FanOut": 4,
+    "ConnectionType": 1,
+    "IncludeProofs": false,
+    "SigType": 0,
+    "UsePubIndex": true,
+    "SleepValidate": false,
+    "MCType": 0,
+    "CheckDecisions": true,
+    "MvProposalSizeBytes": 10,
+    "BinConsPercentOnes": 100,
+    "SleepCrypto": true,
+    "RndMemberType": 2
+}

@@ -1,9 +1,10 @@
 {
+    "TestID": 3,
     "MaxRounds": 10,
-    "NumTotalProcs": 8,
-    "NetworkType": 2,
+    "NumTotalProcs": 40,
+    "NetworkType": 1,
     "FanOut": 4,
-    "ConnectionType": 0,
+    "ConnectionType": 1,
     "IncludeProofs": false,
     "SigType": 4,
     "UsePubIndex": true,
@@ -14,5 +15,8 @@
     "BlsMultiNew": true,
     "CheckDecisions": false,
     "MvProposalSizeBytes": 10,
-    "BinConsPercentOnes": 50
+    "BinConsPercentOnes": 100,
+    "IncludeCurrentSigs": true,
+    "SleepCrypto": true,
+    "AdditionalP2PNetworks": 2
 }

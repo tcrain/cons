@@ -46,17 +46,12 @@ func (pub *QsafePub) ShallowCopy() sig.Pub {
 	return &newPub
 }
 
-// NewVRFProof is not supported.
-func (pub *QsafePub) NewVRFProof() sig.VRFProof {
-	panic("VRF not supported")
-}
-
 // CheckSignature validates the signature with the public key, it returns an error if a coin proof is included.
 func (pub *QsafePub) CheckSignature(msg *sig.MultipleSignedMessage, sigItem *sig.SigItem) error {
 
 	// Check if this is a coin proof or a signature
 	signType := msg.GetSignType()
-	if signType == types.CoinProof || sigItem.CoinProof != nil {
+	if signType == types.CoinProof {
 		return types.ErrCoinProofNotSupported
 	}
 	valid, err := pub.VerifySig(msg, sigItem.Sig)
@@ -119,10 +114,13 @@ func (pub *QsafePub) DeserializeSig(m *messages.Message, signType types.SignType
 		return nil, 0, types.ErrCoinProofNotSupported
 	}
 
-	ret, l, err := sig.DeserVRF(pub, m)
-	if err != nil {
-		return nil, l, err
-	}
+	// no VRF allowed for qsafe
+	/*	ret, l, err := sig.DeserVRF(pub, m)
+		if err != nil {
+			return nil, l, err
+		}*/
+	var l int
+	ret := &sig.SigItem{}
 	ret.Pub = pub.New()
 	l1, err := ret.Pub.Deserialize(m, types.NilIndexFuns)
 	l += l1
@@ -147,18 +145,15 @@ func (pub *QsafePub) VerifySig(msg sig.SignedMessage, aSig sig.Sig) (bool, error
 			return true, nil
 		}
 		var s oqs.Signature
-		s.Init(QsafeName, nil)
+		if err := s.Init(SigTypeName, nil); err != nil {
+			panic(err)
+		}
 		vaild, err := s.Verify(msg.GetSignedMessage(), v.sigBytes, pub.pubBytes)
 		s.Clean()
 		return vaild, err
 	default:
 		return false, types.ErrInvalidSigType
 	}
-}
-
-// ProofToHash is not supported.
-func (pub *QsafePub) ProofToHash(m sig.SignedMessage, proof sig.VRFProof) (index [32]byte, err error) {
-	panic("VRF not supported")
 }
 
 // GetRealPubBytes returns the pub key as bytes (same as GetPubBytes for keys)

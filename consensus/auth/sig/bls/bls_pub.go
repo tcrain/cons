@@ -24,6 +24,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/types"
 	"go.dedis.ch/kyber/v3/pairing"
+	"golang.org/x/crypto/blake2b"
 	"io"
 	"time"
 
@@ -63,9 +64,49 @@ func (prf VRFProof) New() sig.VRFProof {
 // Operations on multi-sigs
 ///////////////////////////////////////////////////////////////////////////////////////
 
+// SubBlsPub remove pub2 from pub1 and returns the resulting public key object
+func (pub *Blspub) SubMultiPub(pub2 sig.MultiPub) (sig.MultiPub, error) {
+	p1bid := pub.GetBitID()
+	p2bid := pub2.GetBitID()
+	if p1bid.GetNumItems() <= p2bid.GetNumItems() {
+		return nil, types.ErrInvalidBitIDSub
+	}
+	if len(p1bid.CheckIntersection(p2bid)) != p2bid.GetNumItems() {
+		return nil, types.ErrInvalidBitIDSub
+	}
+
+	pb := pub.newPub.Clone().Sub(pub.newPub, pub2.(*Blspub).newPub)
+	return &Blspub{
+		pub:    pb,
+		newPub: pb,
+		bitID:  bitid.SubBitIDType(p1bid, p2bid)}, nil
+}
+
+// MergePubPartial only merges the pub itself, does not create the new bitid
+func (pub *Blspub) MergePubPartial(pub2 sig.MultiPub) {
+	pb := pub.newPub.Add(pub2.(*Blspub).newPub, pub.newPub)
+	pub.pub = pb
+	pub.newPub = pb
+}
+
+// DonePartialMerge should be called after merging keys with MergePubPartial to set the bitid
+func (pub *Blspub) DonePartialMerge(bid bitid.BitIDInterface) {
+	pub.bitID = bid
+}
+
+// GenerateSerializedSig serialized the public key and the signature and returns the bytes
+func (pub *Blspub) GenerateSerializedSig(bsig sig.MultiSig) ([]byte, error) {
+	// hash := header.GetSignedHash()
+	si, err := sig.GenerateSigHelperFromSig(pub, bsig.(*Blssig), nil, types.NormalSignature)
+	if err != nil {
+		return nil, err
+	}
+	return si.SigBytes, nil
+}
+
 // MergeBlsPub combines two BLS public key objects into a single one
-func MergeBlsPub(pub1 *Blspub, pub2 *Blspub) (*Blspub, error) {
-	p1bid := pub1.GetBitID()
+func (pub *Blspub) MergePub(pub2 sig.MultiPub) (sig.MultiPub, error) {
+	p1bid := pub.GetBitID()
 	p2bid := pub2.GetBitID()
 	if p1bid == nil || p2bid == nil {
 		return nil, types.ErrInvalidBitID
@@ -74,19 +115,24 @@ func MergeBlsPub(pub1 *Blspub, pub2 *Blspub) (*Blspub, error) {
 		return nil, types.ErrIntersectingBitIDs
 	}
 
-	pb := pub1.newPub.Clone().Add(pub2.newPub, pub1.newPub)
+	pb := pub.newPub.Clone().Add(pub2.(*Blspub).newPub, pub.newPub)
 	return &Blspub{
 		pub:    pb,
 		newPub: pb,
 		bitID:  bitid.MergeBitIDType(p1bid, p2bid, config.AllowMultiMerge)}, nil
 }
 
+// GetBitID returns the bit id object representing the indecies of the nodes represented by the BLS public key oject
+func (pub *Blspub) GetBitID() bitid.BitIDInterface {
+	return pub.bitID
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////
 // The below functions are for doing a merge in a loop (see func (msm *MultiSigMemChecker) CheckMemberLocalMsg(...))
 ///////////////////////////////////////////////////////////////////////////////////////
 
-// Clone returns a new Blspub only containing the points (no bitid), should be called before merging the first set of keys with MergeBlsPubPartial
-func (pub *Blspub) Clone() *Blspub {
+// Clone returns a new Blspub only containing the points (no bitid), should be called before merging the first set of keys with MergePubPartial
+func (pub *Blspub) Clone() sig.MultiPub {
 	return &Blspub{
 		pub:    pub.pub.Clone(),
 		newPub: pub.newPub.Clone()}
@@ -102,7 +148,7 @@ func (pub *Blspub) CheckSignature(msg *sig.MultipleSignedMessage, sigItem *sig.S
 
 	// Check if this is a coin proof or a signature
 	signType := msg.GetSignType()
-	if signType == types.CoinProof || sigItem.CoinProof != nil {
+	if signType == types.CoinProof {
 		return types.ErrCoinProofNotSupported
 	}
 	valid, err := pub.VerifySig(msg, sigItem.Sig)
@@ -136,27 +182,17 @@ func (pub *Blspub) ProofToHash(m sig.SignedMessage, proof sig.VRFProof) (index [
 		err = types.ErrInvalidSig
 		return
 	}
-	n = copy(index[:], proof.(VRFProof))
-	if n != 32 {
-		panic("copy error")
+	hf, err := blake2b.New256(nil)
+	if err != nil {
+		panic(err)
 	}
+	hf.Write(proof.(VRFProof))
+	hf.Sum(index[:0])
 	return
 }
 
-// MergeBlsPubPartial only merges the pub itself, does not create the new bitid
-func (pub *Blspub) MergeBlsPubPartial(pub2 *Blspub) {
-	pb := pub.newPub.Add(pub2.newPub, pub.newPub)
-	pub.pub = pb
-	pub.newPub = pb
-}
-
-// DonePartialMerge should be called after merging keys with MergeBlsPubPartial to set the bitid
-func (pub *Blspub) DonePartialMerge(bid bitid.BitIDInterface) {
-	pub.bitID = bid
-}
-
 // MergeBlsPubList combines a list of BLS public key objects into a single one
-// Note this is not currently used, instead the MergeBlsPubPartial is used
+// Note this is not currently used, instead the MergePubPartial is used
 func MergeBlsPubList(pubs ...*Blspub) (*Blspub, error) {
 	if len(pubs) == 0 {
 		return nil, types.ErrNilPub
@@ -182,24 +218,6 @@ func MergeBlsPubList(pubs ...*Blspub) (*Blspub, error) {
 		bitID:  bitid.MergeBitIDListType(true, bids...)}, nil
 }
 
-// SubBlsPub remove pub2 from pub1 and returns the resulting public key object
-func SubBlsPub(pub1 *Blspub, pub2 *Blspub) (*Blspub, error) {
-	p1bid := pub1.GetBitID()
-	p2bid := pub2.GetBitID()
-	if p1bid.GetNumItems() <= p2bid.GetNumItems() {
-		return nil, types.ErrInvalidBitIDSub
-	}
-	if len(p1bid.CheckIntersection(p2bid)) != p2bid.GetNumItems() {
-		return nil, types.ErrInvalidBitIDSub
-	}
-
-	pb := pub1.newPub.Clone().Sub(pub1.newPub, pub2.newPub)
-	return &Blspub{
-		pub:    pb,
-		newPub: pb,
-		bitID:  bitid.SubBitIDType(p1bid, p2bid)}, nil
-}
-
 ///////////////////////////////////////////////////////////////////////////
 // Public key
 ///////////////////////////////////////////////////////////////////////////
@@ -222,11 +240,6 @@ type Blspub struct {
 func (pub *Blspub) ShallowCopy() sig.Pub {
 	newPub := *pub
 	return &newPub
-}
-
-// GetBitID returns the bit id object representing the indecies of the nodes represented by the BLS public key oject
-func (pub *Blspub) GetBitID() bitid.BitIDInterface {
-	return pub.bitID
 }
 
 // GetMsgID returns the msg id for BLS pub
@@ -262,16 +275,6 @@ func (pub *Blspub) GetSigMemberNumber() int {
 		return pub.GetBitID().GetNumItems()
 	}
 	return 1
-}
-
-// GenerateSerializedSig serialized the public key and the signature and returns the bytes
-func (pub *Blspub) GenerateSerializedSig(bsig *Blssig) ([]byte, error) {
-	// hash := header.GetSignedHash()
-	si, err := sig.GenerateSigHelperFromSig(pub, bsig, nil, types.NormalSignature)
-	if err != nil {
-		return nil, err
-	}
-	return si.SigBytes, nil
 }
 
 // FromPubBytes creates a BLS pub key object from the bytes of a public key

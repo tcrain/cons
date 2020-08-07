@@ -294,6 +294,6 @@ func CheckMember(mc *MemCheckers, idx types.ConsensusIndex, sigItem *sig.SigItem
 			return err
 		}
 	}
-
+	mc.MC.Validated(msg.GetSignType())
 	return sigItem.Pub.CheckSignature(msg, sigItem)
 }
