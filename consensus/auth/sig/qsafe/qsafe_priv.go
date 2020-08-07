@@ -27,14 +27,14 @@ import (
 	"github.com/tcrain/cons/consensus/types"
 )
 
-const QsafeName = "DEFAULT"
+const SigTypeName = "DEFAULT"
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // Private key
 ///////////////////////////////////////////////////////////////////////////////////////
 
 // QsafePriv represents the ECDSA private key object
-type QsafePriv struct {
+type Priv struct {
 	// priv  *ecdsa.PrivateKey // The private key object
 	priv  oqs.Signature
 	pub   *QsafePub       // The public key object
@@ -42,59 +42,61 @@ type QsafePriv struct {
 }
 
 // ComputeSharedSecret returns the hash of Diffie-Hellman.
-func (priv *QsafePriv) ComputeSharedSecret(pub sig.Pub) [32]byte {
+func (priv *Priv) ComputeSharedSecret(_ sig.Pub) [32]byte {
 	// use the KEM module, but need to generate custom keys for this
 	panic("TODO")
 }
 
 // Clean garbage collects the c objects.
-func (priv *QsafePriv) Clean() {
+func (priv *Priv) Clean() {
 	priv.priv.Clean()
 }
 
 // Shallow copy makes a copy of the object without following pointers.
-func (priv *QsafePriv) ShallowCopy() sig.Priv {
+func (priv *Priv) ShallowCopy() sig.Priv {
 	newPriv := *priv
 	newPriv.pub = newPriv.pub.ShallowCopy().(*QsafePub)
 	return &newPriv
 }
 
 // NewSig returns an empty sig object of the same type.
-func (priv *QsafePriv) NewSig() sig.Sig {
+func (priv *Priv) NewSig() sig.Sig {
 	return &QsafeSig{algDetails: priv.priv.Details()}
 }
 
 // GetBaseKey returns the same key.
-func (priv *QsafePriv) GetBaseKey() sig.Priv {
+func (priv *Priv) GetBaseKey() sig.Priv {
 	return priv
 }
 
 // SetIndex sets the index of the node represented by this key in the consensus participants
-func (priv *QsafePriv) SetIndex(index sig.PubKeyIndex) {
+func (priv *Priv) SetIndex(index sig.PubKeyIndex) {
 	priv.index = index
 	priv.pub.SetIndex(index)
 }
 
 // New creates an empty ECDSA private key object
-func (sig *QsafePriv) New() sig.Priv {
-	return &QsafePriv{}
+func (priv *Priv) New() sig.Priv {
+	return &Priv{}
 }
 
 // GetPub returns the coreesponding ECDSA public key object
-func (priv *QsafePriv) GetPub() sig.Pub {
+func (priv *Priv) GetPub() sig.Pub {
 	return priv.pub
 }
 
 // NewQsafePriv creates a new random ECDSA private key object
 func NewQsafePriv() (sig.Priv, error) {
 	var priv oqs.Signature
-	priv.Init(QsafeName, nil)
+	if err := priv.Init(SigTypeName, nil); err != nil {
+		panic(err)
+	}
 	pubBytes, err := priv.GenerateKeyPair()
 	if err != nil {
 		return nil, err
 	}
 
-	return &QsafePriv{
+	return &Priv{
 		priv: priv,
 		pub: &QsafePub{
 			algDetails: priv.Details(),
@@ -103,12 +105,12 @@ func NewQsafePriv() (sig.Priv, error) {
 }
 
 // GenerateSig signs a message and returns the SigItem object containing the signature
-func (priv *QsafePriv) GenerateSig(header sig.SignedMessage, vrfProof sig.VRFProof, signType types.SignType) (*sig.SigItem, error) {
-	return sig.GenerateSigHelper(priv, header, vrfProof, signType)
+func (priv *Priv) GenerateSig(header sig.SignedMessage, vrfProof sig.VRFProof, signType types.SignType) (*sig.SigItem, error) {
+	return sig.GenerateSigHelper(priv, header, false, vrfProof, signType)
 }
 
 // Sign signs a message and returns the signature.
-func (priv *QsafePriv) Sign(msg sig.SignedMessage) (sig.Sig, error) {
+func (priv *Priv) Sign(msg sig.SignedMessage) (sig.Sig, error) {
 	sigBytes, err := priv.priv.Sign(msg.GetSignedMessage())
 	if err != nil {
 		return nil, err
@@ -117,7 +119,7 @@ func (priv *QsafePriv) Sign(msg sig.SignedMessage) (sig.Sig, error) {
 }
 
 // Returns key that is used for signing the sign type.
-func (priv *QsafePriv) GetPrivForSignType(signType types.SignType) (sig.Priv, error) {
+func (priv *Priv) GetPrivForSignType(signType types.SignType) (sig.Priv, error) {
 	if signType == types.CoinProof {
 		return nil, types.ErrCoinProofNotSupported
 	}

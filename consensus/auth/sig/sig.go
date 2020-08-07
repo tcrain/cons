@@ -335,13 +335,15 @@ func DeserVRF(pub Pub, m *messages.Message) (*SigItem, int, error) {
 }
 
 // GenerateSigHelper is a helper function for implementations of GenerateSig
-func GenerateSigHelper(priv Priv, header SignedMessage, vrfProof VRFProof, signType types.SignType) (*SigItem, error) {
+func GenerateSigHelper(priv Priv, header SignedMessage, allowsVRF bool, vrfProof VRFProof, signType types.SignType) (*SigItem, error) {
 	if signType == types.CoinProof {
 		panic(types.ErrCoinProofNotSupported)
 	}
 	m := messages.NewMessage(nil)
-	if err := CheckSerVRF(vrfProof, m); err != nil {
-		return nil, err
+	if allowsVRF {
+		if err := CheckSerVRF(vrfProof, m); err != nil {
+			return nil, err
+		}
 	}
 	_, err := priv.GetPub().Serialize(m) // priv.SerializePub(m)
 	if err != nil {

@@ -1,7 +1,6 @@
 package sleep
 
 import (
-	"github.com/tcrain/cons/consensus/auth/coinproof"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
@@ -10,7 +9,7 @@ import (
 )
 
 type coinPriv struct {
-	sig.Priv
+	SleepPriv
 	coinPub *coin
 }
 
@@ -20,23 +19,28 @@ func (p *coinPriv) GetPub() sig.Pub {
 
 func (p *coinPriv) ShallowCopy() sig.Priv {
 	newP := *p
-	newP.Priv = p.Priv.ShallowCopy()
+	newP.SleepPriv = p.SleepPriv.ShallowCopy().(SleepPriv)
 	return &newP
 }
 
 // New creates an empty sleep private key object
 func (p *coinPriv) New() sig.Priv {
-	return &coinPriv{Priv: p.New()}
+	return &coinPriv{SleepPriv: p.New().(SleepPriv)}
 }
 
 // SetIndex sets the index of the node represented by this key in the consensus participants
 func (p *coinPriv) SetIndex(index sig.PubKeyIndex) {
-	p.Priv.SetIndex(index)
+	p.SleepPriv.SetIndex(index)
 	p.coinPub.SetIndex(index)
 }
 
-func NewCoinSleepPriv(n, t int, stats *sig.SigStats) sig.Priv {
-	cp, err := NewSleepPriv(stats, rnd)
+// Returns key that is used for signing the sign type.
+func (p *coinPriv) GetPrivForSignType(signType types.SignType) (sig.Priv, error) {
+	return p, nil
+}
+
+func NewCoinSleepPriv(n, t int, i sig.PubKeyIndex, stats *sig.SigStats) sig.Priv {
+	cp, err := NewSleepPriv(stats, i)
 	if err != nil {
 		panic(err)
 	}
@@ -49,8 +53,8 @@ func NewCoinSleepPriv(n, t int, stats *sig.SigStats) sig.Priv {
 		sharedPub: newSharedPub(stats, t),
 	}
 	return &coinPriv{
-		Priv:    cp,
-		coinPub: c,
+		SleepPriv: cp.(SleepPriv),
+		coinPub:   c,
 	}
 }
 
@@ -59,6 +63,13 @@ type coin struct {
 	sig.Pub
 	sharedPub *sharedPub
 	stats     *sig.SigStats
+}
+
+// NewCoinProof returns an empty coin proof object
+func (c *coin) NewCoinProof() sig.CoinProof {
+	return &coinProof{
+		stats: c.stats,
+	}
 }
 
 func (c *coin) FromPubBytes(b sig.PubKeyBytes) (sig.Pub, error) {
@@ -71,6 +82,7 @@ func (c *coin) FromPubBytes(b sig.PubKeyBytes) (sig.Pub, error) {
 		t:         c.t,
 		Pub:       p,
 		sharedPub: c.sharedPub,
+		stats:     c.stats,
 	}, nil
 }
 
@@ -86,6 +98,7 @@ func (c *coin) New() sig.Pub {
 		t:         c.t,
 		Pub:       c.Pub.New(),
 		sharedPub: c.sharedPub,
+		stats:     c.stats,
 	}
 }
 
@@ -105,14 +118,14 @@ func (c *coin) GetSharedPub() sig.Pub {
 	return c.sharedPub
 }
 
-func (c *coin) CheckcoinProof(msg sig.SignedMessage, prf sig.CoinProof) error {
+func (c *coin) CheckCoinProof(msg sig.SignedMessage, prf sig.CoinProof) error {
 	time.Sleep(c.stats.ShareVerifyTime)
 	return nil
 }
 
 // CombineProofs combines the given proofs and returns the resulting coin values.
 // The proofs are expected to have already been validated by CheckcoinProof.
-func (c *coin) CombineProofs(items []*sig.SigItem) (coinVal types.BinVal, err error) {
+func (c *coin) CombineProofs(_ sig.Priv, items []*sig.SigItem) (coinVal types.BinVal, err error) {
 	for i := 0; i < c.GetT(); i++ {
 		time.Sleep(c.stats.ShareCombineTime)
 	}
@@ -121,9 +134,10 @@ func (c *coin) CombineProofs(items []*sig.SigItem) (coinVal types.BinVal, err er
 	return types.BinVal(hsh[0] % 2), nil
 }
 
-func (c *coin) DeserializeCoinProof(m *messages.Message) (coinProof sig.CoinProof, size int, err error) {
-	coinProof = coinproof.EmptyCoinProof(sig.EdSuite)
-	size, err = coinProof.(*coinproof.CoinProof).Deserialize(m, types.NilIndexFuns)
+func (c *coin) DeserializeCoinProof(m *messages.Message) (cp sig.CoinProof, size int, err error) {
+	cp = &coinProof{stats: c.stats}
+	//coinProof = coinproof.EmptyCoinProof(sig.EdSuite)
+	size, err = cp.Deserialize(m, types.NilIndexFuns)
 	return
 }
 

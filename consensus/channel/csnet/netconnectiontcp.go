@@ -44,7 +44,7 @@ func newNetConnectionTCP(conInfo channelinterface.NetNodeInfo, connStatus *ConnS
 	defer nsc.mutex.Unlock()
 
 	if netMainChannel.encryptChannels {
-		nsc.encrypter = channel.NewEcrypter(netMainChannel.myPriv, false, conInfo.Pub)
+		nsc.encrypter = channel.GenerateEncrypter(netMainChannel.myPriv, false, conInfo.Pub)
 	}
 	// nsc.myConInfo = myConInfo
 	nsc.connStatus = connStatus
@@ -70,7 +70,7 @@ func newNetConnectionTCPAlreadyConnected(conn net.Conn, connStatus *ConnStatus, 
 	nsc.cond = sync.NewCond(&nsc.mutex)
 
 	if netMainChannel.encryptChannels {
-		nsc.encrypter = channel.NewEcrypter(netMainChannel.myPriv, true, nil)
+		nsc.encrypter = channel.GenerateEncrypter(netMainChannel.myPriv, true, nil)
 	}
 	// we need the lock because after connStatus.addRecvConnection is called successfully,
 	// it may call Close, so we need to be all set up before this
@@ -137,7 +137,7 @@ type NetConnectionTCP struct {
 	cond           *sync.Cond                    // for when we are an encrypted receive connection waiting for someone to connect
 	wgTCPConn      sync.WaitGroup                // when closing wait for all the threads to finish
 	pub            sig.Pub                       // the public key if a send connection
-	encrypter      *channel.Encrypter
+	encrypter      channel.EncryptInterface
 }
 
 // GetType returns channelinterface.TCP

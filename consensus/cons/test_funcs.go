@@ -30,6 +30,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
 	"github.com/tcrain/cons/consensus/auth/sig/ed"
 	"github.com/tcrain/cons/consensus/auth/sig/qsafe"
+	"github.com/tcrain/cons/consensus/auth/sig/sleep"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/statemachine/asset"
@@ -332,7 +333,7 @@ func CheckSpecialKeys(to types.TestOptions, priv sig.Priv, pubs sig.PubList,
 			smc = memberchecker.NewNoSpecialMembers()
 		}
 	case types.TBLS:
-		smc = memberchecker.NewThrshSigMemChecker([]sig.Pub{priv.(*bls.PartPriv).GetSharedPub()})
+		smc = memberchecker.NewThrshSigMemChecker([]sig.Pub{priv.(sig.ThreshStateInterface).GetSharedPub()})
 	case types.TBLSDual:
 		p1 := priv.(sig.ThreshStateInterface).GetSharedPub()
 		p2 := priv.(sig.SecondaryPriv).GetSecondaryPriv().(sig.ThreshStateInterface).GetSharedPub()
@@ -412,12 +413,12 @@ func MakePrivBlsS(to types.TestOptions, thrsh int, idx sig.PubKeyIndex, blsShare
 	return
 }
 
-// MakeKey generates a private key for the given configuration.
-func MakeKey(to types.TestOptions) (p sig.Priv, err error) {
+// MakeUnusedKey generates a private key for a test. The key should not be used directly,
+// instead used an input to functions to that only use the new functions of the interfaces
+// to generate new key objects.
+func MakeUnusedKey(i sig.PubKeyIndex, to types.TestOptions) (p sig.Priv, err error) {
 	switch to.SigType {
-	case types.EC:
-		p, err = ec.NewEcpriv()
-	case types.BLS, types.TBLS:
+	case types.TBLS:
 		p, err = bls.NewBlspriv()
 	case types.TBLSDual:
 		coinType := types.NormalSignature
@@ -427,14 +428,47 @@ func MakeKey(to types.TestOptions) (p sig.Priv, err error) {
 		p, err = dual.NewDualpriv(bls.NewBlspriv, bls.NewBlspriv, coinType, types.SecondarySignature)
 	case types.CoinDual:
 		p, err = dual.NewDualpriv(ec.NewEcpriv, bls.NewBlspriv, types.SecondarySignature, types.NormalSignature)
-	case types.QSAFE:
-		p, err = qsafe.NewQsafePriv()
-	case types.ED:
-		p, err = ed.NewEdpriv()
-	case types.SCHNORR:
-		p, err = ed.NewSchnorrpriv()
 	case types.EDCOIN:
 		p, err = ed.NewSchnorrpriv() // we will use this to create the EDCOIN later
+	default:
+		p, err = MakeKey(i, to)
+	}
+	return
+}
+
+// MakeKey generates a private key for the given configuration.
+func MakeKey(i sig.PubKeyIndex, to types.TestOptions) (p sig.Priv, err error) {
+	switch to.SigType {
+	case types.EC:
+		if to.SleepCrypto {
+			p, err = sleep.NewECPriv(i)
+		} else {
+			p, err = ec.NewEcpriv()
+		}
+	case types.BLS:
+		if to.SleepCrypto {
+			p, err = sleep.NewBLSPriv(i)
+		} else {
+			p, err = bls.NewBlspriv()
+		}
+	case types.QSAFE:
+		if to.SleepCrypto {
+			p, err = sleep.NewQsafePriv(i)
+		} else {
+			p, err = qsafe.NewQsafePriv()
+		}
+	case types.ED:
+		if to.SleepCrypto {
+			p, err = sleep.NewEDPriv(i)
+		} else {
+			p, err = ed.NewEdpriv()
+		}
+	case types.SCHNORR:
+		if to.SleepCrypto {
+			p, err = sleep.NewSchnorrPriv(i)
+		} else {
+			p, err = ed.NewSchnorrpriv()
+		}
 	default:
 		err = fmt.Errorf("invalid sig type")
 	}
@@ -444,9 +478,9 @@ func MakeKey(to types.TestOptions) (p sig.Priv, err error) {
 func GetTBLSThresh(to types.TestOptions) int {
 	var thrsh int
 	if to.CoinType == types.NoCoinType {
-		thrsh, _ = GetDSSThresh(to)
+		thrsh, _ = sig.GetDSSThresh(to)
 	} else {
-		thrsh = GetCoinThresh(to)
+		thrsh = sig.GetCoinThresh(to)
 	}
 	return thrsh
 }
@@ -460,116 +494,168 @@ func MakeKeys(to types.TestOptions) ([]sig.Priv, []sig.Pub) {
 	privKeys := make(sig.PrivList, to.NumTotalProcs)
 	pubKeys := make(sig.PubList, to.NumTotalProcs)
 
-	var err error
+	var privFunc func(i sig.PubKeyIndex) sig.Priv
 	switch to.SigType {
 	case types.EC:
-		for i := 0; i < to.NumTotalProcs; i++ {
-			if privKeys[i], err = ec.NewEcpriv(); err != nil {
-				panic(err)
+		privFunc = func(i sig.PubKeyIndex) (p sig.Priv) {
+			var err error
+			if to.SleepCrypto {
+				p, err = sleep.NewECPriv(i)
+				utils.PanicNonNil(err)
+			} else {
+				p, err = ec.NewEcpriv()
+				utils.PanicNonNil(err)
 			}
+			return
 		}
 	case types.QSAFE:
-		for i := 0; i < to.NumTotalProcs; i++ {
-			if privKeys[i], err = qsafe.NewQsafePriv(); err != nil {
-				panic(err)
+		privFunc = func(i sig.PubKeyIndex) (p sig.Priv) {
+			var err error
+			if to.SleepCrypto {
+				p, err = sleep.NewQsafePriv(i)
+				utils.PanicNonNil(err)
+			} else {
+				p, err = qsafe.NewQsafePriv()
+				utils.PanicNonNil(err)
 			}
+			return
 		}
 	case types.BLS:
-		for i := 0; i < to.NumTotalProcs; i++ {
-			if privKeys[i], err = bls.NewBlspriv(); err != nil {
-				panic(err)
+		privFunc = func(i sig.PubKeyIndex) (p sig.Priv) {
+			var err error
+			if to.SleepCrypto {
+				p, err = sleep.NewBLSPriv(i)
+				utils.PanicNonNil(err)
+			} else {
+				p, err = bls.NewBlspriv()
+				utils.PanicNonNil(err)
 			}
+			return
 		}
 	case types.ED:
-		for i := 0; i < to.NumTotalProcs; i++ {
-			if privKeys[i], err = ed.NewEdpriv(); err != nil {
-				panic(err)
+		privFunc = func(i sig.PubKeyIndex) (p sig.Priv) {
+			var err error
+			if to.SleepCrypto {
+				p, err = sleep.NewEDPriv(i)
+				utils.PanicNonNil(err)
+			} else {
+				p, err = ed.NewEdpriv()
+				utils.PanicNonNil(err)
 			}
+			return
 		}
 	case types.SCHNORR:
-		for i := 0; i < to.NumTotalProcs; i++ {
-			if privKeys[i], err = ed.NewSchnorrpriv(); err != nil {
-				panic(err)
+		privFunc = func(i sig.PubKeyIndex) (p sig.Priv) {
+			var err error
+			if to.SleepCrypto {
+				p, err = sleep.NewSchnorrPriv(i)
+				utils.PanicNonNil(err)
+			} else {
+				p, err = ed.NewSchnorrpriv()
+				utils.PanicNonNil(err)
 			}
+			return
 		}
 	case types.TBLS:
 		thrshn := numMembers
 		thrsh := GetTBLSThresh(to)
 		blsShared := bls.NewBlsShared(thrshn, thrsh)
-		for i := 0; i < thrshn; i++ {
-			if privKeys[i], err = MakePrivBlsS(to, thrsh, sig.PubKeyIndex(i), blsShared); err != nil {
-				panic(err)
+
+		privFunc = func(i sig.PubKeyIndex) (p sig.Priv) {
+			var err error
+			if to.SleepCrypto {
+				p, err = sleep.NewTBLSPriv(thrshn, thrsh, i)
+				utils.PanicNonNil(err)
+				return
 			}
-		}
-		// nonMembers, just generate some keys, they won't be used as members
-		for i := thrshn; i < to.NumTotalProcs; i++ {
-			blsThresh := bls.NewNonMemberBlsThrsh(thrshn, thrsh, sig.PubKeyIndex(i), blsShared.SharedPub)
-			if privKeys[i], err = bls.NewBlsPartPriv(blsThresh); err != nil {
-				panic(err)
+			if int(i) < thrshn {
+				p, err = MakePrivBlsS(to, thrsh, sig.PubKeyIndex(i), blsShared)
+				utils.PanicNonNil(err)
+			} else {
+				// nonMembers, just generate some keys, they won't be used as members
+				blsThresh := bls.NewNonMemberBlsThrsh(thrshn, thrsh, sig.PubKeyIndex(i), blsShared.SharedPub)
+				p, err = bls.NewBlsPartPriv(blsThresh)
+				utils.PanicNonNil(err)
 			}
+			return
 		}
 	case types.TBLSDual:
 		thrshn := numMembers
 		blsSharedPrimary, blsSharedSecondary := GenTBLSDualDSSThresh(to)
-		for i := 0; i < thrshn; i++ {
-			privKeys[i] = GenTBLSDualThreshPriv(sig.PubKeyIndex(i), blsSharedPrimary, blsSharedSecondary, to)
-		}
-		// nonMembers, just generate some keys, they won't be used as members
-		for i := thrshn; i < to.NumTotalProcs; i++ {
-			privKeys[i] = GenTBLSDualThreshPrivNonMember(sig.PubKeyIndex(i), blsSharedPrimary, blsSharedSecondary, to)
+
+		privFunc = func(i sig.PubKeyIndex) (p sig.Priv) {
+			var err error
+			if to.SleepCrypto {
+				p, err = sleep.NewTBLSDualPriv(i, to)
+				utils.PanicNonNil(err)
+				return p
+			}
+			if int(i) < thrshn {
+				p = GenTBLSDualThreshPriv(i, blsSharedPrimary, blsSharedSecondary, to)
+			} else {
+				// nonMembers, just generate some keys, they won't be used as members
+				p = GenTBLSDualThreshPrivNonMember(i, blsSharedPrimary, blsSharedSecondary, to)
+			}
+			return
 		}
 	case types.CoinDual:
 		thrshn := numMembers
 		// coinType := types.NormalSignature
-		thrsh := GetCoinThresh(to)
-
+		thrsh := sig.GetCoinThresh(to)
 		blsSharedSecondary := bls.NewBlsShared(thrshn, thrsh)
 
-		for i := 0; i < thrshn; i++ {
-			var primary, secondary sig.Priv
-			if primary, err = ec.NewEcpriv(); err != nil {
-				panic(err)
+		privFunc = func(i sig.PubKeyIndex) (p sig.Priv) {
+			var err error
+			if to.SleepCrypto {
+				p, err = sleep.NewCoinDualPriv(i, to)
+				return
 			}
-			if secondary, err = MakePrivBlsS(to, thrsh, sig.PubKeyIndex(i), blsSharedSecondary); err != nil {
-				panic(err)
-			}
-			if privKeys[i], err = dual.NewDualprivCustomThresh(primary, secondary, types.SecondarySignature,
-				types.NormalSignature); err != nil {
 
-				panic(err)
-			}
-		}
-		// nonMembers, just generate some keys, they won't be used as members
-		for i := thrshn; i < to.NumTotalProcs; i++ {
-			blsThreshSecondary := bls.NewNonMemberBlsThrsh(thrshn, thrsh, sig.PubKeyIndex(i), blsSharedSecondary.SharedPub)
 			var primary, secondary sig.Priv
-			if primary, err = ec.NewEcpriv(); err != nil {
-				panic(err)
+			if int(i) < thrshn {
+				primary, err = ec.NewEcpriv()
+				utils.PanicNonNil(err)
+				secondary, err = MakePrivBlsS(to, thrsh, sig.PubKeyIndex(i), blsSharedSecondary)
+				utils.PanicNonNil(err)
+				p, err = dual.NewDualprivCustomThresh(primary, secondary, types.SecondarySignature,
+					types.NormalSignature)
+				utils.PanicNonNil(err)
+			} else {
+				// nonMembers, just generate some keys, they won't be used as members
+				primary, err = ec.NewEcpriv()
+				utils.PanicNonNil(err)
+				blsThreshSecondary := bls.NewNonMemberBlsThrsh(thrshn, thrsh, sig.PubKeyIndex(i), blsSharedSecondary.SharedPub)
+				secondary, err = bls.NewBlsPartPriv(blsThreshSecondary)
+				utils.PanicNonNil(err)
+				p, err = dual.NewDualprivCustomThresh(primary, secondary, types.SecondarySignature,
+					types.NormalSignature)
+				utils.PanicNonNil(err)
 			}
-			if secondary, err = bls.NewBlsPartPriv(blsThreshSecondary); err != nil {
-				panic(err)
-			}
-			if privKeys[i], err = dual.NewDualprivCustomThresh(primary, secondary, types.SecondarySignature,
-				types.NormalSignature); err != nil {
-
-				panic(err)
-			}
+			return
 		}
 
 	case types.EDCOIN:
-		thrsh := GetCoinThresh(to)
+		thrsh := sig.GetCoinThresh(to)
 		dssShared := ed.NewCoinShared(to.NumTotalProcs, to.NumNonMembers, thrsh)
-		var err error
-		for i := 0; i < to.NumTotalProcs; i++ {
-			edThresh := ed.NewEdThresh(sig.PubKeyIndex(i), dssShared)
-			if privKeys[i], err = ed.NewEdPartPriv(edThresh); err != nil {
-				panic(err)
+
+		privFunc = func(i sig.PubKeyIndex) (p sig.Priv) {
+			var err error
+			if to.SleepCrypto {
+				p, err = sleep.NewEDCoinPriv(i, to)
+				return
 			}
+			edThresh := ed.NewEdThresh(sig.PubKeyIndex(i), dssShared)
+			p, err = ed.NewEdPartPriv(edThresh)
+			utils.PanicNonNil(err)
+			return
 		}
 	default:
 		panic("invalid sig type")
 	}
 
+	for i := 0; i < to.NumTotalProcs; i++ {
+		privKeys[i] = privFunc(sig.PubKeyIndex(i))
+	}
 	privKeys.SetIndices() // so we set the indicies
 	for i := 0; i < to.NumTotalProcs; i++ {
 		pubKeys[i] = privKeys[i].GetPub()
@@ -584,7 +670,7 @@ func GenTBLSDualThreshPrivNonMember(i sig.PubKeyIndex, blsSharedPrimary, blsShar
 	if types.UseTp1CoinThresh(to) {
 		coinType = types.SecondarySignature
 	}
-	thrshPrimary, thrshSecondary := GetDSSThresh(to)
+	thrshPrimary, thrshSecondary := sig.GetDSSThresh(to)
 	thrshn := to.NumTotalProcs - to.NumNonMembers
 	blsThreshPrimary := bls.NewNonMemberBlsThrsh(thrshn, thrshPrimary, i, blsSharedPrimary.SharedPub)
 	blsThreshSecondary := bls.NewNonMemberBlsThrsh(thrshn, thrshSecondary, i, blsSharedSecondary.SharedPub)
@@ -610,7 +696,7 @@ func GenTBLSDualThreshPriv(i sig.PubKeyIndex, blsSharedPrimary, blsSharedSeconda
 	if types.UseTp1CoinThresh(to) {
 		coinType = types.SecondarySignature
 	}
-	thrshPrimary, thrshSecondary := GetDSSThresh(to)
+	thrshPrimary, thrshSecondary := sig.GetDSSThresh(to)
 	var err error
 	var primary, secondary sig.Priv
 	if primary, err = MakePrivBlsS(to, thrshPrimary, i, blsSharedPrimary); err != nil {
@@ -629,26 +715,10 @@ func GenTBLSDualThreshPriv(i sig.PubKeyIndex, blsSharedPrimary, blsSharedSeconda
 func GenTBLSDualDSSThresh(to types.TestOptions) (blsSharedPrimary, blsSharedSecondary *bls.BlsShared) {
 	numMembers := to.NumTotalProcs - to.NumNonMembers
 	thrshn := numMembers
-	thrshPrimary, thrshSecondary := GetDSSThresh(to)
+	thrshPrimary, thrshSecondary := sig.GetDSSThresh(to)
 	blsSharedPrimary = bls.NewBlsShared(thrshn, thrshPrimary)
 	blsSharedSecondary = bls.NewBlsShared(thrshn, thrshSecondary)
 	return
-}
-
-// GetDSSThresh returns the threshold for threshold signatures
-func GetDSSThresh(to types.TestOptions) (primary int, secondary int) {
-	numMembers := to.NumTotalProcs - to.NumNonMembers
-	t := utils.GetOneThirdBottom(numMembers)
-	return numMembers - t, t + 1
-}
-
-func GetCoinThresh(to types.TestOptions) int {
-	if types.UseTp1CoinThresh(to) {
-		_, thrsh := GetDSSThresh(to)
-		return thrsh
-	}
-	thrsh, _ := GetDSSThresh(to)
-	return thrsh
 }
 
 // computeLastIndex returns the largest consensus instance a process should participate in.
@@ -845,6 +915,7 @@ func MakeConnections(t assert.TestingT, to types.TestOptions, testProc channelin
 			connectionPubs = append(connectionPubs, network.ParInfoListToPubList(parInfo, pubKeys)...)
 		}
 		connectionPubs = sig.RemoveDuplicatePubs(connectionPubs)
+
 		numCons[1] = len(connectionPubs)
 		errs := testProc.(*csnet.DualNetMainChannel).Secondary.MakeConnections(connectionPubs)
 		if len(errs) > 0 {

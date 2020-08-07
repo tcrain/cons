@@ -45,13 +45,13 @@ func (ac AllowsCoin) String() string {
 type CoinType int
 
 const (
-	NoCoinType CoinType = iota
-	KnownCoinType
-	LocalCoinType
-	StrongCoin1Type
-	StrongCoin1EchoType
-	StrongCoin2Type
-	StrongCoin2EchoType
+	NoCoinType          CoinType = iota
+	KnownCoinType                // predefined coins
+	LocalCoinType                // each process chooses a random local coin
+	StrongCoin1Type              // a strong coin implemented by an n-t (or t+1) threshold signature
+	StrongCoin1EchoType          // StrongCoin1 with an extra message step (allows use of t+1 coin)
+	StrongCoin2Type              // a strong coin implemented by an n-t (or t+1) threshold random coin (cachin'05)
+	StrongCoin2EchoType          // StrongCoin2 with an extra message step (allows use of t+1 coin)
 )
 
 func CheckStrongCoin(coinType CoinType) bool {

@@ -32,6 +32,11 @@ func TestSimpleConsBasic(t *testing.T) {
 	RunBasicTests(types.TestOptions{}, types.SimpleConsType, &SimpleCons{}, SimpleConsConfig{}, nil, t)
 }
 
+func TestSimpleConsBasicSleep(t *testing.T) {
+	to := types.TestOptions{SleepCrypto: true}
+	RunBasicTests(to, types.SimpleConsType, &SimpleCons{}, SimpleConsConfig{}, nil, t)
+}
+
 func TestSimpleConsMemStore(t *testing.T) {
 	RunMemstoreTest(types.TestOptions{}, types.SimpleConsType, &SimpleCons{}, SimpleConsConfig{}, nil, t)
 }

@@ -21,7 +21,6 @@ package memberchecker
 
 import (
 	"fmt"
-	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/types"
 
@@ -121,7 +120,7 @@ func (msm *MultiSigMemChecker) CheckMember(idx types.ConsensusIndex, pub sig.Pub
 
 	// TODO keep a cache of constructed pubs, so we don't have to create the full new ones each time
 	// We have to construct the new pub
-	blsPub := pub.(*bls.Blspub)
+	blsPub := pub.(sig.MultiPub)
 	bid := blsPub.GetBitID()
 	iter := bitid.NewBitIDIterator()
 	i, err := bid.NextID(iter)
@@ -129,18 +128,18 @@ func (msm *MultiSigMemChecker) CheckMember(idx types.ConsensusIndex, pub sig.Pub
 		// The bitid contains an invalid index
 		return nil, types.ErrInvalidBitID
 	}
-	mrgPub := msm.originPubList[i].(*bls.Blspub).Clone()
+	mrgPub := msm.originPubList[i].(sig.MultiPub).Clone()
 	// Go through the pub keys and merge them one by one into the new key
 	for i, err := bid.NextID(iter); err == nil; i, err = bid.NextID(iter) {
 		if i < 0 || i >= len(msm.originPubList) {
 			// The bitid contains an invalid index
 			return nil, types.ErrInvalidBitID
 		}
-		mrgPub.MergePubPartial(msm.originPubList[i].(*bls.Blspub))
+		mrgPub.MergePubPartial(msm.originPubList[i].(sig.MultiPub))
 	}
 	// finish the merge
 	mrgPub.DonePartialMerge(bid)
-	return mrgPub, nil
+	return mrgPub.(sig.Pub), nil
 }
 
 /////////////////////////////////////////////////////////

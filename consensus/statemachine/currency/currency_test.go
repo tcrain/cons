@@ -120,7 +120,7 @@ func txTest(newPrivFunc func() (sig.Priv, error), newSigFunc func() sig.Sig, t *
 		assert.Nil(t, err)
 
 		// be sure it doesn't validate with a wrong signature
-		tx.Signatures[0].Corrupt()
+		tx.Signatures[0].(sig.CorruptInterface).Corrupt()
 		err = accountTable.ValidateTx(tx, true, nil)
 		assert.Equal(t, ErrSignatureInvalid, err)
 	}

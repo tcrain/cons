@@ -27,6 +27,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/consgen"
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/generalconfig"
@@ -132,40 +133,42 @@ func main() {
 	}
 	logging.Print("Connected and initiated participant register")
 
-	switch to.SigType {
-	case types.EDCOIN:
-		err = preg.GenDSSShared(0, to.NumNonMembers, cons.GetCoinThresh(to))
-		if err != nil {
-			logging.Error(err)
-			panic(err)
+	if !to.SleepCrypto {
+		switch to.SigType {
+		case types.EDCOIN:
+			err = preg.GenDSSShared(0, to.NumNonMembers, sig.GetCoinThresh(to))
+			if err != nil {
+				logging.Error(err)
+				panic(err)
+			}
+			logging.Print("Generated shared EDCOIN at participant register")
+		case types.TBLS:
+			err = preg.GenBlsShared(0, 0, cons.GetTBLSThresh(to))
+			if err != nil {
+				logging.Error(err)
+				panic(err)
+			}
+			logging.Print("Generated shared BLS at participant register")
+		case types.CoinDual:
+			err = preg.GenBlsShared(0, 0, sig.GetCoinThresh(to))
+			if err != nil {
+				logging.Error(err)
+				panic(err)
+			}
+		case types.TBLSDual:
+			thrshPrimary, thrshSecondary := sig.GetDSSThresh(to)
+			err = preg.GenBlsShared(0, 0, thrshPrimary)
+			if err != nil {
+				logging.Error(err)
+				panic(err)
+			}
+			err = preg.GenBlsShared(0, 1, thrshSecondary)
+			if err != nil {
+				logging.Error(err)
+				panic(err)
+			}
+			logging.Print("Generated shared BLS at participant register")
 		}
-		logging.Print("Generated shared EDCOIN at participant register")
-	case types.TBLS:
-		err = preg.GenBlsShared(0, 0, cons.GetTBLSThresh(to))
-		if err != nil {
-			logging.Error(err)
-			panic(err)
-		}
-		logging.Print("Generated shared BLS at participant register")
-	case types.CoinDual:
-		err = preg.GenBlsShared(0, 0, cons.GetCoinThresh(to))
-		if err != nil {
-			logging.Error(err)
-			panic(err)
-		}
-	case types.TBLSDual:
-		thrshPrimary, thrshSecondary := cons.GetDSSThresh(to)
-		err = preg.GenBlsShared(0, 0, thrshPrimary)
-		if err != nil {
-			logging.Error(err)
-			panic(err)
-		}
-		err = preg.GenBlsShared(0, 1, thrshSecondary)
-		if err != nil {
-			logging.Error(err)
-			panic(err)
-		}
-		logging.Print("Generated shared BLS at participant register")
 	}
 
 	rpcServers := make([]*rpcsetup.RPCNodeClient, len(ips))
@@ -273,7 +276,7 @@ func main() {
 		for i, nxt := range pi {
 			epi[i] = nxt.ExtraInfo
 		}
-		priv, err := cons.MakeKey(to)
+		priv, err := cons.MakeUnusedKey(0, to)
 		if err != nil {
 			logging.Error("error generating private key", err)
 			panic(err)

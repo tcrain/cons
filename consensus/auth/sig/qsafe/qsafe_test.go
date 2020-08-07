@@ -82,7 +82,7 @@ var sigMsg = []byte("sign this message")
 func BenchmarkVerifyQsafe(b *testing.B) {
 
 	var priv oqs.Signature
-	priv.Init(QsafeName, nil)
+	priv.Init(SigTypeName, nil)
 	pub, err := priv.GenerateKeyPair()
 	assert.Nil(b, err)
 	buff, err := priv.Sign(sigMsg)
@@ -93,7 +93,7 @@ func BenchmarkVerifyQsafe(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		var sig oqs.Signature
-		sig.Init(QsafeName, nil)
+		sig.Init(SigTypeName, nil)
 		v, err := sig.Verify(sigMsg, buff, pub)
 		assert.Nil(b, err)
 		assert.True(b, v)
@@ -105,7 +105,7 @@ func BenchmarkVerifyQsafe(b *testing.B) {
 func BenchmarkSignQsafe(b *testing.B) {
 
 	var priv oqs.Signature
-	priv.Init(QsafeName, nil)
+	priv.Init(SigTypeName, nil)
 	_, err := priv.GenerateKeyPair()
 	assert.Nil(b, err)
 

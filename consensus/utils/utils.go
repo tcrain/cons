@@ -57,6 +57,12 @@ func Uint64ToBytes(v uint64) []byte {
 	return arr[:n]
 }
 
+func PanicNonNil(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 func EncodeUvarint(v uint64, writer io.Writer) (int, error) {
 	arr := make([]byte, binary.MaxVarintLen64)
 	n := binary.PutUvarint(arr, v)

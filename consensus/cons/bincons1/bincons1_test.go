@@ -40,6 +40,12 @@ func TestBinCons1Basic(t *testing.T) {
 	cons.RunBasicTests(binTO, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)
 }
 
+func TestBinCons1SleepBasic(t *testing.T) {
+	myTO := binTO
+	myTO.SleepCrypto = true
+	cons.RunBasicTests(myTO, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)
+}
+
 func TestBinCons1Byz(t *testing.T) {
 	cons.RunByzTests(binTO, types.BinCons1Type, &BinCons1{}, Config{}, nil, t)
 }
@@ -56,8 +62,20 @@ func TestBinCons1MultiSig(t *testing.T) {
 	cons.RunMultiSigTests(binTO, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)
 }
 
+func TestBinCons1SleepMultiSig(t *testing.T) {
+	to := binTO
+	to.SleepCrypto = true
+	cons.RunMultiSigTests(to, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)
+}
+
 func TestBinCons1P2p(t *testing.T) {
 	cons.RunP2pNwTests(binTO, types.BinCons1Type, &BinCons1{}, Config{}, nil, t)
+}
+
+func TestBinCons1SleepP2p(t *testing.T) {
+	to := binTO
+	to.SleepCrypto = true
+	cons.RunP2pNwTests(to, types.BinCons1Type, &BinCons1{}, Config{}, nil, t)
 }
 
 func TestBinCons1FailDisk(t *testing.T) {

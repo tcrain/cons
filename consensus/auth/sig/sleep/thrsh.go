@@ -73,7 +73,7 @@ type Thrsh struct {
 	t   int             // the number of signatures needed for the threshold
 	idx sig.PubKeyIndex // the index of this node in the list of sorted pub keys
 
-	*Priv                // the partial public key for this node
+	SleepPriv            // the partial public key for this node
 	sharedPub *sharedPub // the threshold public key
 }
 
@@ -82,18 +82,30 @@ func (bt *Thrsh) PartialSign(msg sig.SignedMessage) (sig.Sig, error) {
 	return bt.Sign(msg)
 }
 
+// Returns key that is used for signing the sign type.
+func (bt *Thrsh) GetPrivForSignType(signType types.SignType) (sig.Priv, error) {
+	return bt, nil
+}
+
+// Shallow copy makes a copy of the object without following pointers.
+func (bt *Thrsh) ShallowCopy() sig.Priv {
+	newBt := *bt
+	newBt.SleepPriv = newBt.SleepPriv.ShallowCopy().(SleepPriv)
+	return &newBt
+}
+
 // CombinePartialSigs generates a shared signature from the list of partial signatures.
 func (bt *Thrsh) CombinePartialSigs(ps []sig.Sig) (*sig.SigItem, error) {
 	if len(ps) < bt.t {
 		return nil, types.ErrNotEnoughPartials
 	}
 	for i := 0; i < bt.t; i++ {
-		time.Sleep(bt.stats.ShareCombineTime)
+		time.Sleep(bt.sharedPub.stats.ShareCombineTime)
 	}
 	// since all sigs are the same we just take the bytes from any one of them
 	si := &Sig{
 		bytes: ps[0].(*Sig).bytes,
-		stats: bt.stats,
+		stats: bt.sharedPub.stats,
 	}
 	m := messages.NewMessage(nil)
 	// When using the  shared threshold key, we don't include the serialized public
@@ -133,7 +145,7 @@ func (bt *Thrsh) GetN() int {
 }
 
 func (bt *Thrsh) GetPartialPub() sig.Pub {
-	return bt.pub
+	return bt.SleepPriv.GetPub()
 }
 
 func (bt *Thrsh) GetSharedPub() sig.Pub {

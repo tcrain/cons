@@ -11,15 +11,15 @@ import (
 )
 
 type multiPub struct {
-	sig.Pub
+	sleepPub
 	stats *sig.SigStats
 	bitID bitid.BitIDInterface
 }
 
 func newMultiPub(p sig.Pub, stats *sig.SigStats) *multiPub {
 	ret := &multiPub{
-		Pub:   p,
-		stats: stats,
+		sleepPub: p.(sleepPub),
+		stats:    stats,
 	}
 	// ret.SetIndex(p.GetIndex())
 	return ret
@@ -28,21 +28,26 @@ func newMultiPub(p sig.Pub, stats *sig.SigStats) *multiPub {
 // New creates a new public key object of the same type
 func (pub *multiPub) New() sig.Pub {
 	return &multiPub{
-		Pub:   pub.Pub.New(),
-		stats: pub.stats,
+		sleepPub: pub.sleepPub.New().(sleepPub),
+		stats:    pub.stats,
 	}
 }
 
 // FromPubBytes creates a public key object from the public key bytes
 func (pub *multiPub) FromPubBytes(b sig.PubKeyBytes) (sig.Pub, error) {
-	p, err := pub.Pub.FromPubBytes(b)
+	p, err := pub.sleepPub.FromPubBytes(b)
 	if err != nil {
 		panic(err)
 	}
 	return &multiPub{
-		Pub:   p,
-		stats: pub.stats,
+		sleepPub: p.(sleepPub),
+		stats:    pub.stats,
 	}, nil
+}
+
+// DeserializeSig deserializes a public key and signature object from m, size is the number of bytes read
+func (pub *multiPub) DeserializeSig(m *messages.Message, signType types.SignType) (*sig.SigItem, int, error) {
+	return pub.sleepPub.doDeserializeSig(&multiSig{Sig: Sig{stats: pub.stats}}, pub.New(), m, signType)
 }
 
 // GetSigMemberNumber returns the number of nodes represented by this pub key
@@ -53,7 +58,7 @@ func (pub *multiPub) GetSigMemberNumber() int {
 // SetIndex sets the index of the node represented by this public key in the consensus participants
 func (pub *multiPub) SetIndex(index sig.PubKeyIndex) {
 	// pub.pubID = ""
-	pub.Pub.SetIndex(index)
+	pub.sleepPub.SetIndex(index)
 	var err error
 	pub.bitID, err = bitid.CreateBitIDTypeFromInts([]int{int(index)})
 	if err != nil {
@@ -70,9 +75,14 @@ func (pub *multiPub) GetIndex() sig.PubKeyIndex {
 	return sig.PubKeyIndex(il[0])
 }
 
+// Clone returns a new Blspub only containing the points (no bitid), should be called before merging the first set of keys with MergePubPartial
+func (pub *multiPub) Clone() sig.MultiPub {
+	return pub.New().(sig.MultiPub)
+}
+
 func (pub *multiPub) ShallowCopy() sig.Pub {
 	newPub := *pub
-	newPub.Pub = pub.ShallowCopy()
+	newPub.sleepPub = pub.sleepPub.ShallowCopy().(sleepPub)
 	return &newPub
 }
 
@@ -99,13 +109,13 @@ func (pub *multiPub) SubMultiPub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 	if err != nil {
 		panic(err)
 	}
-	newPub, err := pub.Pub.FromPubBytes(newBytes)
+	newPub, err := pub.sleepPub.FromPubBytes(newBytes)
 	if err != nil {
 		panic(err)
 	}
 
 	time.Sleep(pub.stats.MultiCombineTime)
-	return &multiPub{Pub: newPub, bitID: bitid.SubBitIDType(p1bid, p2bid), stats: pub.stats}, nil
+	return &multiPub{sleepPub: newPub.(sleepPub), bitID: bitid.SubBitIDType(p1bid, p2bid), stats: pub.stats}, nil
 }
 
 // MergePubPartial only merges the pub itself, does not create the new bitid
@@ -163,15 +173,15 @@ func (pub *multiPub) MergePub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 	if err != nil {
 		panic(err)
 	}
-	newPub, err := pub.Pub.FromPubBytes(newBytes)
+	newPub, err := pub.sleepPub.FromPubBytes(newBytes)
 	if err != nil {
 		panic(err)
 	}
 
 	return &multiPub{
-		stats: pub.stats,
-		Pub:   newPub,
-		bitID: bitid.MergeBitIDType(p1bid, p2bid, config.AllowMultiMerge)}, nil
+		stats:    pub.stats,
+		sleepPub: newPub.(sleepPub),
+		bitID:    bitid.MergeBitIDType(p1bid, p2bid, config.AllowMultiMerge)}, nil
 }
 
 // GetBitID returns the bit id object representing the indecies of the nodes represented by the BLS public key oject
@@ -202,7 +212,7 @@ func (pub *multiPub) Serialize(m *messages.Message) (int, error) {
 		}
 		return l, nil
 	}
-	return pub.Pub.Serialize(m)
+	return pub.sleepPub.Serialize(m)
 }
 
 // Deserialize deserialzes a header into the object, returning the number of bytes read
@@ -235,7 +245,7 @@ func (pub *multiPub) Deserialize(m *messages.Message, unmarFunc types.ConsensusI
 		}
 		return l, nil
 	}
-	return pub.Pub.Deserialize(m, unmarFunc)
+	return pub.sleepPub.Deserialize(m, unmarFunc)
 }
 
 type multiSig struct {

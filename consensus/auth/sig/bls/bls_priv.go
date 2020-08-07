@@ -165,7 +165,7 @@ func NewBlspriv() (sig.Priv, error) {
 
 // GenerateSig signs a message and returns the SigItem object containing the signature
 func (priv *Blspriv) GenerateSig(header sig.SignedMessage, vrfProof sig.VRFProof, signType types.SignType) (*sig.SigItem, error) {
-	return sig.GenerateSigHelper(priv, header, vrfProof, signType)
+	return sig.GenerateSigHelper(priv, header, true, vrfProof, signType)
 }
 
 // NewSig returns an empty sig object of the same type.

@@ -60,7 +60,7 @@ type CoinProofPubInterface interface {
 	CheckCoinProof(SignedMessage, CoinProof) error // Check if a coin proof is valid for a message.
 	CombineProofs(myPriv Priv, items []*SigItem) (coinVal types.BinVal, err error)
 	// DeserializeCoinProof(m *messages.Message) (coinProof CoinProof, size int, err error)
-	NewCoinProof() CoinProof // returns an empty coin proof oject
+	NewCoinProof() CoinProof // returns an empty coin proof object
 }
 
 type EncodeInterface interface {
@@ -88,6 +88,8 @@ type VRFPub interface {
 
 // MultiPub is for multisignatures.
 type MultiPub interface {
+	// Clone returns a new pub only containing the points (no bitid), should be called before merging the first set of keys with MergePubPartial
+	Clone() MultiPub
 	// MergePubPartial merges the pubs without updating the BitID identifiers.
 	MergePubPartial(MultiPub)
 	// DonePartialMerge should be called after merging keys with MergePubPartial to set the bitid.

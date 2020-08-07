@@ -4,16 +4,13 @@
     "NumTotalProcs": 8,
     "NetworkType": 0,
     "FanOut": 0,
-    "ConnectionType": 0,
+    "ConnectionType": 1,
     "IncludeProofs": false,
     "SigType": 0,
     "UsePubIndex": true,
     "SleepValidate": false,
     "MCType": 0,
-    "BufferForwarder": false,
-    "UseMultisig": false,
-    "BlsMultiNew": false,
-    "CheckDecisions": false,
-    "MvProposalSizeBytes": 10,
-    "BinConsPercentOnes": 50
+    "CheckDecisions": true,
+    "BinConsPercentOnes": 50,
+    "SleepCrypto": true
 }

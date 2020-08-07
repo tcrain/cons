@@ -132,7 +132,7 @@ func (pub *Blspub) GetBitID() bitid.BitIDInterface {
 ///////////////////////////////////////////////////////////////////////////////////////
 
 // Clone returns a new Blspub only containing the points (no bitid), should be called before merging the first set of keys with MergePubPartial
-func (pub *Blspub) Clone() *Blspub {
+func (pub *Blspub) Clone() sig.MultiPub {
 	return &Blspub{
 		pub:    pub.pub.Clone(),
 		newPub: pub.newPub.Clone()}

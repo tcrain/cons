@@ -35,6 +35,7 @@ func getMvConsStateMachineTypes() []types.StateMachineType {
 }
 
 var baseTO = types.TestOptions{EncryptChannels: true, NoSignatures: true}
+var causalTO = types.TestOptions{OrderingType: types.Causal}
 
 func TestRbBcast2Basic(t *testing.T) {
 	cons.RunBasicTests(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, []int{}, t)
@@ -42,6 +43,13 @@ func TestRbBcast2Basic(t *testing.T) {
 
 func TestRbBcast2RandMC(t *testing.T) {
 	cons.RunRandMCTests(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, true,
+		[]int{}, t)
+}
+
+func TestRbBcast2RandMCSleep(t *testing.T) {
+	to := baseTO
+	to.SleepCrypto = true
+	cons.RunRandMCTests(to, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, true,
 		[]int{}, t)
 }
 
@@ -71,16 +79,30 @@ func TestRbBcast2FailDisk(t *testing.T) {
 }
 
 func TestRbBcast2CausalBasic(t *testing.T) {
-	cons.RunBasicTests(types.TestOptions{OrderingType: types.Causal},
+	cons.RunBasicTests(causalTO,
+		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, []int{}, t)
+}
+
+func TestRbBcast2CausalBasicSleep(t *testing.T) {
+	to := causalTO
+	to.SleepCrypto = true
+	cons.RunBasicTests(to,
 		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, []int{}, t)
 }
 
 func TestRbBcast2CausalFailDisk(t *testing.T) {
-	cons.RunFailureTests(types.TestOptions{OrderingType: types.Causal},
+	cons.RunFailureTests(causalTO,
 		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, nil, t)
 }
 
 func TestRbBcast2CausalRandMC(t *testing.T) {
-	cons.RunRandMCTests(types.TestOptions{OrderingType: types.Causal},
+	cons.RunRandMCTests(causalTO,
+		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, true, []int{}, t)
+}
+
+func TestRbBcast2CausalRandMCSleep(t *testing.T) {
+	to := causalTO
+	to.SleepCrypto = true
+	cons.RunRandMCTests(to,
 		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, true, []int{}, t)
 }

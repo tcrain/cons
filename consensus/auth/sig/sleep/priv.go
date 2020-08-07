@@ -6,11 +6,6 @@ import (
 	"github.com/tcrain/cons/consensus/types"
 )
 
-type sleepPriv interface {
-	setPub(sig.Pub)
-	sig.Priv
-}
-
 // Priv represents the sleep private key object
 type Priv struct {
 	pub   sig.Pub
@@ -63,33 +58,38 @@ func (p *Priv) GetPub() sig.Pub {
 // GenerateSig signs a message and returns the SigItem object containing the signature
 func (p *Priv) GenerateSig(header sig.SignedMessage, vrfProof sig.VRFProof, signType types.SignType) (*sig.SigItem, error) {
 	if signType == types.CoinProof {
-		if !p.stats.AllowsCoin {
-			panic("config does not support coin")
+		if p.stats.AllowsCoin {
+			if vrfProof != nil {
+				panic("vrf not supported by with coin")
+			}
+			var err error
+			m := messages.NewMessage(nil)
+			_, err = p.GetPub().Serialize(m) // priv.SerializePub(m)
+			if err != nil {
+				return nil, err
+			}
+			coinProof := generateCoinProof(p, header)
+			if _, err = coinProof.Serialize(m); err != nil {
+				return nil, err
+			}
+			return &sig.SigItem{
+				Pub:      p.GetPub(),
+				Sig:      coinProof,
+				SigBytes: m.GetBytes()}, nil
+		} else if !p.stats.AllowsThresh {
+			panic("must support coin or threshold for coin signatures")
 		}
-		if vrfProof != nil {
-			panic("vrf not supported by with coin")
-		}
-		var err error
-		m := messages.NewMessage(nil)
-		_, err = p.GetPub().Serialize(m) // priv.SerializePub(m)
-		if err != nil {
-			return nil, err
-		}
-		coinProof := generateCoinProof(p, header)
-		if _, err = coinProof.Serialize(m); err != nil {
-			return nil, err
-		}
-		return &sig.SigItem{
-			Pub:      p.GetPub(),
-			Sig:      coinProof,
-			SigBytes: m.GetBytes()}, nil
+		signType = types.NormalSignature
 	}
-	return sig.GenerateSigHelper(p, header, vrfProof, signType)
+	return sig.GenerateSigHelper(p, header, p.stats.AllowsVRF, vrfProof, signType)
 }
 
 // Returns key that is used for signing the sign type.
 func (p *Priv) GetPrivForSignType(signType types.SignType) (sig.Priv, error) {
 	return p, nil
+}
+
+func (p *Priv) IsSleepPriv() {
 }
 
 // Sign signs a message and returns the signature.

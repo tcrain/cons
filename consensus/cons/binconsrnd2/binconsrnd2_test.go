@@ -45,6 +45,13 @@ func TestBinConsRnd2Basic(t *testing.T) {
 		Config{}, []int{}, t)
 }
 
+func TestBinConsRnd2BasicSleep(t *testing.T) {
+	to := binTO
+	to.SleepCrypto = true
+	cons.RunBasicTests(to, types.BinConsRnd2Type, &BinConsRnd2{},
+		Config{}, []int{}, t)
+}
+
 func TestBinConsRnd2BasicStrongCoin1(t *testing.T) {
 	cons.RunBasicTests(binTOStrongCoin1, types.BinConsRnd2Type, &BinConsRnd2{},
 		Config{}, []int{}, t)

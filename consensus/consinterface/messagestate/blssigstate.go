@@ -293,7 +293,7 @@ tryValidate:
 
 		// we only keep the sig if it gives information for at least 1 new sig
 		// TODO also keep sig if it contains more members
-		pbid := si.Pub.(*bls.Blspub).GetBitID()
+		pbid := si.Pub.(sig.MultiPub).GetBitID()
 		newSigs := item.allSigs.GetNewItems(pbid)
 		if err != nil {
 			panic(err)
@@ -357,7 +357,7 @@ func (smm *blsSigState) storeMsg(sm *sig.MultipleSignedMessage, invalidSigs []*s
 	}
 
 	for _, si := range validSigs {
-		bid := si.Pub.(*bls.Blspub).GetBitID()
+		bid := si.Pub.(sig.MultiPub).GetBitID()
 		// indicate we are no longer validating this
 		item.validatingSigs = bitid.SubBitIDType(item.validatingSigs, bid)
 		if item.allSigs.HasNewItems(bid) {
@@ -381,7 +381,7 @@ func (smm *blsSigState) storeMsg(sm *sig.MultipleSignedMessage, invalidSigs []*s
 			}
 
 			item.fullSigList = append(item.fullSigList, &blsSigItem{pub: si.Pub.(sig.AllMultiPub),
-				sig: si.Sig.(*bls.Blssig), proof: si.VRFProof, sigBytes: &si.SigBytes})
+				sig: si.Sig.(sig.AllMultiSig), proof: si.VRFProof, sigBytes: &si.SigBytes})
 
 			// add it to the list of valids
 			newValidSigs = append(newValidSigs, si)
@@ -390,7 +390,7 @@ func (smm *blsSigState) storeMsg(sm *sig.MultipleSignedMessage, invalidSigs []*s
 	sort.Sort(item.fullSigList)
 	for _, invalid := range invalidSigs {
 		// indicate we are no longer validating this
-		item.validatingSigs = bitid.SubBitIDType(item.validatingSigs, invalid.Pub.(*bls.Blspub).GetBitID())
+		item.validatingSigs = bitid.SubBitIDType(item.validatingSigs, invalid.Pub.(sig.MultiPub).GetBitID())
 	}
 	ret := item.allSigs.GetNumItems()
 	ret2 := itemID.allSigs.GetNumItems()

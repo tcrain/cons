@@ -36,7 +36,7 @@ func (pub *Pub) CheckSignature(msg *sig.MultipleSignedMessage, sigItem *sig.SigI
 	// Check if this is a coin proof or a signature
 	var err error
 	signType := msg.GetSignType()
-	if signType == types.CoinProof { // sanity check
+	if signType == types.CoinProof && (!pub.stats.AllowsCoin && !pub.stats.AllowsThresh) { // sanity check
 		panic("coin proof not supported")
 	}
 	valid, err := pub.VerifySig(msg, sigItem.Sig)
@@ -115,28 +115,34 @@ func (pub *Pub) GetIndex() sig.PubKeyIndex {
 
 // DeserializeSig deserializes a public key and signature object from m, size is the number of bytes read
 func (pub *Pub) DeserializeSig(m *messages.Message, signType types.SignType) (*sig.SigItem, int, error) {
+	return pub.doDeserializeSig(&Sig{stats: pub.stats}, pub.New(), m, signType)
+}
+
+// doDeserializeSig deserializes a public key and signature object from m, size is the number of bytes read
+func (pub *Pub) doDeserializeSig(theSig sig.Sig, newPub sig.Pub, m *messages.Message, signType types.SignType) (*sig.SigItem, int, error) {
 	if signType == types.CoinProof && pub.stats.AllowsCoin {
 		panic("should have handled in coin")
 	}
 
-	var ret *sig.SigItem
+	// var ret *sig.SigItem
+	ret := &sig.SigItem{}
 	var l, l1 int
 	var err error
 	if pub.stats.AllowsVRF {
-		ret, l1, err = sig.DeserVRF(pub, m)
+		ret, l1, err = sig.DeserVRF(newPub, m)
 		if err != nil {
 			return nil, l, err
 		}
 		l += l1
 	}
-	ret.Pub = pub.New()
+	ret.Pub = newPub
 	l1, err = ret.Pub.Deserialize(m, types.NilIndexFuns)
 	l += l1
 	if err != nil {
 		return nil, l, err
 	}
 
-	ret.Sig = &Sig{stats: pub.stats}
+	ret.Sig = theSig
 	l1, err = ret.Sig.Deserialize(m, types.NilIndexFuns)
 	l += l1
 	return ret, l, err

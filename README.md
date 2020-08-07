@@ -125,7 +125,7 @@ This will run a test like it is over the network, but just on the local node, us
 
 ```./bench_example.sh```
 
-This will use the configuration file [tofile.json][tofile.json].
+This will run the configuration files in [testconfigs/][testconfigs/].
 
 ## To run a local benchmark
 
