@@ -64,9 +64,9 @@ func (sc *TestConsItem) GetConsInterfaceItems() *consinterface.ConsInterfaceItem
 func (sc *TestConsItem) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasInfo bool) {
 	return
 }
-func (sc *TestConsItem) Start()                    {}
-func (sc *TestConsItem) HasStarted() bool          { return true }
-func (sc *TestConsItem) HasReceivedProposal() bool { return false }
+func (sc *TestConsItem) Start()                {}
+func (sc *TestConsItem) HasStarted() bool      { return true }
+func (sc *TestConsItem) HasValidStarted() bool { return false }
 func (sc *TestConsItem) GetProposalIndex() (prevIdx types.ConsensusIndex, ready bool) {
 	return
 }

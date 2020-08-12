@@ -65,7 +65,7 @@ func GenDirectAssetTransfer(priv sig.Priv, participants []sig.Pub, table *Accoun
 	for i := range acc.Assets[:1] {
 		recipiants[i] = priv.GetPub()
 	}
-	_, outputs := GenDirectAssetOutput(acc, acc.Assets)
+	_, outputs := GenDirectAssetOutput(acc, acc.Assets[:1])
 	tr, err = table.GenerateAssetTransfer(priv, inputs, outputs, recipiants, CheckDirectOutputFunc)
 	if err != nil {
 		panic(err)
@@ -98,4 +98,13 @@ func CheckDirectOutputFunc(account *AssetAccount, inputs []AssetInterface, outpu
 		}
 	}
 	return nil
+}
+
+// DirectSendToSelf returns the inputs as outputs with new hashes.
+func DirectSendToSelf(account *AssetAccount, inputs []AssetInterface) (outputs []AssetInterface) {
+	outputs = make([]AssetInterface, len(inputs))
+	for i, nxt := range inputs {
+		outputs[i] = &DirectAsset{BasicAsset: *NewBasicAsset(types.GetHash(nxt.GetID()))}
+	}
+	return
 }

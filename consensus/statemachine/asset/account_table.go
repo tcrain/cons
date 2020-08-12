@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/types"
+	"github.com/tcrain/cons/consensus/utils"
 	"strings"
 )
 
@@ -35,6 +36,28 @@ func NewAccountTable() *AccountTable {
 	return &AccountTable{
 		accountMap: make(map[sig.PubKeyStr]*AssetAccount),
 	}
+}
+
+func (at *AccountTable) SendToSelf(pub sig.Pub, hashes []types.HashBytes,
+	sts SendToSelfAsset, tr *AssetTransfer) *AssetTransfer {
+
+	acc, err := at.GetAccount(pub)
+	utils.PanicNonNil(err)
+	ins, err := acc.CheckAssets(hashes)
+	utils.PanicNonNil(err)
+	outputs := sts(acc, ins)
+	receivers := make([]sig.Pub, len(outputs))
+	for i := range receivers {
+		receivers[i] = pub
+	}
+
+	tr.Sender = pub
+	tr.Inputs = hashes
+	tr.Outputs = outputs
+	tr.Receivers = receivers
+	at.ConsumeTransfer(tr)
+
+	return tr
 }
 
 // GetAccount returns the account object for the given public key.

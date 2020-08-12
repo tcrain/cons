@@ -174,7 +174,7 @@ func (to TestOptions) AllowsOutOfOrderProposals(consType ConsType) bool {
 	switch consType {
 	case BinCons1Type, BinConsRnd1Type:
 		return false
-	case MvBinCons1Type, MvBinConsRnd1Type:
+	case MvBinCons1Type, MvBinConsRnd1Type, MvBinConsRnd2Type:
 		if to.AllowConcurrent > 1 {
 			return true
 		}
@@ -225,12 +225,21 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 
 	if to.AllowSupportCoin {
 		switch to.CoinType {
-		case KnownCoinType, LocalCoinType:
-			err = fmt.Errorf("cannot support coin when using known coin type or local coin type")
+		case KnownCoinType, LocalCoinType, FlipCoinType:
+			err = fmt.Errorf("cannot support coin when using known, flip, or local coin type")
 			return
 		}
-		if consType == MvBinConsRnd1Type {
+		if consType == MvBinConsRnd1Type || consType == MvBinConsRnd2Type {
 			err = fmt.Errorf("TODO allow support coin with reduction")
+			return
+		}
+	}
+
+	if to.RndMemberType != NonRandom {
+		switch to.CoinType {
+		case NoCoinType, KnownCoinType, FlipCoinType, LocalCoinType:
+		default:
+			err = fmt.Errorf("coin %v not supported with %v", to.CoinType, to.RndMemberType)
 			return
 		}
 	}
@@ -272,6 +281,11 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 	}
 
 	if to.NoSignatures {
+		switch to.RndMemberType {
+		case VRFPerCons, VRFPerMessage, KnownPerCons:
+			err = fmt.Errorf("must use signatures with %v", to.RndMemberType)
+			return
+		}
 		if to.CollectBroadcast != Full {
 			err = fmt.Errorf("no signatures only support full broadcasts")
 			return
@@ -439,6 +453,7 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		return
 	}
 	if (consType == RbBcast1Type || consType == RbBcast2Type) && (to.RndMemberType == VRFPerCons || to.RndMemberType == VRFPerMessage) {
+
 		err = fmt.Errorf("cons type RbBcast does not support VRFPerCons or VRFPerMessage (because there will be differnt coordinators, and will block termination)")
 		return
 	}

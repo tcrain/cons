@@ -55,6 +55,7 @@ type assetGlobalState struct {
 	initialState         []byte                  // initBlockBytes appended together
 	initAssetsIDs        []sig.ConsIDPub         // initial assets
 	validFunc            CheckTransferOutputFunc // for checking if a transfer is valid
+	sendToSelf           SendToSelfAsset         // for when nil is decided
 	newAssetTransferFunc func() *AssetTransfer   // for decoding asset transfers
 	genAssetTransferFunc GenAssetTransferFunc    // for generating new proposals
 	newPubFunc           func() sig.Pub          // for deciding public keys
@@ -78,7 +79,8 @@ func NewAssetProposer(useRand bool, initRandBytes [32]byte,
 	newAssetFunc func() AssetInterface,
 	newAssetTransferFunc func() *AssetTransfer,
 	genAssetTransferFunc GenAssetTransferFunc,
-	validFunc CheckTransferOutputFunc, isMember bool, numMembers int,
+	validFunc CheckTransferOutputFunc,
+	sendtoSelf SendToSelfAsset, isMember bool, numMembers int,
 	newPubFunc func() sig.Pub, newSigFunc func() sig.Sig) *AssetProposer {
 
 	ret := &AssetProposer{
@@ -154,6 +156,7 @@ func NewAssetProposer(useRand bool, initRandBytes [32]byte,
 	ret.finishedMap = make(map[sig.PubKeyStr]bool, len(ret.initPubs))
 
 	ret.validFunc = validFunc
+	ret.sendToSelf = sendtoSelf
 
 	return ret
 }
@@ -242,50 +245,83 @@ func (da *AssetProposer) GetDependentItems() []sig.ConsIDPub {
 // HasDecided is called each time a consensus decision takes place, given the index and the decided vaule.
 // Proposer is the public key of the node that proposed the decision.
 // It returns a list of causally dependent StateMachines that result from the decisions.
-func (da *AssetProposer) HasDecided(proposer sig.Pub, index types.ConsensusIndex, decision []byte) []sig.ConsIDPub {
-	buf := bytes.NewReader(decision)
-	var err error
-	_, err = da.RandHasDecided(proposer, buf, true)
-	if err != nil {
-		logging.Error("invalid mv vrf proof", err)
-		panic(err)
+// If decision is nil, then the assets are sent back to the owner, and the updated decision reflecting this is returned.
+func (da *AssetProposer) HasDecided(proposer sig.Pub, index types.ConsensusIndex, owners []sig.Pub,
+	decision []byte) (outputs []sig.ConsIDPub, updatedDecision []byte) {
+	for _, nxt := range owners[1:] {
+		if !sig.CheckPubsEqual(owners[0], nxt) {
+			panic("should only be one owner")
+		}
+	}
+	var end bool // true when the test is over
+	if len(decision) == 0 {
+		fmt.Println("DECIDED NIL", da.myProposalCount, da.myKey.GetPub())
+		items := make([]types.HashBytes, 1+len(index.AdditionalIndices))
+		for i, nxt := range append([]types.ConsensusID{index.FirstIndex}, index.AdditionalIndices...) {
+			b, err := nxt.MarshalBinary()
+			utils.PanicNonNil(err)
+			items[i] = b
+		}
+		tr := da.assetTable.SendToSelf(owners[0], items, da.sendToSelf, da.newAssetTransferFunc())
+		outputs = make([]sig.ConsIDPub, len(tr.Outputs))
+		for i, nxt := range tr.Outputs {
+			outputs[i] = sig.ConsIDPub{
+				ID:  types.ConsensusHash(nxt.GetID()),
+				Pub: owners[0],
+			}
+		}
+		var err error
+		updatedDecision, err = tr.MarshalBinary()
+		utils.PanicNonNil(err)
+	} else {
+		updatedDecision = decision
+		if !sig.CheckPubsEqual(proposer, owners[0]) {
+			panic("proposer and owner should be equal")
+		}
+		buf := bytes.NewReader(decision)
+		var err error
+		_, err = da.RandHasDecided(proposer, buf, true)
+		if err != nil {
+			logging.Error("invalid mv vrf proof", err)
+			panic(err)
+		}
+
+		// decode the transfer
+		tr := da.newAssetTransferFunc()
+		if _, err = tr.Decode(buf); err != nil {
+			panic(err)
+		}
+		// it should already be validated
+		if err = da.assetTable.ValidateTransfer(tr, da.validFunc, false); err != nil { // sanity check TODO remove me
+			panic(err)
+		}
+		// consume the transfer
+		da.assetTable.ConsumeTransfer(tr)
+
+		// get the outputs
+		outputs = make([]sig.ConsIDPub, len(tr.Outputs))
+		for i, nxt := range tr.Outputs {
+			outputs[i].ID = types.ConsensusHash(nxt.GetID())
+			outputs[i].Pub = tr.Receivers[i]
+		}
+
+		pStr, err := tr.Sender.GetPubString()
+		if err != nil {
+			panic(err)
+		}
+		da.trafserCount[pStr]++
+		if da.trafserCount[pStr] == da.lastProposal {
+			da.finishedMap[pStr] = true
+		}
+		end = len(da.finishedMap) == da.numMembers
 	}
 
-	// decode the transfer
-	tr := da.newAssetTransferFunc()
-	if _, err = tr.Decode(buf); err != nil {
-		panic(err)
-	}
-	// it should already be validated
-	if err = da.assetTable.ValidateTransfer(tr, da.validFunc, false); err != nil { // sanity check TODO remove me
-		panic(err)
-	}
-	// consume the transfer
-	da.assetTable.ConsumeTransfer(tr)
-
-	// get the outputs
-	outputs := make([]sig.ConsIDPub, len(tr.Outputs))
-	for i, nxt := range tr.Outputs {
-		outputs[i].ID = types.ConsensusHash(nxt.GetID())
-		outputs[i].Pub = tr.Receivers[i]
-	}
-
-	pStr, err := tr.Sender.GetPubString()
-	if err != nil {
-		panic(err)
-	}
-	da.trafserCount[pStr]++
-	if da.trafserCount[pStr] == da.lastProposal {
-		da.finishedMap[pStr] = true
-	}
-	end := len(da.finishedMap) == da.numMembers
-
-	da.AbsHasDecided(proposer, index, decision, outputs, end)
+	da.AbsHasDecided(owners[0], index, decision, outputs, end)
 
 	// make the next proposal
-	da.getProposal(proposer)
+	da.getProposal(owners[0], len(decision) == 0)
 
-	return outputs
+	return
 }
 
 // CheckDecisions is for testing and will be called at the end of the test with
@@ -343,10 +379,10 @@ func (da *AssetProposer) GetInitialFirstIndex() types.ConsensusID {
 
 // StartInit is called on the init state machine to start the program.
 func (da *AssetProposer) StartInit(memberCheckerState consinterface.ConsStateInterface) {
-	da.getProposal(da.myKey.GetPub())
+	da.getProposal(da.myKey.GetPub(), false)
 }
 
-func (da *AssetProposer) getProposal(lastProposer sig.Pub) {
+func (da *AssetProposer) getProposal(lastProposer sig.Pub, decidedNil bool) {
 	if !da.isMember {
 		return
 	}
@@ -357,7 +393,9 @@ func (da *AssetProposer) getProposal(lastProposer sig.Pub) {
 			return
 		}
 
-		da.myProposalCount++
+		if !decidedNil {
+			da.myProposalCount++
+		}
 		if tr := da.genAssetTransferFunc(da.myKey, da.initPubs, da.assetTable); tr != nil {
 
 			buff := bytes.NewBuffer(nil)

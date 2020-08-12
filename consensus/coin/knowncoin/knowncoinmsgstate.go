@@ -38,6 +38,14 @@ type MsgState struct {
 	coinVal       map[types.ConsensusRound]types.BinVal
 	fixedCoinRand *rand.Rand // Used if we are using a fixed coin values for experiment repeatability
 	fixedCoinUint uint64     // Used if we are using a fixed coin values for experiment repeatability
+	flipCoin      bool       // if true coin flips from 1 to 0 each round
+}
+
+func NewFlipCoinMsgState(isMv bool,
+	_ *generalconfig.GeneralConfig) *MsgState {
+
+	_ = isMv // TODO
+	return &MsgState{flipCoin: true}
 }
 
 // NewKnownCoinMsgState generates a new KnownCoinMsgState object.
@@ -60,6 +68,10 @@ func (sms *MsgState) New(_ types.ConsensusIndex, presets []struct {
 	Round types.ConsensusRound
 	Val   types.BinVal
 }) consinterface.CoinMessageStateInterface {
+
+	if sms.flipCoin {
+		return &MsgState{flipCoin: true}
+	}
 
 	var fixedCoinUint uint64
 	fixedCoinUint = sms.fixedCoinRand.Uint64()
@@ -88,6 +100,11 @@ func (sms *MsgState) GetCoins(round types.ConsensusRound) []types.BinVal {
 }
 
 func (sms *MsgState) getCoin(round types.ConsensusRound) types.BinVal {
+	if sms.flipCoin {
+		// even rounds are 1
+		return types.BinVal((round + 1) % 2)
+	}
+
 	if val, ok := sms.coinVal[round]; ok {
 		return val
 	}

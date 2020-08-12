@@ -102,46 +102,57 @@ func (spi *CausalCounterProposerInfo) FailAfter(end types.ConsensusInt) {
 // It returns a list of causally dependent StateMachines that result from the decisions.
 // It panics if the proposal is invalid (should have been checked in validate).
 func (spi *CausalCounterProposerInfo) HasDecided(proposer sig.Pub, index types.ConsensusIndex,
-	decision []byte) []sig.ConsIDPub {
+	owners []sig.Pub, decision []byte) ([]sig.ConsIDPub, []byte) {
 
-	buf := bytes.NewReader(decision)
-	var err error
-	_, err = spi.RandHasDecided(proposer, buf, true)
-	if err != nil {
-		logging.Error("invalid mv vrf proof", err)
-		panic(err)
+	if len(owners) != 1 {
+		panic("should always have only one counter owner")
 	}
-	counterBytes := make([]byte, buf.Len())
-	if n, err := buf.Read(counterBytes); err != nil || n != len(counterBytes) {
-		panic("buffer error")
-	}
-	counter, n := binary.Uvarint(counterBytes)
-	if n != len(counterBytes) {
-		panic("err counter")
-	}
+	if len(decision) == 0 { // a nil decision
+		// keep the same counter
+	} else {
+		if !sig.CheckPubsEqual(proposer, owners[0]) {
+			panic("proposer and owner must be the same")
+		}
+		buf := bytes.NewReader(decision)
+		var err error
+		_, err = spi.RandHasDecided(proposer, buf, true)
+		if err != nil {
+			logging.Error("invalid mv vrf proof", err)
+			panic(err)
+		}
+		counterBytes := make([]byte, buf.Len())
+		if n, err := buf.Read(counterBytes); err != nil || n != len(counterBytes) {
+			panic("buffer error")
+		}
+		counter, n := binary.Uvarint(counterBytes)
+		if n != len(counterBytes) {
+			panic("err counter")
+		}
 
-	if spi.proposalIndex != counter {
-		panic(fmt.Sprintf("decided %v, expected %v", counter, spi.proposalIndex))
+		if spi.proposalIndex != counter {
+			panic(fmt.Sprintf("decided %v, expected %v", counter, spi.proposalIndex))
+		}
+
+		// we only increment the counter if we dont decide nil
+		// initial proposal will be 1
+		logging.Info("Incrementing counter", spi.proposalIndex, spi.index)
+		spi.proposalIndex++
 	}
-
-	// we only increment the counter if we dont decide nil
-	// initial proposal will be 1
-	logging.Info("Incrementing counter", spi.proposalIndex, spi.index)
-	spi.proposalIndex++
-
 	// The output is the hash of the new counter value.
 	buff := bytes.NewBuffer(nil)
 	if _, err := utils.EncodeUvarint(spi.proposalIndex, buff); err != nil {
 		panic(err)
 	}
-	outputs := []sig.ConsIDPub{
-		sig.ConsIDPub{ID: types.ConsensusHash(types.GetHash(buff.Bytes())),
-			Pub: proposer}}
+	// Take the hash of the hash for the next output
+	parIdx, err := index.Index.MarshalBinary()
+	utils.PanicNonNil(err)
+	outputs := []sig.ConsIDPub{{ID: types.ConsensusHash(types.GetHash(parIdx)),
+		Pub: owners[0]}}
 
 	end := spi.proposalIndex == spi.lastProposal
 	spi.AbsHasDecided(proposer, index, decision, outputs, end)
 
-	pStr, err := proposer.GetPubString()
+	pStr, err := owners[0].GetPubString()
 	if err != nil {
 		panic(err)
 	}
@@ -156,7 +167,7 @@ func (spi *CausalCounterProposerInfo) HasDecided(proposer sig.Pub, index types.C
 		}
 	}
 
-	return outputs
+	return outputs, decision
 }
 
 // DoneClear should be called if the instance of the state machine will no longer be used (it should perform any cleanup).
@@ -305,7 +316,8 @@ func (spi *CausalCounterProposerInfo) GetDependentItems() []sig.ConsIDPub {
 func (spi *CausalCounterProposerInfo) CheckDecisions(root *utils.StringNode) (errs []error) {
 	var proposalIndex types.ConsensusInt
 	nxt := root.Children
-	for nxt != nil {
+	for ; nxt != nil; nxt = nxt[0].Children {
+
 		if len(nxt) != 1 {
 			errs = append(errs, fmt.Errorf("should have total order for counter"))
 		}
@@ -313,7 +325,7 @@ func (spi *CausalCounterProposerInfo) CheckDecisions(root *utils.StringNode) (er
 		// if nil was decided then the counter was not incremented
 		dec := []byte(nxt[0].Value)
 		if len(dec) == 0 {
-			errs = append(errs, types.ErrNilProposal)
+			// errs = append(errs, types.ErrNilProposal)
 			continue
 		}
 		buf := bytes.NewReader(dec)
@@ -335,7 +347,6 @@ func (spi *CausalCounterProposerInfo) CheckDecisions(root *utils.StringNode) (er
 		}
 		proposalIndex++
 
-		nxt = nxt[0].Children
 	}
 	return
 }

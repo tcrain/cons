@@ -100,3 +100,16 @@ an echo message to ensure the slow ones get enough messages.
 
 - **IMPORTANT:** - unsigned leaser messages need to be checked for validated by SM
   - see consinterfacestate.go line 178, // TODO ("check unsigend messages")
+  
+- A consensus algorithm can be used for causal ordering instead of a broadcast algorithm  
+  - Concerning causal ordering and nil decisions:
+    - In this case nil can be decided
+    - When nil is decided, the state machine is responsible for returning a new set of outputs
+  from the HasDecided function. If it does not return any new outputs then the inputs are considered
+  to be consumed. So for example the AssetProposer generates new outputs (have new IDs)
+  with the same value and owner as the consumed inputs, meaning the assets are not lost.
+  **To FIX:** If config.SignCausalAssets is true then this will panic because
+  the new assest are generates without signatures.
+  - **TO ADD:** Currently when using consensus and causal ordered, the statemachine
+  is the same as with the broadcast where only proposals can only contain the values
+  from the proposer, should allow internal signed transactions from multiple proposers.

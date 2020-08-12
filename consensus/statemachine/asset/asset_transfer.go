@@ -199,6 +199,14 @@ func (at *AssetTransfer) Encode(writer io.Writer) (n int, err error) {
 			return
 		}
 	}
+
+	// be sure we have encoded the signed part
+	if at.SignedBytes == nil {
+		if err = at.encodeSignedBytes(); err != nil {
+			return
+		}
+	}
+
 	var nxtN int
 	// First the size of the signed part
 	nxtN, err = utils.EncodeUvarint(uint64(len(at.SignedBytes)), writer)

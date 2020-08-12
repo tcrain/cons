@@ -221,12 +221,15 @@ func (cs *CausalConsState) sendNoProgressMsg(item *consinterface.ConsInterfaceIt
 		logging.Info("Sending no progress message for index", idx, cs.generalConfig.TestIndex)
 		hdrs = append(hdrs, messagetypes.NewNoProgressMessage(idx, hasDecided, cs.generalConfig.TestIndex))
 	} else {
-		// If it has decided then we send the unconsumed indicies for that decided index
+		// If it has decided then we send the unconsumed indices for that decided index
 		for _, nxt := range cs.memberCheckerState.GetUnconsumedOutputs(types.ParentConsensusHash(idx.Index.(types.ConsensusHash))) {
 			hdrs = append(hdrs, messagetypes.NewNoProgressMessage(
 				types.ConsensusIndex{Index: nxt}, hasDecided, cs.generalConfig.TestIndex))
 		}
 	}
+
+	a := cs.memberCheckerState.GetSortedParChi()
+	_ = a
 
 	mm, err := messages.CreateMsg(hdrs)
 	if err != nil {
@@ -431,19 +434,20 @@ func (cs *CausalConsState) checkProgress(idx types.ConsensusIndex) {
 		panic(err)
 	}
 	proposer, dec, _ := nextItem.GetDecision()
+
+	// Update the member checker
+	updatedDec := cs.memberCheckerState.DoneIndex(idx, proposer, dec)
 	// Store the decided value
 	// Update the storage if we are not initializing
 	if !cs.isInStorageInit {
 
-		err := cs.store.Write(idx.Index.(types.ConsensusHash), bs, dec)
+		err := cs.store.Write(idx.Index.(types.ConsensusHash), bs, updatedDec)
 		if err != nil {
 			panic(err)
 		}
 		memC.MC.GetStats().DiskStore(len(bs) + len(dec))
 	}
 
-	// Update the member checker
-	cs.memberCheckerState.DoneIndex(idx, proposer, dec)
 	logging.Infof("Decided cons state index %v", idx)
 
 }

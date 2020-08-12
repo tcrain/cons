@@ -21,7 +21,6 @@ package messages
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/tcrain/cons/consensus/types"
 )
 
@@ -230,7 +229,7 @@ func (m *Message) ComputeHash(offset, endoffset int, includeHash bool) (types.Ha
 	return hash, l, nil
 }
 
-var ErrInvalidHash = fmt.Errorf("Invalid hash")
+// var ErrInvalidHash = fmt.Errorf("Invalid hash")
 
 func (m *Message) CheckHash(offset int, endoffset int, includesHash bool) (types.HashBytes, int, error) {
 	var hsh []byte
@@ -250,7 +249,7 @@ func (m *Message) CheckHash(offset int, endoffset int, includesHash bool) (types
 	check := types.GetHash(buff)
 	if includesHash {
 		if !bytes.Equal(hsh, check) {
-			return nil, 0, ErrInvalidHash
+			return nil, 0, types.ErrInvalidHash
 		}
 	}
 	return check, hashLen, nil

@@ -21,6 +21,10 @@ package cons
 
 import (
 	"github.com/tcrain/cons/config"
+	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/messages"
+	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/types"
 	"time"
 )
@@ -60,4 +64,31 @@ func GetMvTimeout(round types.ConsensusRound, t int) time.Duration {
 
 	to := time.Duration(round-types.ConsensusRound(t)) * config.MvConsTimeout * time.Millisecond
 	return to
+}
+
+func StartInitTimer(round types.ConsensusRound, item *consinterface.ConsInterfaceItems,
+	cnl channelinterface.MainChannel) channelinterface.TimerInterface {
+
+	// Start the init timer
+	deser := []*channelinterface.DeserializedItem{
+		{
+			Index:          item.ConsItem.GetIndex(),
+			HeaderType:     messages.HdrMvInitTimeout,
+			IsDeserialized: true,
+			Header:         (messagetypes.MvInitMessageTimeout)(round),
+			IsLocal:        types.LocalMessage}}
+	return cnl.SendToSelf(deser, GetMvTimeout(round, item.MC.MC.GetFaultCount()))
+}
+
+func StartEchoTimer(round types.ConsensusRound, item *consinterface.ConsInterfaceItems,
+	cnl channelinterface.MainChannel) channelinterface.TimerInterface {
+	// Start the init timer
+	deser := []*channelinterface.DeserializedItem{
+		{
+			Index:          item.ConsItem.GetIndex(),
+			HeaderType:     messages.HdrMvEchoTimeout,
+			IsDeserialized: true,
+			Header:         (messagetypes.MvEchoMessageTimeout)(round),
+			IsLocal:        types.LocalMessage}}
+	return cnl.SendToSelf(deser, GetMvTimeout(round, item.MC.MC.GetFaultCount()))
 }

@@ -30,6 +30,13 @@ import (
 	"github.com/tcrain/cons/consensus/types"
 )
 
+// CheckIncludeEchoProofs checks what kind of collect broadcast (see types.CollectBroadcast)
+// should be done for the message. This should be used for "commit" type messages, i.e.
+// of the init->echo->commit message pattern.
+// If gc.CollectBroadcast is types.EchoCommit or configIncludeProofs is true then proofs of validity
+// should be included with the message.
+// If the value returned in sendToCoord is non-nil the the message should only be sent to the coordinator
+// (see types.Commit and types.EchoCommit).
 func CheckIncludeEchoProofs(round types.ConsensusRound, ci *consinterface.ConsInterfaceItems,
 	configIncludeProofs bool, gc *generalconfig.GeneralConfig) (includeProofs bool, sendToCoord sig.Pub) {
 	// Include proofs if either:
@@ -41,7 +48,7 @@ func CheckIncludeEchoProofs(round types.ConsensusRound, ci *consinterface.ConsIn
 	// proof to all participants
 	if gc.CollectBroadcast == types.EchoCommit {
 		_, _, err := consinterface.CheckCoord(ci.MC.MC.GetMyPriv().GetPub(), ci.MC, round, nil)
-		if err == nil {
+		if err == nil { // If I am the coordinator, then I broadcast the message to all participants, with the proofs.
 			includeProofs = true
 			return
 		}
@@ -53,6 +60,10 @@ func CheckIncludeEchoProofs(round types.ConsensusRound, ci *consinterface.ConsIn
 	return
 }
 
+// GetCoordPubCollectBroadcast is used to check if a message should be broadcast to all nodes,
+// or just to the next coordinator (see types.CollectBroadcast) for the CURRENT round/instance of consensus.
+// It returns a the expected coordinator of round if gc.CollectBroadcast
+// is types.EchoCommit, it returns nil otherwise.
 func GetCoordPubCollectBroadcast(round types.ConsensusRound, ci *consinterface.ConsInterfaceItems,
 	gc *generalconfig.GeneralConfig) sig.Pub {
 
@@ -68,6 +79,11 @@ func GetCoordPubCollectBroadcast(round types.ConsensusRound, ci *consinterface.C
 	return cordPub
 }
 
+// GetNextCoordPubCollectBroadcast is used to check if a message should be broadcast to all nodes,
+// or just to the next coordinator (see types.CollectBroadcast) for the NEXT round/instance of consensus.
+// It returns a the expected coordinator of round if gc.CollectBroadcast
+// is not types.Full (also see types.Commit, types.EchoCommit), it returns nil if gc.CollectBroadcast
+// is full.
 func GetNextCoordPubCollectBroadcast(round types.ConsensusRound, ci *consinterface.ConsInterfaceItems,
 	gc *generalconfig.GeneralConfig) sig.Pub {
 
@@ -81,6 +97,10 @@ func GetNextCoordPubCollectBroadcast(round types.ConsensusRound, ci *consinterfa
 	return nxtCoordPub
 }
 
+// DoConsBroadcast broadcasts a message for the given inputs.
+// If nxtCordPub is not nil (the next coordinator public key), the message is only sent to that node (see types.CollectBroadcast).
+// If the msg is nil then just the proofs will be sent.
+// If gc has partial messages enabled for the message type the message will be sent as pieces.
 func DoConsBroadcast(nxtCoordPub sig.Pub, msg messages.InternalSignedMsgHeader, signMessage bool, proofMsgs []messages.MsgHeader,
 	forwardFunc channelinterface.NewForwardFuncFilter, ci *consinterface.ConsInterfaceItems,
 	mainChannel channelinterface.MainChannel, gc *generalconfig.GeneralConfig) {
@@ -109,11 +129,11 @@ func DoConsBroadcast(nxtCoordPub sig.Pub, msg messages.InternalSignedMsgHeader, 
 				}
 			}
 		}
-		if nxtCoordPub != nil {
+		if nxtCoordPub != nil { // Only broadcast to the next coorindator
 			err = mainChannel.SendToPub(messages.AppendCopyMsgHeader(ci.ConsItem.GetPreHeader(), append(proofMsgs, sms)...), nxtCoordPub,
 				ci.MC.MC.GetStats().IsRecordIndex())
 			if err != nil { // TODO what to do with non all to all connections?
-				logging.Warningf("Error sending echo to next coord %v, index %v, will broadcast echo instead", err,
+				logging.Warningf("Error sending message to next coord %v, index %v, will broadcast message instead", err,
 					ci.ConsItem.GetIndex())
 			} else {
 				return

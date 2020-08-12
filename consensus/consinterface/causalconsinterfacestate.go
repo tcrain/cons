@@ -142,6 +142,20 @@ func NewCausalConsInterfaceState(initItem ConsItem,
 	return mcs
 }
 
+func (mcs *CausalConsInterfaceState) GetSortedParChi() sort.StringSlice {
+	mcs.mutex.Lock()
+	defer mcs.mutex.Unlock()
+
+	ret := make(sort.StringSlice, len(mcs.parentToChildMap))
+	var i int
+	for k := range mcs.parentToChildMap {
+		ret[i] = string(k)
+		i++
+	}
+	ret.Sort()
+	return ret
+}
+
 func (mcs *CausalConsInterfaceState) AddFutureMessage(rcvMsg *channelinterface.RcvMsg) {
 	mcs.mutex.Lock()
 	defer mcs.mutex.Unlock()
@@ -416,14 +430,14 @@ func (mcs *CausalConsInterfaceState) InitSM(initSM CausalStateMachineInterface) 
 	newItem.FwdChecker = mcs.initForwardChecker.New(initIdx, newItem.MC.MC.GetParticipants(), newItem.MC.MC.GetAllPubs())
 
 	// create the cons item
-	newItem.ConsItem = mcs.initItem.GenerateNewItem(initIdx, newItem, mcs.mainChannel, nil,
-		mcs.broadcastFunc, mcs.gc)
+	//newItem.ConsItem = mcs.initItem.GenerateNewItem(initIdx, newItem, mcs.mainChannel, nil,
+	//	mcs.broadcastFunc, mcs.gc)
 
 	newItem.LastProgress = time.Now()
 	mcs.consItemSorted = append(mcs.consItemSorted, newItem)
 	mcs.consItemsMap[initParentIdx] = newItem
 
-	newItem.ConsItem.Start()
+	// newItem.ConsItem.Start()
 }
 
 // GetNewPub returns an empty public key object.
@@ -580,8 +594,10 @@ func (mcs *CausalConsInterfaceState) GenChildIndices(cid types.ConsensusIndex, i
 // DoneIndex is called with consensus has finished at idx, binstate is the value decided, which is passed
 // to the member checker's UpdateState method.
 // It allocates the objects for new consensus instances and garbage collects old ones as necessary.
+// It returns the decided value (the state machine may modify the decided value)
 // It is concurrent safe with GetMemberChecker.
-func (mcs *CausalConsInterfaceState) DoneIndex(cid types.ConsensusIndex, proposer sig.Pub, dec []byte) {
+func (mcs *CausalConsInterfaceState) DoneIndex(cid types.ConsensusIndex,
+	proposer sig.Pub, dec []byte) (updatedDec []byte) {
 
 	mcs.mutex.Lock()
 	defer mcs.mutex.Unlock()
@@ -605,9 +621,23 @@ func (mcs *CausalConsInterfaceState) DoneIndex(cid types.ConsensusIndex, propose
 		panic(err)
 	}
 
+	// Compute who owns the indices
+	pars := make([]sig.Pub, 1+len(cid.AdditionalIndices))
+	pars[0] = mcs.outputToOwner[cid.FirstIndex.(types.ConsensusHash)]
+	if pars[0] == nil {
+		panic("should not be nil")
+	}
+	for i, nxt := range cid.AdditionalIndices {
+		pars[i+1] = mcs.outputToOwner[nxt.(types.ConsensusHash)]
+		if pars[i+1] == nil {
+			panic("should not be nil")
+		}
+	}
+
 	// Let the SM know we have decided
 	pi := mcs.ProposalInfo[decidedIndex]
-	cItems := pi.HasDecided(proposer, cid, dec)
+	var cItems []sig.ConsIDPub
+	cItems, updatedDec = pi.HasDecided(proposer, cid, pars, dec)
 	pi.DoneKeep()
 
 	// See if we have output any children
@@ -618,6 +648,9 @@ func (mcs *CausalConsInterfaceState) DoneIndex(cid types.ConsensusIndex, propose
 			childItems[i] = newIdx.ID.(types.ConsensusHash)
 			// update the maps for the outputs
 			mcs.childToParentMap[childItems[i]] = decidedIndex
+			if newIdx.Pub == nil {
+				panic("should not have nil owner")
+			}
 			mcs.outputToOwner[childItems[i]] = newIdx.Pub
 			// reprocess any proposals depending on the child items that we received before it was created
 			mcs.reprocessProposals(childItems[i])
@@ -686,6 +719,7 @@ func (mcs *CausalConsInterfaceState) DoneIndex(cid types.ConsensusIndex, propose
 	}
 	// gc the consumed map since
 	delete(mcs.itemToConsumedOutputs, decidedIndex)
+	return
 }
 
 func (mcs *CausalConsInterfaceState) addChildConsumerToParent(parentHash, consumerHash types.ParentConsensusHash) {
@@ -705,7 +739,9 @@ func (mcs *CausalConsInterfaceState) addChildConsumerToParent(parentHash, consum
 
 func (mcs *CausalConsInterfaceState) parentGcIdx(nxtIdx types.ParentConsensusHash) {
 	if itm, ok := mcs.consItemsMap[nxtIdx]; ok {
-		itm.ConsItem.Collect()
+		if nxtIdx != mcs.initHash {
+			itm.ConsItem.Collect()
+		}
 
 		mcs.ProposalInfo[nxtIdx].Collect()
 
@@ -884,7 +920,7 @@ func (mcs *CausalConsInterfaceState) genIndex(idx types.ConsensusIndex) (*MemChe
 
 	item.ConsItem = mcs.initItem.GenerateNewItem(idx, item, mcs.mainChannel, parItem.ConsItem,
 		mcs.broadcastFunc, mcs.gc)
-	// item.ConsItem.Start()
+	item.ConsItem.Start()
 
 	// prevItem.ConsItem.SetNextConsItem(newItem.ConsItem)
 
@@ -925,13 +961,16 @@ func (mcs *CausalConsInterfaceState) GetTimeoutItems() (decidedTimeoutItems,
 	// consItemSorted has the smallest times first (i.e. the earliest)
 	var startTimeoutIdx, endTimeoutIndex int
 	for _, nxt := range mcs.consItemSorted {
+		if nxt.ConsItem == nil { // this is the init item, it does not run a cons item, it only has outputs
+			continue
+		}
 		if now.Sub(nxt.LastProgress) >= config.ProgressTimeout*time.Millisecond {
 			endTimeoutIndex++
 			if nxt.ConsItem.HasDecided() {
 				decidedTimeoutItems = append(decidedTimeoutItems, nxt)
 				continue
 			}
-			if nxt.ConsItem.HasReceivedProposal() ||
+			if nxt.ConsItem.HasValidStarted() ||
 				types.ParentConsensusHash(nxt.ConsItem.GetIndex().Index.(types.ConsensusHash)) == mcs.initHash {
 
 				startedTimeoutItems = append(startedTimeoutItems, nxt)
@@ -997,8 +1036,10 @@ func (mcs *CausalConsInterfaceState) Collect() {
 	mcs.mutex.Lock()
 	defer mcs.mutex.Unlock()
 
-	for _, nxt := range mcs.consItemsMap {
-		nxt.ConsItem.Collect()
+	for hsh, nxt := range mcs.consItemsMap {
+		if hsh != mcs.initHash {
+			nxt.ConsItem.Collect()
+		}
 	}
 	for _, nxt := range mcs.ProposalInfo {
 		nxt.EndTest()

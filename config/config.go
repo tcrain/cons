@@ -88,7 +88,7 @@ const (
 	UDPMovingAvgWindowSize = 20                                              // how many previous messages are used for tracking the moving average msg send size, which is then used to caluculate how much to sleep to not exceed UDPMaxSendRate
 	TCPDialTimeout         = 3000                                            // time in ms for TCP dial timeout
 
-	DefaultMsgProcesThreads = 20    // number of threads processing messages (deserialization/verification) before passing to the single consensus thread
+	DefaultMsgProcesThreads = 10    // number of threads processing messages (deserialization/verification) before passing to the single consensus thread
 	ConnectRetires          = 10    // number of times to retry TCP connections
 	P2pGraphGenerateRetries = 10000 // number of times to retry building a random connected graph when using static p2p network
 

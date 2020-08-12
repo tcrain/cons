@@ -178,7 +178,7 @@ func (sc *MvCons3) Start() {
 }
 
 // HasReceivedProposal returns true if the cons has received a valid proposal.
-func (sc *MvCons3) HasReceivedProposal() bool {
+func (sc *MvCons3) HasValidStarted() bool {
 	return len(sc.validatedInitHashes) > 0
 }
 
@@ -566,16 +566,11 @@ func (sc *MvCons3) startCons() error {
 	}
 	// start the init timeout
 	if sc.initTimeOutState == cons.TimeoutNotSent {
-		sc.initTimeOutState = cons.TimeoutSent
-		deser := []*channelinterface.DeserializedItem{
-			{
-				Index:          sc.Index,
-				HeaderType:     messages.HdrMvInitTimeout,
-				IsDeserialized: true,
-				IsLocal:        types.LocalMessage}}
+		// Start the init timer
 		prvIdx, _, _, _ := sc.getMostRecentSupport(false) // TODO better way to decide timeout duration?
-		sc.initTimer = sc.MainChannel.SendToSelf(deser,
-			cons.GetMvTimeout(types.ConsensusRound(sc.Index.Index.(types.ConsensusInt)-prvIdx), sc.ConsItems.MC.MC.GetFaultCount()))
+		sc.initTimer = cons.StartInitTimer(types.ConsensusRound(sc.Index.Index.(types.ConsensusInt)-prvIdx),
+			sc.ConsItems, sc.MainChannel)
+		sc.initTimeOutState = cons.TimeoutSent
 	}
 	return nil
 }

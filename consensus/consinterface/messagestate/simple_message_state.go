@@ -169,8 +169,9 @@ func (sms *SimpleMessageState) GetSigCountMsgID(sm messages.MsgID) int {
 // SetupSignedMessageDuplicates takes a list of headers that are assumed to have the same set of bytes to sign
 // (i.e. the signed part are all the same though they may have different contents following the signed part,
 // for example this is true with partial messages)
-func (sms *SimpleMessageState) SetupSignedMessagesDuplicates(combined *messagetypes.CombinedMessage, hdrs []messages.InternalSignedMsgHeader,
-	mc *consinterface.MemCheckers) (combinedSigned *sig.MultipleSignedMessage, partialsSigned []*sig.MultipleSignedMessage, err error) {
+func (sms *SimpleMessageState) SetupSignedMessagesDuplicates(combined *messagetypes.CombinedMessage,
+	hdrs []messages.InternalSignedMsgHeader, mc *consinterface.MemCheckers) (combinedSigned *sig.MultipleSignedMessage,
+	partialsSigned []*sig.MultipleSignedMessage, err error) {
 
 	if len(hdrs) < 1 {
 		return nil, nil, types.ErrInvalidIndex

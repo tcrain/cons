@@ -352,7 +352,7 @@ func (sc *MvCons2) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub
 }
 
 // HasReceivedProposal returns true if the cons has received a valid proposal.
-func (sc *MvCons2) HasReceivedProposal() bool {
+func (sc *MvCons2) HasValidStarted() bool {
 	return len(sc.validatedInitHashes) > 0
 }
 
@@ -499,15 +499,9 @@ func (sc *MvCons2) startRound(mainChannel channelinterface.MainChannel) error {
 	// start the init timeout
 	roundState := sc.roundState[sc.round]
 	if roundState.initTimeOutState == cons.TimeoutNotSent {
+		// Start the init timer
+		sc.initTimer = cons.StartInitTimer(sc.round, sc.ConsItems, sc.MainChannel)
 		roundState.initTimeOutState = cons.TimeoutSent
-		deser := []*channelinterface.DeserializedItem{
-			{
-				Index:          sc.Index,
-				HeaderType:     messages.HdrMvInitTimeout,
-				Header:         (messagetypes.MvInitMessageTimeout)(sc.round),
-				IsDeserialized: true,
-				IsLocal:        types.LocalMessage}}
-		sc.initTimer = mainChannel.SendToSelf(deser, cons.GetMvTimeout(sc.round, sc.ConsItems.MC.MC.GetFaultCount()))
 	} else if roundState.initTimeOutState == cons.TimeoutPassed {
 		// start the echo timeout immediately
 		t := sc.ConsItems.MC.MC.GetFaultCount()
@@ -750,14 +744,7 @@ func (sc *MvCons2) startEchoTimeout(round types.ConsensusRound, t int, roundStat
 	}
 	if roundState.echoTimeOutState == cons.TimeoutNotSent && !sc.HasDecided() {
 		roundState.echoTimeOutState = cons.TimeoutSent
-		deser := []*channelinterface.DeserializedItem{
-			{
-				Index:          sc.Index,
-				HeaderType:     messages.HdrMvEchoTimeout,
-				Header:         (messagetypes.MvEchoMessageTimeout)(round),
-				IsDeserialized: true,
-				IsLocal:        types.LocalMessage}}
-		sc.echoTimer = mainChannel.SendToSelf(deser, cons.GetMvTimeout(round, t))
+		sc.echoTimer = cons.StartEchoTimer(round, sc.ConsItems, mainChannel)
 	}
 	return roundState
 }

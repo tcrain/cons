@@ -60,7 +60,7 @@ func (hm *HashMessage) GetMsgID() messages.MsgID {
 func (hm *HashMessage) SerializeInternal(m *messages.Message) (bytesWritten, signEndOffset int, err error) {
 	// Now the proposal hash
 	if len(hm.TheHash) != types.GetHashLen() {
-		err = messages.ErrInvalidHash
+		err = types.ErrInvalidHash
 		return
 	}
 	v, signEndOffset := (*messages.MsgBuffer)(m).AddBytes(hm.TheHash)

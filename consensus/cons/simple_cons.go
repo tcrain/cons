@@ -81,7 +81,7 @@ func (sc *SimpleCons) NeedsConcurrent() types.ConsensusInt {
 }
 
 // HasReceivedProposal panics because SimpleCons has no proposals.
-func (sc *SimpleCons) HasReceivedProposal() bool {
+func (sc *SimpleCons) HasValidStarted() bool {
 	panic("unused")
 }
 

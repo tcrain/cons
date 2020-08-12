@@ -22,6 +22,7 @@ package utils
 type StringNode struct {
 	Value    string
 	Children SortedChildren
+	Other    interface{}
 }
 
 type SortedChildren []*StringNode

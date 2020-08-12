@@ -18,7 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 /*
-Implementation of signature based binary consensus algorithm.
+Implementation of non-signature based binary consensus algorithm.
 */
 package binconsrnd2
 
@@ -59,6 +59,14 @@ func (sc *BinConsRnd2) GetCommitProof() []messages.MsgHeader {
 	return bincons1.GetBinConsCommitProof(messages.HdrAuxProof, sc, sc.getMsgState(), true, sc.ConsItems.MC)
 }
 
+// GetMVInitialRoundBroadcast returns the type of binary message that the multi-value reduction should broadcast for round 0.
+func (sc *BinConsRnd2) GetMVInitialRoundBroadcast(val types.BinVal) messages.InternalSignedMsgHeader {
+	if val == 1 {
+		panic(1)
+	}
+	return messagetypes.CreateBVMessage(val, 1)
+}
+
 // GetBinState returns the entire state of the consensus as a string of bytes using MessageState.GetMsgState() as the list
 // of all messages, with a messagetypes.ConsBinStateMessage header appended to the beginning).
 func (sc *BinConsRnd2) GetBinState(localOnly bool) ([]byte, error) {
@@ -91,7 +99,6 @@ func (*BinConsRnd2) GenerateNewItem(index types.ConsensusIndex,
 	newAbsItem := cons.GenerateAbsState(index, items, mainChannel, prevItem, broadcastFunc, gc)
 	newItem := &BinConsRnd2{AbsConsItem: newAbsItem}
 	items.ConsItem = newItem
-	newItem.Decided = -1
 	newItem.gotProposal = false
 	newItem.Decided = -1
 	newItem.decidedRound = 0
@@ -214,7 +221,8 @@ func (sc *BinConsRnd2) CanSkipMvTimeout() bool {
 	msgState.Lock()
 	defer msgState.Unlock()
 
-	return msgState.getAuxRoundStruct(2, sc.ConsItems.MC).TotalAuxBinMsgCount >
+	// if we have n-t BV 0 messages from round 0
+	return msgState.getAuxRoundStruct(2, sc.ConsItems.MC).AuxBinNums[0] >=
 		sc.ConsItems.MC.MC.GetMemberCount()-sc.ConsItems.MC.MC.GetFaultCount()
 }
 
@@ -442,6 +450,9 @@ func (sc *BinConsRnd2) checkBVAuxBroadcasts(nmt int, t int, round types.Consensu
 				// Store the values
 				roundStruct.supportBvInfo[i].echod = true
 				// Broadcast the message for the next round
+				if roundStruct.supportBvInfo[i].round == 1 && i == 1 {
+					fmt.Println("a")
+				}
 				auxMsg := messagetypes.CreateBVMessage(i, roundStruct.supportBvInfo[i].round)
 				// Set to true before checking if we are a member, since check member will always
 				// give the same result for this round
@@ -553,6 +564,9 @@ func (sc *BinConsRnd2) checkCoinBroadcasts(nmt int, t int, round types.Consensus
 					nxtRoundStruct.supportBvInfo[est].echod = true
 					// Broadcast the BV message for the next round
 					bvMsg := messagetypes.CreateBVMessage(est, round+1)
+					if est == 1 && round+1 == 1 {
+						fmt.Println("b")
+					}
 					// Set to true before checking if we are a member, since check member will always
 					// give the same result for this round
 					sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round + 1)
@@ -585,7 +599,7 @@ func (sc *BinConsRnd2) checkCoinBroadcasts(nmt int, t int, round types.Consensus
 }
 
 // HasReceivedProposal panics because BonCons has no proposals.
-func (sc *BinConsRnd2) HasReceivedProposal() bool {
+func (sc *BinConsRnd2) HasValidStarted() bool {
 	panic("unused")
 }
 

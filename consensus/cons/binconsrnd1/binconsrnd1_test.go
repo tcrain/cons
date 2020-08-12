@@ -37,6 +37,7 @@ func getBinConsStateMachineTypes() []types.StateMachineType {
 // var binTO = types.TestOptions{SigType: types.TBLS, BinConsPercentOnes: 50, CoinType: types.StrongCoin1Type, IncludeProofs:true, StopOnCommit:types.SendProof, AllowSupportCoin:true}
 var binTO = types.TestOptions{SigType: types.TBLSDual, BinConsPercentOnes: 50, CoinType: types.StrongCoin1Type, IncludeProofs: true, UseFixedSeed: false, UseFixedCoinPresets: false, StopOnCommit: types.SendProof}
 var binTOKnown = types.TestOptions{SigType: types.EDCOIN, BinConsPercentOnes: 50, CoinType: types.KnownCoinType, UseFixedCoinPresets: false}
+var binTOFlip = types.TestOptions{SigType: types.EDCOIN, BinConsPercentOnes: 50, CoinType: types.FlipCoinType, UseFixedCoinPresets: false}
 var binTOStrongCoin2 = types.TestOptions{UseFixedSeed: false, SigType: types.EDCOIN, BinConsPercentOnes: 50, CoinType: types.StrongCoin2Type}
 var binTOStrongCoin2Echo = types.TestOptions{UseFixedSeed: false, SigType: types.EDCOIN, BinConsPercentOnes: 50, CoinType: types.StrongCoin2EchoType, EncryptChannels: true}
 var binTOStrongCoin1Echo = types.TestOptions{UseFixedSeed: false, SigType: types.TBLSDual, BinConsPercentOnes: 50, CoinType: types.StrongCoin1EchoType, EncryptChannels: true}
@@ -55,6 +56,11 @@ func TestBinConsRnd1SleepBasic(t *testing.T) {
 
 func TestBinConsRnd1BasicKnown(t *testing.T) {
 	cons.RunBasicTests(binTOKnown, types.BinConsRnd1Type, &BinConsRnd1{},
+		Config{}, []int{}, t)
+}
+
+func TestBinConsRnd1BasicFlip(t *testing.T) {
+	cons.RunBasicTests(binTOFlip, types.BinConsRnd1Type, &BinConsRnd1{},
 		Config{}, []int{}, t)
 }
 

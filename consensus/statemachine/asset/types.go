@@ -27,6 +27,9 @@ import (
 // CheckTransferOutputFunc is used to check if the given asset inputs and outputs for a transfer are valid.
 type CheckTransferOutputFunc func(account *AssetAccount, inputs []AssetInterface, outputs []AssetInterface) error
 
+// SendToSelfAsset is used when a nil value is decided, so the asset should just be sent back to the owner with a new ID
+type SendToSelfAsset func(account *AssetAccount, inputs []AssetInterface) []AssetInterface
+
 // GenAssetTransferFunc is called during the experiment each time a new transfer asset is needed.
 // It returns nil if there is no assets to transfer.
 type GenAssetTransferFunc func(priv sig.Priv, participants []sig.Pub, table *AccountTable) (tr *AssetTransfer)

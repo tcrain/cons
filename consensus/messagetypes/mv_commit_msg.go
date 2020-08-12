@@ -60,7 +60,7 @@ func (mvc *MvCommitMessage) GetMsgID() messages.MsgID {
 func (mvc *MvCommitMessage) SerializeInternal(m *messages.Message) (bytesWritten, signEndOffset int, err error) {
 	// Now the proposal hash
 	if len(mvc.ProposalHash) != types.GetHashLen() {
-		err = messages.ErrInvalidHash
+		err = types.ErrInvalidHash
 		return
 	}
 	v, _ := (*messages.MsgBuffer)(m).AddBytes(mvc.ProposalHash)

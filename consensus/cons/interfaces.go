@@ -71,6 +71,8 @@ type BinConsInterface interface {
 	CanSkipMvTimeout() bool
 	// GetBinDecided returns -1 if not decided, or the decided value, and the round decided.
 	GetBinDecided() (int, types.ConsensusRound)
+	// GetMVInitialRoundBroadcast returns the type of binary message that the multi-value reduction should broadcast for the initial round.
+	GetMVInitialRoundBroadcast(val types.BinVal) messages.InternalSignedMsgHeader
 }
 
 // GetMvMsgRound is a helper method to the the round from either a MvInitMessage, PartialMessage, MvCommitMessage, MvEchoMessage
@@ -97,7 +99,7 @@ func GetMvMsgRound(deser *channelinterface.DeserializedItem) (round types.Consen
 // ConfigOptions is an interface that returns the set of valid configurations for a given consensus implementation.
 // Each consensus implementation should create an implementation of this interface so tests can be run on the valid configs.
 type ConfigOptions interface {
-	ComputeSigAndEncoding(options types.TestOptions) (noSignatures, encryptChannels bool)
+	// ComputeSigAndEncoding(options types.TestOptions) (noSignatures, encryptChannels bool)
 
 	// GetIsMV returns true if the consensus is multi-value or false if binary.
 	GetIsMV() bool

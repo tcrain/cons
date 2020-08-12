@@ -28,6 +28,7 @@ import (
 	"github.com/tcrain/cons/consensus/cons/binconsrnd4"
 	"github.com/tcrain/cons/consensus/cons/binconsrnd5"
 	"github.com/tcrain/cons/consensus/cons/binconsrnd6"
+	"github.com/tcrain/cons/consensus/cons/mvbinconsrnd2"
 	"github.com/tcrain/cons/consensus/cons/mvcons1"
 	"github.com/tcrain/cons/consensus/cons/mvcons2"
 	"github.com/tcrain/cons/consensus/cons/mvcons3"
@@ -54,10 +55,10 @@ func GetConsItem(to types.TestOptions) (consItem consinterface.ConsItem) {
 		consItem = &binconsrnd5.BinConsRnd5{}
 	case types.BinConsRnd6Type:
 		consItem = &binconsrnd6.BinConsRnd6{}
-	case types.MvBinCons1Type:
+	case types.MvBinCons1Type, types.MvBinConsRnd1Type:
 		consItem = &mvcons1.MvCons1{}
-	case types.MvBinConsRnd1Type:
-		consItem = &mvcons1.MvCons1{}
+	case types.MvBinConsRnd2Type:
+		consItem = &mvbinconsrnd2.MvBinConsRnd2{}
 	case types.MvCons2Type:
 		consItem = &mvcons2.MvCons2{}
 	case types.MvCons3Type:
@@ -93,6 +94,8 @@ func GetConsConfig(to types.TestOptions) (consConfig cons.ConfigOptions) {
 		consConfig = mvcons1.MvBinCons1Config{}
 	case types.MvBinConsRnd1Type:
 		consConfig = mvcons1.MvBinConsRnd1Config{}
+	case types.MvBinConsRnd2Type:
+		consConfig = mvbinconsrnd2.Config{}
 	case types.MvCons2Type:
 		consConfig = mvcons2.MvCons2Config{}
 	case types.MvCons3Type:

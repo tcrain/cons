@@ -98,6 +98,78 @@ func (MvBinConsRnd1Config) GetUsePubIndexTypes(gt cons.GetOptionType) []bool {
 	return types.WithTrue
 }
 
+type MvBinConsRnd2Config struct {
+	cons.StandardMvConfig
+}
+
+// GetStopOnCommitTypes returns the types to test when to terminate.
+func (MvBinConsRnd2Config) GetStopOnCommitTypes(optionType cons.GetOptionType) []types.StopOnCommitType {
+	switch optionType {
+	case cons.AllOptions:
+		return []types.StopOnCommitType{types.Immediate, types.SendProof, types.NextRound}
+	case cons.MinOptions:
+		return []types.StopOnCommitType{types.NextRound}
+	default:
+		panic(optionType)
+	}
+}
+
+// GetCoinTypes returns the types of coins allowed.
+func (MvBinConsRnd2Config) GetCoinTypes(optionType cons.GetOptionType) []types.CoinType {
+	switch optionType {
+	case cons.AllOptions:
+		return types.StrongCoins
+	case cons.MinOptions:
+		return []types.CoinType{types.StrongCoin2Type}
+	default:
+		panic(optionType)
+	}
+}
+
+// GetAllowNoSignatures returns true if the consensus can run without signatures
+func (MvBinConsRnd2Config) GetAllowNoSignatures(gt cons.GetOptionType) []bool { // []types.UseSignaturesType {
+	switch gt {
+	case cons.AllOptions:
+		// return []types.UseSignaturesType{types.ConsDependentSignatures, types.UseSignatures, types.NoSignatures}
+		return types.WithBothBool
+	case cons.MinOptions:
+		// return []types.UseSignaturesType{types.UseSignatures}
+		return types.WithTrue
+	default:
+		panic(gt)
+	}
+}
+
+// GetSigTypes return the types of signatures supported by the consensus
+func (MvBinConsRnd2Config) GetSigTypes(gt cons.GetOptionType) []types.SigType {
+	switch gt {
+	case cons.AllOptions:
+		// return types.CoinSigTypes
+		return types.AllSigTypes // To allow for known coins
+	case cons.MinOptions:
+		return []types.SigType{types.EDCOIN}
+	default:
+		panic(gt)
+	}
+
+}
+
+// GetCollectBroadcast returns the values for if the consensus supports broadcasting the commit message
+// directly to the leader. // TODO for mvbincons2
+func (MvBinConsRnd2Config) GetCollectBroadcast(cons.GetOptionType) []types.CollectBroadcastType {
+	return []types.CollectBroadcastType{types.Full} // TODO
+}
+
+// GetUsePubIndex returns the values for if the consensus supports using pub index or not or both.
+func (MvBinConsRnd2Config) GetUsePubIndexTypes(_ cons.GetOptionType) []bool {
+	return types.WithTrue
+}
+
+// GetRotateCoordTypes returns the values for if the consensus supports rotating coordinator or not or both.
+func (MvBinConsRnd2Config) GetRotateCoordTypes(_ cons.GetOptionType) []bool {
+	return types.WithFalse
+}
+
 func GetConf() cons.ConfigOptions {
 	return MvBinConsRnd1Config{}
 }

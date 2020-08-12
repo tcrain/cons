@@ -153,6 +153,11 @@ func (sc *BinConsRnd5) GotProposal(hdr messages.MsgHeader, mainChannel channelin
 	return nil
 }
 
+// GetMVInitialRoundBroadcast returns the type of binary message that the multi-value reduction should broadcast for round 0.
+func (sc *BinConsRnd5) GetMVInitialRoundBroadcast(val types.BinVal) messages.InternalSignedMsgHeader {
+	panic("TODO")
+}
+
 // NeedsConcurrent returns 1.
 func (sc *BinConsRnd5) NeedsConcurrent() types.ConsensusInt {
 	return 1
@@ -690,7 +695,7 @@ func (sc *BinConsRnd5) generateProofsInternal(hdr messages.MsgIDHeader, supportC
 }
 
 // HasReceivedProposal panics because BonCons has no proposals.
-func (sc *BinConsRnd5) HasReceivedProposal() bool {
+func (sc *BinConsRnd5) HasValidStarted() bool {
 	panic("unused")
 }
 

@@ -132,13 +132,7 @@ func GenValueAssetOutput(acc *AssetAccount, assets []AssetInterface,
 	}
 
 	// Take the hash of all the inputs
-	buf := bytes.NewBuffer(nil)
-	for _, nxt := range inputs {
-		if _, err := buf.Write(nxt.GetID()); err != nil {
-			panic(err)
-		}
-	}
-	inputHash := types.GetHash(buf.Bytes())
+	inputHash := computeOutputHash(inputs)
 
 	// The hash of the outputs is its index in the list of outputs appended to the hash of the inputs
 	outputs = make([]AssetInterface, len(amounts))
@@ -146,6 +140,16 @@ func GenValueAssetOutput(acc *AssetAccount, assets []AssetInterface,
 		outputs[i] = InternalNewValueAsset(v, uint64(i), inputHash)
 	}
 	return
+}
+
+func computeOutputHash(inputs []AssetInterface) types.HashBytes {
+	buf := bytes.NewBuffer(nil)
+	for _, nxt := range inputs {
+		if _, err := buf.Write(nxt.GetID()); err != nil {
+			panic(err)
+		}
+	}
+	return types.GetHash(buf.Bytes())
 }
 
 // CheckValueOutputFunc checks that the inputs and outputs are valid.
@@ -230,4 +234,15 @@ func (ba *ValueAsset) MarshalBinary() (data []byte, err error) {
 // Unmarshal the asset.
 func (ba *ValueAsset) UnmarshalBinary(data []byte) error {
 	return types.UnmarshalBinaryHelper(ba, data)
+}
+
+// ValueSendToSelf returns the inputs as outputs with new hashes.
+func ValueSendToSelf(account *AssetAccount, inputs []AssetInterface) (outputs []AssetInterface) {
+	inputHash := computeOutputHash(inputs)
+	outputs = make([]AssetInterface, len(inputs))
+	for i, nxt := range inputs {
+		va := nxt.(*ValueAsset)
+		outputs[i] = InternalNewValueAsset(va.Value, uint64(i), inputHash)
+	}
+	return
 }
