@@ -380,11 +380,16 @@ func (sc *BinConsRnd2) checkDone(rnd types.ConsensusRound, nmt, t int) bool {
 	case types.NextRound:
 		// If for the decided round, we have no not coin messages, then we think we are done (at least until we get more messages)
 		// because everyone we know would have decided in this round.
+		// If we are using local rand then we can't exit if we have no not coin messages as everyone may have a different
+		// set of non-faulty members
 		binMsgState := sc.getMsgState()
 		decidedRoundStruct := binMsgState.getAuxRoundStruct(sc.decidedRound, sc.ConsItems.MC)
 		valids, _ := binMsgState.getMostRecentValids(nmt, t, sc.decidedRound, sc.ConsItems.MC)
 		notCoin := 1 - decidedRoundStruct.coinVal
-		if decidedRoundStruct.AuxBinNums[notCoin] == 0 || !valids[notCoin] {
+
+		if (sc.ConsItems.MC.MC.RandMemberType() != types.LocalRandMember && decidedRoundStruct.AuxBinNums[notCoin] == 0) ||
+			!valids[notCoin] {
+
 			return true
 		}
 
@@ -450,9 +455,6 @@ func (sc *BinConsRnd2) checkBVAuxBroadcasts(nmt int, t int, round types.Consensu
 				// Store the values
 				roundStruct.supportBvInfo[i].echod = true
 				// Broadcast the message for the next round
-				if roundStruct.supportBvInfo[i].round == 1 && i == 1 {
-					fmt.Println("a")
-				}
 				auxMsg := messagetypes.CreateBVMessage(i, roundStruct.supportBvInfo[i].round)
 				// Set to true before checking if we are a member, since check member will always
 				// give the same result for this round

@@ -122,7 +122,7 @@ func NewCausalConsState(initIitem consinterface.ConsItem,
 	logging.Info("loaded from disk until", loadedCount-1, cs.generalConfig.TestIndex)
 	// done with initialization
 	if itm := cs.memberCheckerState.GetLastDecidedItem(); itm != nil && loadedCount > 1 { // We have restarted from disk so we will stay in initialization mode until we can recover from others.
-		cs.sendNoProgressMsg(itm, true) // update others on our current state
+		cs.sendNoProgressMsg(itm.ConsItem.GetIndex(), itm, true) // update others on our current state
 	}
 	cs.finishInitialization()
 
@@ -207,14 +207,16 @@ func (cs *CausalConsState) ProcessLocalMessage(rcvMsg *channelinterface.RcvMsg) 
 	}
 }
 
-func (cs *CausalConsState) sendNoProgressMsg(item *consinterface.ConsInterfaceItems, hasDecided bool) {
+func (cs *CausalConsState) sendNoProgressMsg(idx types.ConsensusIndex, item *consinterface.ConsInterfaceItems,
+	hasDecided bool) {
+
 	// update time
 	cs.localIndexTime = time.Now()
 
 	var hdrs []messages.MsgHeader
 
 	// Need to send progress requests
-	idx := item.ConsItem.GetIndex()
+	// idx := item.ConsItem.GetIndex()
 
 	if !hasDecided {
 		// i := types.ConsensusHash(cs.memberCheckerState.LastDecided)
@@ -227,9 +229,6 @@ func (cs *CausalConsState) sendNoProgressMsg(item *consinterface.ConsInterfaceIt
 				types.ConsensusIndex{Index: nxt}, hasDecided, cs.generalConfig.TestIndex))
 		}
 	}
-
-	a := cs.memberCheckerState.GetSortedParChi()
-	_ = a
 
 	mm, err := messages.CreateMsg(hdrs)
 	if err != nil {
@@ -275,11 +274,14 @@ func (cs *CausalConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (retu
 			}
 			// start recovery for no-progress items
 			for _, nxt := range startedTimeoutItems {
-				cs.sendNoProgressMsg(nxt, false)
+				cs.sendNoProgressMsg(nxt.ConsItem.GetIndex(), nxt, false)
 			}
 			for _, nxt := range decidedTimeoutItems {
 				// TODO for the decided items send in a more efficient way (maybe hash tree?)
-				cs.sendNoProgressMsg(nxt, true)
+				cs.sendNoProgressMsg(nxt.ConsItem.GetIndex(), nxt, true)
+			}
+			if initIdx, itm := cs.memberCheckerState.GetInitItem(); itm != nil { // In case we have any initial unconsumed indices
+				cs.sendNoProgressMsg(initIdx, itm, true)
 			}
 		}
 

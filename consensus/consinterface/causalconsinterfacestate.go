@@ -453,6 +453,13 @@ func (mcs *CausalConsInterfaceState) GetLastDecidedItem() *ConsInterfaceItems {
 	return mcs.getIndex(mcs.LastDecided)
 }
 
+func (mcs *CausalConsInterfaceState) GetInitItem() (types.ConsensusIndex, *ConsInterfaceItems) {
+	mcs.mutex.Lock()
+	defer mcs.mutex.Unlock()
+
+	return mcs.initSM.GetIndex(), mcs.consItemsMap[mcs.initHash]
+}
+
 func (mcs *CausalConsInterfaceState) GetConsItem(idx types.ConsensusIndex) (ConsItem, error) {
 	if mcs.mainChannel == nil {
 		panic("must set main channel")

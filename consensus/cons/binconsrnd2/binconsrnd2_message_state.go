@@ -203,6 +203,7 @@ func (sms *MessageState) GetProofs(headerID messages.HeaderID, sigCount int,
 func (sms *MessageState) GetValidMessageCount(round types.ConsensusRound, mc *consinterface.MemCheckers) int {
 	sms.mutex.Lock()
 	defer sms.mutex.Unlock()
+
 	roundStruct := sms.getAuxRoundStruct(round, mc)
 	return roundStruct.TotalAuxBinMsgCount
 }
@@ -229,6 +230,7 @@ func (sms *MessageState) getAuxRoundStruct(round types.ConsensusRound,
 		}
 		sms.auxValues[round] = item
 	}
+
 	return item
 }
 

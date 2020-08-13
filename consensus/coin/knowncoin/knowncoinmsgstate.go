@@ -101,8 +101,8 @@ func (sms *MsgState) GetCoins(round types.ConsensusRound) []types.BinVal {
 
 func (sms *MsgState) getCoin(round types.ConsensusRound) types.BinVal {
 	if sms.flipCoin {
-		// even rounds are 1
-		return types.BinVal((round + 1) % 2)
+		// odd rounds are 1
+		return types.BinVal(((round + 1) / 2) % 2)
 	}
 
 	if val, ok := sms.coinVal[round]; ok {
