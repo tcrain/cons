@@ -1,6 +1,6 @@
 {
-    "TestID": 3,
-    "ConsType": 9,
+    "TestID": 4,
+    "ConsType": 10,
     "StateMachineType": 1,
     "MaxRounds": 10,
     "NumTotalProcs": 40,

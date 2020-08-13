@@ -1,9 +1,10 @@
 {
-    "TestID": 3,
+    "TestID": 6,
     "OrderingType": 1,
-    "ConsType": 12,
+    "ConsType": 9,
     "StateMachineType": 6,
     "MaxRounds": 10,
+    "CoinType": 2,
     "NumTotalProcs": 25,
     "RndMemberCount": 10,
     "GenRandBytes": false,
