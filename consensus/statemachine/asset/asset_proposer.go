@@ -255,7 +255,7 @@ func (da *AssetProposer) HasDecided(proposer sig.Pub, index types.ConsensusIndex
 	}
 	var end bool // true when the test is over
 	if len(decision) == 0 {
-		fmt.Println("DECIDED NIL", da.myProposalCount, da.myKey.GetPub())
+		logging.Info("DECIDED NIL", da.myProposalCount, da.myKey.GetPub())
 		items := make([]types.HashBytes, 1+len(index.AdditionalIndices))
 		for i, nxt := range append([]types.ConsensusID{index.FirstIndex}, index.AdditionalIndices...) {
 			b, err := nxt.MarshalBinary()

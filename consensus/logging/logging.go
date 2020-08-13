@@ -45,12 +45,16 @@ func Printf(format string, args ...interface{}) {
 		// glog.ErrorDepth(1, fmt.Sprintf(format, args))
 		panic("no longer used")
 	case config.GOLOG:
-		err := log.Output(2, fmt.Sprintf(format, args...))
-		if err != nil {
-			panic(err)
+		if !config.PrintMinimum {
+			err := log.Output(2, fmt.Sprintf(format, args...))
+			if err != nil {
+				panic(err)
+			}
 		}
 	case config.FMT:
-		fmt.Printf(format+"\n", args...)
+		if !config.PrintMinimum {
+			fmt.Printf(format, args...)
+		}
 	default:
 		panic("Invalid logging type")
 	}
@@ -63,12 +67,16 @@ func Print(args ...interface{}) {
 		// glog.ErrorDepth(1, args)
 		panic("no longer used")
 	case config.GOLOG:
-		err := log.Output(2, fmt.Sprint(args...))
-		if err != nil {
-			panic(err)
+		if !config.PrintMinimum {
+			err := log.Output(2, fmt.Sprint(args...))
+			if err != nil {
+				panic(err)
+			}
 		}
 	case config.FMT:
-		fmt.Println(args...)
+		if !config.PrintMinimum {
+			fmt.Println(args...)
+		}
 	default:
 		panic("Invalid logging type")
 	}

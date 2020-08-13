@@ -1093,10 +1093,9 @@ func RunConsType(initItem consinterface.ConsItem,
 	if err != nil {
 		panic(err)
 	}
-	if !config.PrintMinimum {
-		fmt.Printf("\nRunning test config:\n%s\n", to)
-		// t.Logf("\nRunning generalconfig: %s\n", to)
-	}
+
+	logging.Printf("\nRunning test config:\n%s\n", to)
+	// t.Logf("\nRunning generalconfig: %s\n", to)
 	// make the private keys
 	privKeys, pubKeys := MakeKeys(to)
 	// randItem := rand.New(rand.NewSource(time.Now().UnixNano()))
