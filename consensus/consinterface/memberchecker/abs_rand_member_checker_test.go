@@ -142,7 +142,7 @@ func intTestAbsRandMemberChecker(newPrivFunc func() (sig.Priv, error), newMCFunc
 			memberCount++
 		}
 	}
-	tenPc := int(float64(count) * .1)
+	tenPc := int(float64(count) * .2)
 	// TODO these may fail b/c of random
 	assert.True(t, memberCount <= count/2+2*tenPc)
 	assert.True(t, memberCount >= count/2-2*tenPc)

@@ -103,7 +103,8 @@ type MvCons2 struct {
 	echoTimer   channelinterface.TimerInterface // timer for the echo messages for the current round
 	commitTimer channelinterface.TimerInterface // timer for the commit messages for the current round
 	// priv            sig.Priv             // the local nodes private key
-	myProposalRound types.ConsensusRound // round that this nodes sends a proposal
+	myProposalRound       types.ConsensusRound // round that this nodes sends a proposal
+	lastProposalBroadcast bool                 // true when broadcast the latest proposal
 }
 
 // GetConsType returns the type of consensus this instance implements.
@@ -297,19 +298,23 @@ func (sc *MvCons2) GotProposal(hdr messages.MsgHeader, mainChannel channelinterf
 	if sc.myProposal.Index.Index != sc.Index.Index {
 		panic("Got bad index")
 	}
+	return sc.broadcastProposal(mainChannel)
+}
 
+func (sc *MvCons2) broadcastProposal(mainChannel channelinterface.MainChannel) error {
 	round := sc.myProposalRound
 	proposal, proof := sc.getProposal(round)
+	sc.lastProposalBroadcast = true
 	var newMsg messages.InternalSignedMsgHeader
-	if proposal != nil {
+	if proposal != nil { // we broadcast our own proposal
 		initMsg := messagetypes.NewMvInitMessage()
 		initMsg.Proposal = proposal
 		initMsg.Round = round
 		initMsg.ByzProposal = sc.myProposal.ByzProposal
 		newMsg = initMsg
 		logging.Infof("Sending non nil proposal round %v, index %v", round, sc.Index)
-	} else {
-		logging.Infof("Sending nil proposal round %v, index %v", round, sc.Index)
+	} else { // we must support a proposal from the previous round
+		logging.Infof("Supporting previous proposal round %v, index %v", round, sc.Index)
 	}
 	sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round)
 
@@ -493,6 +498,7 @@ func (sc *MvCons2) startRound(mainChannel channelinterface.MainChannel) error {
 		if err == nil {
 			sc.NeedsProposal = true
 			sc.myProposalRound = sc.round
+			sc.lastProposalBroadcast = false
 			logging.Info("I am coordinator for round", sc.round)
 		}
 	}
@@ -508,6 +514,14 @@ func (sc *MvCons2) startRound(mainChannel channelinterface.MainChannel) error {
 		roundState = sc.startEchoTimeout(sc.round, t, roundState, mainChannel)
 	}
 	sc.roundState[sc.round] = roundState
+
+	if !sc.lastProposalBroadcast && sc.AbsConsItem.GotProposal &&
+		sc.myProposalRound == sc.round { // Broadcast the proposal if we have received it
+
+		if err := sc.broadcastProposal(mainChannel); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -739,6 +753,8 @@ func (sc *MvCons2) checkProgressRound(round types.ConsensusRound, t, nmt int, ma
 // sendEchoTimeout starts the echo timeout
 func (sc *MvCons2) startEchoTimeout(round types.ConsensusRound, t int, roundState roundMvState,
 	mainChannel channelinterface.MainChannel) roundMvState {
+
+	_ = t
 	if sc.round != round { // only start the timeout for the current round
 		return roundState
 	}
