@@ -66,9 +66,9 @@ const (
 	HdrEdsig      // An EDDSA signature message
 	HdrEdpub      // An EDDSA public key message
 	HdrSleepPub   // A Sleep pub message
-	HdrSleepSig   // A sleep signature message
 	HdrSleepCoin  // A sleep coin message
 	HdrSchnorrsig // A schnorr signature message
+	HdrSleepSig   // A sleep signature message
 	HdrSchnorrpub // A schnorr public key message
 	HdrBlssig     // A BLS signature message
 	HdrBlspub     // A BLS public key message

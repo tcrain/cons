@@ -162,13 +162,18 @@ func (pub *VrfPub) FromPubBytes(b sig.PubKeyBytes) (sig.Pub, error) {
 }
 
 func NewSleepThrshPriv(n, t int, priv sig.Priv, stats *sig.SigStats) (sig.Priv, error) {
-	p := priv
+	p := priv.(SleepPriv)
+	ppub := &partialPub{
+		sleepPub: p.GetPub().(sleepPub),
+		stats:    stats,
+	}
+	p.setPub(ppub)
 	return &Thrsh{
 		n:         n,
 		t:         t,
 		idx:       p.GetPub().GetIndex(),
 		SleepPriv: p.(SleepPriv),
-		sharedPub: newSharedPub(stats, t),
+		sharedPub: newSharedPub(p.GetPub().New, stats, t),
 	}, nil
 }
 
