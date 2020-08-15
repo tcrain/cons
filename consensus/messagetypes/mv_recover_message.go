@@ -53,7 +53,7 @@ func (mrm *MvRequestRecoverMessage) Serialize(m *messages.Message) (int, error) 
 
 	// Now the proposal hash
 	if len(mrm.ProposalHash) != types.GetHashLen() {
-		return 0, messages.ErrInvalidHash
+		return 0, types.ErrInvalidHash
 	}
 	l1, _ := (*messages.MsgBuffer)(m).AddBytes(mrm.ProposalHash)
 	if l1 != len(mrm.ProposalHash) {

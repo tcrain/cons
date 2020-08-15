@@ -20,7 +20,7 @@ type sharedPub struct {
 	stats       *sig.SigStats
 }
 
-func newSharedPub(stats *sig.SigStats, memberCount int) *sharedPub {
+func newSharedPub(newPubFunc func() sig.Pub, stats *sig.SigStats, memberCount int) *sharedPub {
 	buff := bytes.NewBuffer(nil)
 	if memberCount > math.MaxUint16 {
 		panic("member count too large")
@@ -36,7 +36,7 @@ func newSharedPub(stats *sig.SigStats, memberCount int) *sharedPub {
 		panic("error encoding int")
 	}
 	return &sharedPub{
-		Pub:         &Pub{stats: stats},
+		Pub:         newPubFunc(),
 		stats:       stats,
 		memberCount: memberCount,
 		id:          sig.PubKeyID(buff.Bytes()),
@@ -171,3 +171,87 @@ func (bt *Thrsh) GetSharedPub() sig.Pub {
 	return nil
 }
 */
+
+type partialPub struct {
+	sleepPub
+	stats *sig.SigStats
+}
+
+// DeserializeSig takes a message and returns a BLS public key object and partial signature object as well as the number of bytes read
+func (pp *partialPub) DeserializeSig(m *messages.Message, _ types.SignType) (*sig.SigItem, int, error) {
+
+	// var ret *sig.SigItem
+	ret := &sig.SigItem{}
+	var l, l1 int
+	var err error
+	newPub := pp.New()
+	if pp.stats.AllowsVRF {
+		ret, l1, err = sig.DeserVRF(newPub, m)
+		if err != nil {
+			return nil, l, err
+		}
+		l += l1
+	}
+	ht, err := m.PeekHeaderType()
+	if err != nil {
+		return nil, l, err
+	}
+	switch ht {
+	case messages.HdrSleepSig: // this was signed by the shared threshold key
+		// When using the shared threshold key, we don't include the serialized public
+		// key with the signature as there is only one threshold key
+		ret.Sig = &Sig{stats: pp.stats}
+		l1, err := ret.Sig.Deserialize(m, types.NilIndexFuns)
+		if err != nil {
+			return ret, l, err
+		}
+		l += l1
+		// The id is the number
+		id, err := (*messages.MsgBuffer)(m).ReadBytes(sharedIDBytes)
+		if err != nil {
+			return ret, l, err
+		}
+		l += sharedIDBytes
+		ret.Pub = &sharedPub{id: sig.PubKeyID(id), stats: pp.stats}
+		return ret, l, err
+	case messages.HdrSleepPub:
+		ret.Pub = pp.New()
+		l1, err := ret.Pub.Deserialize(m, types.NilIndexFuns)
+		l += l1
+		if err != nil {
+			return nil, l, err
+		}
+
+		ret.Sig = &Sig{stats: pp.stats}
+		l1, err = ret.Sig.Deserialize(m, types.NilIndexFuns)
+		l += l1
+		return ret, l, err
+	default:
+		return nil, 0, types.ErrInvalidHeader
+	}
+}
+
+// New creates an empty sleep private key object
+func (p *partialPub) New() sig.Pub {
+	return &partialPub{sleepPub: p.sleepPub.New().(sleepPub),
+		stats: p.stats,
+	}
+}
+
+func (pub *partialPub) ShallowCopy() sig.Pub {
+	newPub := *pub
+	newPub.sleepPub = pub.sleepPub.ShallowCopy().(sleepPub)
+	return &newPub
+}
+
+// FromPubBytes creates a public key object from the public key bytes
+func (pub *partialPub) FromPubBytes(b sig.PubKeyBytes) (sig.Pub, error) {
+	p, err := pub.sleepPub.FromPubBytes(b)
+	if err != nil {
+		return p, err
+	}
+	return &partialPub{
+		sleepPub: p.(sleepPub),
+		stats:    pub.stats,
+	}, nil
+}

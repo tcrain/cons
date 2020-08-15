@@ -66,8 +66,11 @@ type CausalStateMachineInterface interface {
 
 	// HasDecided is called each time a consensus decision takes place, given the index and the decided vaule.
 	// Proposer is the public key of the node that proposed the decision.
-	// It returns a list of causally dependent ids and public keys of the owners of those ids.
-	HasDecided(proposer sig.Pub, index types.ConsensusIndex, decision []byte) []sig.ConsIDPub
+	// Owners are the owners of the input consensus indices.
+	// It returns a list of causally dependent ids and public keys of the owners of those ids,
+	// and the decided value (in case the state machine wants to change it).
+	HasDecided(proposer sig.Pub, index types.ConsensusIndex, owners []sig.Pub,
+		decision []byte) (outputs []sig.ConsIDPub, updatedDecision []byte)
 
 	// CheckDecisions is for testing and will be called at the end of the test with
 	// a causally ordered tree of all the decided values, it should then check if the

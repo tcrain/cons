@@ -60,7 +60,7 @@ func (mve *MvEchoMessage) GetMsgID() messages.MsgID {
 func (mve *MvEchoMessage) SerializeInternal(m *messages.Message) (bytesWritten, signEndOffset int, err error) {
 	// Now the proposal hash
 	if len(mve.ProposalHash) != types.GetHashLen() {
-		err = messages.ErrInvalidHash
+		err = types.ErrInvalidHash
 		return
 	}
 	v, _ := (*messages.MsgBuffer)(m).AddBytes(mve.ProposalHash)

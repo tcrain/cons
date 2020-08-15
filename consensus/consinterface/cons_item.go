@@ -106,8 +106,9 @@ type ConsItem interface {
 	// SetInitialState should be called on the initial consensus index (1) to set the initial state.
 	SetInitialState([]byte)
 	GetIndex() types.ConsensusIndex // GetIndex returns the consensus index of the item.
-	// HasReceivedProposal returns true if this cons item has processed a valid proposal.
-	HasReceivedProposal() bool
+	// HasValidStarted returns true if this cons item has processed a valid proposal, or if it know other nodes
+	// have (i.e. if the binary reduction has terminated)
+	HasValidStarted() bool
 	// GetCommitProof returns a signed message header that counts at the commit message for this consensus.
 	GetCommitProof() []messages.MsgHeader
 	// SetCommitProof takes the value returned from GetCommitProof of the previous consensus instance once it has decided.
@@ -271,18 +272,21 @@ func UnwrapMessage(msg sig.EncodedMsg,
 	case messages.HdrNoProgress:
 		// A no progress message means that a node has not made any progress after a timeout.
 		// If we have any more advanced state then we should send this information to that process.
-		w := messagetypes.NewNoProgressMessage(types.ConsensusIndex{}, false, 0)
-		_, err := w.Deserialize(msg.Message, unmarFunc)
-		if err != nil {
-			return nil, []error{err}
-		}
-		return []*channelinterface.DeserializedItem{
-			{
+		var ret []*channelinterface.DeserializedItem
+		for len(msg.GetBytes()) > 0 {
+			w := messagetypes.NewNoProgressMessage(types.ConsensusIndex{}, false, 0)
+			_, err := w.Deserialize(msg.Message, unmarFunc)
+			if err != nil {
+				return ret, []error{err}
+			}
+			msg.Message.GetBytes()
+			ret = append(ret, &channelinterface.DeserializedItem{
 				Index:          w.GetIndex(),
 				HeaderType:     ht,
 				Header:         w,
-				IsDeserialized: true},
-		}, nil
+				IsDeserialized: true})
+		}
+		return ret, nil
 	}
 	// Check if it is a binstate msg
 	if ht == messages.HdrBinState {

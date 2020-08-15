@@ -387,7 +387,7 @@ func runInitialSetup(setup *SingleConsSetup, t assert.TestingT) (err error) {
 	scs.Gc = consinterface.CreateGeneralConfig(scs.I, eis, scs.Stats, scs.To,
 		preHeader, scs.PrivKey)
 
-	fmt.Printf("Running cons %T with state machine %v\n", scs.Sc, scs.To.StateMachineType)
+	logging.Printf("Running cons %T with state machine %v\n", scs.Sc, scs.To.StateMachineType)
 
 	// Open storage
 	scs.Ds = cons.OpenTestStore(scs.To.StorageBuffer, scs.To.StorageType, cons.GetStoreType(scs.To),

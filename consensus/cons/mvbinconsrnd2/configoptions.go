@@ -17,7 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
 
-package binconsrnd2
+package mvbinconsrnd2
 
 import (
 	"github.com/tcrain/cons/consensus/cons"
@@ -25,8 +25,38 @@ import (
 )
 
 type Config struct {
-	cons.StandardBinConfig
+	cons.StandardMvConfig
 }
+
+// GetAllowNoSignatures returns true if the consensus can run without signatures
+func (Config) GetAllowNoSignatures(gt cons.GetOptionType) []bool { // []types.UseSignaturesType {
+	switch gt {
+	case cons.AllOptions:
+		// return []types.UseSignaturesType{types.ConsDependentSignatures, types.UseSignatures, types.NoSignatures}
+		return types.WithBothBool
+	case cons.MinOptions:
+		// return []types.UseSignaturesType{types.NoSignatures}
+		return types.WithTrue
+	default:
+		panic(gt)
+	}
+}
+
+// GetOrderingTypes returns the types of ordering supported by the consensus.
+//func (RbBcast1Config) GetOrderingTypes(gt types.GetOptionType) []types.OrderingType {
+//	return []types.OrderingType{types.Causal}
+//}
+
+// GetIncludeProofTypes returns the values for if the consensus supports including proofs or not or both.
+func (Config) GetIncludeProofsTypes(_ cons.GetOptionType) []bool {
+	return types.WithFalse
+}
+
+// GetUseMultiSigTypes() []bool
+// GetRotateCoordTypes returns the values for if the consensus supports rotating coordinator or not or both.
+//func (Config) GetRotateCoordTypes(gt cons.GetOptionType) []bool {
+//	return types.WithFalse
+//}
 
 // GetStopOnCommitTypes returns the types to test when to terminate.
 func (Config) GetStopOnCommitTypes(optionType cons.GetOptionType) []types.StopOnCommitType {
@@ -38,12 +68,6 @@ func (Config) GetStopOnCommitTypes(optionType cons.GetOptionType) []types.StopOn
 	default:
 		panic(optionType)
 	}
-}
-
-// ComputeSigAndEncoding returns whether signatures should be used or messages should be encoded
-func (Config) ComputeSigAndEncoding(options types.TestOptions) (noSignatures, encryptChannels bool) {
-	// return cons.NonSigComputeSigAndEncoding(options)
-	return
 }
 
 // GetCoinTypes returns the types of coins allowed.
@@ -58,25 +82,11 @@ func (Config) GetCoinTypes(optionType cons.GetOptionType) []types.CoinType {
 	}
 }
 
-// GetAllowNoSignatures returns true if the consensus can run without signatures
-func (Config) GetAllowNoSignatures(gt cons.GetOptionType) []bool { // []types.UseSignaturesType {
-	switch gt {
-	case cons.AllOptions:
-		// return []types.UseSignaturesType{types.ConsDependentSignatures, types.UseSignatures, types.NoSignatures}
-		return types.WithBothBool
-	case cons.MinOptions:
-		// return []types.UseSignaturesType{types.UseSignatures}
-		return types.WithTrue
-	default:
-		panic(gt)
-	}
-}
-
 // GetSigTypes return the types of signatures supported by the consensus
 func (Config) GetSigTypes(gt cons.GetOptionType) []types.SigType {
 	switch gt {
 	case cons.AllOptions:
-		return types.CoinSigTypes
+		return types.AllSigTypes
 	case cons.MinOptions:
 		return []types.SigType{types.EDCOIN}
 	default:
@@ -87,9 +97,4 @@ func (Config) GetSigTypes(gt cons.GetOptionType) []types.SigType {
 // GetUsePubIndex returns the values for if the consensus supports using pub index or not or both.
 func (Config) GetUsePubIndexTypes(_ cons.GetOptionType) []bool {
 	return types.WithTrue
-}
-
-// GetRotateCoordTypes returns the values for if the consensus supports rotating coordinator or not or both.
-func (Config) GetRotateCoordTypes(_ cons.GetOptionType) []bool {
-	return types.WithFalse
 }

@@ -254,9 +254,9 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 			toRun = []int{0}
 		}
 
-		to.NumTotalProcs = 20
-		to.RndMemberCount = 10
 		to.LocalRandMemberChange = 5
+		to.EncryptChannels = true
+		to.NoSignatures = true
 
 		fmt.Println("Running with local random member selection")
 		to.NetworkType = types.RequestForwarder

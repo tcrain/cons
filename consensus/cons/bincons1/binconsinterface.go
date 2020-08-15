@@ -62,7 +62,7 @@ type BinConsMessageStateInterface interface {
 	// SetMv0Valid is called by the multivalue reduction MvCons1, when 0 becomes valid for round 1
 	SetMv0Valid()
 	// SetMv1Valid is called by the multivalue reduction MvCons1, when 1 becomes valid for round 1
-	SetMv1Valid()
+	SetMv1Valid(mc *consinterface.MemCheckers)
 
 	// sentProposal returns true if a proposal has been sent for round+1 (i.e. the following round)
 	// if shouldSet is true, then sets to having sent the proposal for that round to true

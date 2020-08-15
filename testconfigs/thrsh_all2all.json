@@ -1,7 +1,7 @@
 {
-    "TestID": 2,
+    "TestID": 8,
     "ConsType": 1,
-    "CoinType": 3,
+    "CoinType": 4,
     "MaxRounds": 10,
     "NumTotalProcs": 8,
     "NetworkType": 0,

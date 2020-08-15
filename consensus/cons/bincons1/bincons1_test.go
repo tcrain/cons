@@ -69,13 +69,13 @@ func TestBinCons1SleepMultiSig(t *testing.T) {
 }
 
 func TestBinCons1P2p(t *testing.T) {
-	cons.RunP2pNwTests(binTO, types.BinCons1Type, &BinCons1{}, Config{}, nil, t)
+	cons.RunP2pNwTests(binTO, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)
 }
 
 func TestBinCons1SleepP2p(t *testing.T) {
 	to := binTO
 	to.SleepCrypto = true
-	cons.RunP2pNwTests(to, types.BinCons1Type, &BinCons1{}, Config{}, nil, t)
+	cons.RunP2pNwTests(to, types.BinCons1Type, &BinCons1{}, Config{}, []int{13}, t)
 }
 
 func TestBinCons1FailDisk(t *testing.T) {

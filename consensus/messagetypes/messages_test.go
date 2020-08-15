@@ -175,7 +175,7 @@ func TestCreateBadMsg3(t *testing.T) {
 		t.Error("Got invalid msg type", ht, tstMsg.GetID())
 	}
 	_, err = tstMsg.Deserialize(msg, types.IntIndexFuns)
-	if err != messages.ErrInvalidHash {
+	if err != types.ErrInvalidHash {
 		t.Error("Should have failed hash check deserialization")
 	}
 

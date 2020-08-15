@@ -106,6 +106,11 @@ func (sc *BinConsRnd3) Start() {
 	}
 }
 
+// GetMVInitialRoundBroadcast returns the type of binary message that the multi-value reduction should broadcast for round 0.
+func (sc *BinConsRnd3) GetMVInitialRoundBroadcast(val types.BinVal) messages.InternalSignedMsgHeader {
+	panic("TODO")
+}
+
 // GetProposalIndex returns sc.Index - 1.
 // It returns false until start is called.
 func (sc *BinConsRnd3) GetProposalIndex() (prevIdx types.ConsensusIndex, ready bool) {
@@ -257,6 +262,8 @@ func (sc *BinConsRnd3) CheckRound(nmt int, t int, round types.ConsensusRound,
 
 				// update the count for supporters of the coin in the next round
 				nxtRndStruct.BinNumsAux[roundStruct.coinVals[0]], _ = binMsgState.Sms.GetTotalSigCount(sc.ConsItems.MC, auxMsg, auxMsgCoin)
+				// this may cause a new both message type to be valid so we check it
+				binMsgState.updateBothMsgCount(round, roundStruct, sc.ConsItems.MC)
 			}
 		}
 	}
@@ -264,9 +271,10 @@ func (sc *BinConsRnd3) CheckRound(nmt int, t int, round types.ConsensusRound,
 	if round > 0 {
 		prvRoundStruct := sc.getMsgState().getAuxRoundStruct(round-1, sc.ConsItems.MC)
 		if round > 1 {
+			// See if we have enough information to check Aux messages for this round
 			if sc.CheckMemberLocal() && (!prvRoundStruct.sentAuxProof ||
 				!prvRoundStruct.sentAuxBoth || (!prvRoundStruct.sentCoin && !sc.GeneralConfig.AllowSupportCoin)) {
-
+				// have not yet received enough messages
 				return false
 			}
 		}
@@ -621,7 +629,7 @@ func (sc *BinConsRnd3) generateProofsInternal(hdr messages.MsgIDHeader, supportC
 }
 
 // HasReceivedProposal panics because BonCons has no proposals.
-func (sc *BinConsRnd3) HasReceivedProposal() bool {
+func (sc *BinConsRnd3) HasValidStarted() bool {
 	panic("unused")
 }
 

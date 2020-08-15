@@ -70,6 +70,8 @@ func GenerateCoinMessageStateInterface(coinType types.CoinType, isMV bool, pid i
 	switch coinType {
 	case types.KnownCoinType:
 		return knowncoin.NewKnownCoinMsgState(isMV, gc)
+	case types.FlipCoinType:
+		return knowncoin.NewFlipCoinMsgState(isMV, gc)
 	case types.StrongCoin1Type:
 		return strongcoin1.NewStrongCoin1MsgState(isMV, gc)
 	case types.StrongCoin1EchoType:
@@ -87,7 +89,7 @@ func GenerateCoinMessageStateInterface(coinType types.CoinType, isMV bool, pid i
 
 func GenerateCoinIterfaceItem(coinType types.CoinType) consinterface.CoinItemInterface {
 	switch coinType {
-	case types.KnownCoinType:
+	case types.KnownCoinType, types.FlipCoinType:
 		return knowncoin.NewKnownCoin()
 	case types.StrongCoin1Type:
 		return strongcoin1.NewStrongCoin1()
@@ -106,7 +108,7 @@ func GenerateCoinIterfaceItem(coinType types.CoinType) consinterface.CoinItemInt
 
 func GetCoinHeader(emptyPub sig.Pub, gc *generalconfig.GeneralConfig, headerType messages.HeaderID) (messages.MsgHeader, error) {
 	switch gc.CoinType {
-	case types.KnownCoinType:
+	case types.KnownCoinType, types.FlipCoinType:
 		return knowncoin.KnownCoin{}.GetHeader(emptyPub, gc, headerType)
 	case types.StrongCoin1Type:
 		return strongcoin1.StrongCoin1{}.GetHeader(emptyPub, gc, headerType)
@@ -126,7 +128,7 @@ func GetBufferCount(hdr messages.MsgIDHeader, gc *generalconfig.GeneralConfig,
 	memberChecker *consinterface.MemCheckers) (int, int, messages.MsgID, error) {
 
 	switch gc.CoinType {
-	case types.KnownCoinType:
+	case types.KnownCoinType, types.FlipCoinType:
 		return knowncoin.KnownCoin{}.GetBufferCount(hdr, gc, memberChecker)
 	case types.StrongCoin1Type:
 		return strongcoin1.StrongCoin1{}.GetBufferCount(hdr, gc, memberChecker)

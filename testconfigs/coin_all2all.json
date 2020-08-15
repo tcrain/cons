@@ -1,7 +1,7 @@
 {
-    "TestID": 3,
+    "TestID": 2,
     "ConsType": 2,
-    "CoinType": 5,
+    "CoinType": 6,
     "EncryptChannels": true,
     "NoSignatures": true,
     "MaxRounds": 10,

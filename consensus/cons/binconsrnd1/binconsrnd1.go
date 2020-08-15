@@ -109,6 +109,14 @@ func (sc *BinConsRnd1) Start() {
 	}
 }
 
+// GetMVInitialRoundBroadcast returns the type of binary message that the multi-value reduction should broadcast for round 0.
+func (sc *BinConsRnd1) GetMVInitialRoundBroadcast(val types.BinVal) messages.InternalSignedMsgHeader {
+	auxMsg := messagetypes.NewAuxProofMessage(sc.AllowSupportCoin)
+	auxMsg.BinVal = val
+	auxMsg.Round = 1
+	return auxMsg
+}
+
 // GetProposalIndex returns sc.Index - 1.
 // It returns false until start is called.
 func (sc *BinConsRnd1) GetProposalIndex() (prevIdx types.ConsensusIndex, ready bool) {
@@ -213,7 +221,7 @@ func (sc *BinConsRnd1) CanSkipMvTimeout() bool {
 	msgState.Lock()
 	defer msgState.Unlock()
 
-	return msgState.getAuxRoundStruct(2, sc.ConsItems.MC).TotalBinMsgCount >
+	return msgState.getAuxRoundStruct(2, sc.ConsItems.MC).TotalBinMsgCount >=
 		sc.ConsItems.MC.MC.GetMemberCount()-sc.ConsItems.MC.MC.GetFaultCount()
 }
 
@@ -600,7 +608,7 @@ func (sc *BinConsRnd1) checkBroadcasts(nmt int, t int, round types.ConsensusRoun
 }
 
 // HasReceivedProposal panics because BonCons has no proposals.
-func (sc *BinConsRnd1) HasReceivedProposal() bool {
+func (sc *BinConsRnd1) HasValidStarted() bool {
 	panic("unused")
 }
 

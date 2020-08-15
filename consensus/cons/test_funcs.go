@@ -221,7 +221,7 @@ func GenerateCausalStateMachine(to types.TestOptions, priv sig.Priv, proposer si
 		}
 
 		ret = asset.NewAssetProposer(to.GenRandBytes, config.InitRandBytes, extraParticipantInfo, priv,
-			asset.NewDirectAsset, newAssetFunc, asset.GenDirectAssetTransfer, asset.CheckDirectOutputFunc,
+			asset.NewDirectAsset, newAssetFunc, asset.GenDirectAssetTransfer, asset.CheckDirectOutputFunc, asset.DirectSendToSelf,
 			int(pid) < memberCount, memberCount, priv.GetPub().New, priv.NewSig)
 	case types.ValueAssetProposer:
 		priv = priv.GetBaseKey()
@@ -229,7 +229,7 @@ func GenerateCausalStateMachine(to types.TestOptions, priv sig.Priv, proposer si
 			return asset.NewEmptyAssetTransfer(asset.NewValueAsset, priv.NewSig, priv.GetPub().New)
 		}
 		ret = asset.NewAssetProposer(to.GenRandBytes, config.InitRandBytes, extraParticipantInfo, priv,
-			asset.NewValueAsset, newAssetFunc, asset.GenValueAssetTransfer, asset.CheckValueOutputFunc,
+			asset.NewValueAsset, newAssetFunc, asset.GenValueAssetTransfer, asset.CheckValueOutputFunc, asset.ValueSendToSelf,
 			int(pid) < memberCount, memberCount, priv.GetPub().New, priv.NewSig)
 
 	default:
@@ -1093,10 +1093,9 @@ func RunConsType(initItem consinterface.ConsItem,
 	if err != nil {
 		panic(err)
 	}
-	if !config.PrintMinimum {
-		fmt.Printf("\nRunning test config:\n%s\n", to)
-		// t.Logf("\nRunning generalconfig: %s\n", to)
-	}
+
+	logging.Printf("\nRunning test config:\n%s\n", to)
+	// t.Logf("\nRunning generalconfig: %s\n", to)
 	// make the private keys
 	privKeys, pubKeys := MakeKeys(to)
 	// randItem := rand.New(rand.NewSource(time.Now().UnixNano()))

@@ -50,7 +50,7 @@ func NewCoinSleepPriv(n, t int, i sig.PubKeyIndex, stats *sig.SigStats) sig.Priv
 		n:         n,
 		t:         t,
 		Pub:       cp.GetPub(),
-		sharedPub: newSharedPub(stats, t),
+		sharedPub: newSharedPub(cp.GetPub().New, stats, t),
 	}
 	return &coinPriv{
 		SleepPriv: cp.(SleepPriv),

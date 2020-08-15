@@ -47,7 +47,8 @@ func TestDirectAssetProposer(t *testing.T) {
 		initAssets[i] = CreateInitialDirectAsset([]byte(string(i)), []byte(config.CsID))
 	}
 
-	testAssetProposer(initAssets, NewDirectAsset, GenDirectAssetTransfer, CheckDirectOutputFunc, t)
+	testAssetProposer(initAssets, NewDirectAsset, GenDirectAssetTransfer, CheckDirectOutputFunc,
+		DirectSendToSelf, t)
 }
 
 func TestValueAssetProposer(t *testing.T) {
@@ -57,11 +58,13 @@ func TestValueAssetProposer(t *testing.T) {
 	}
 	initAssets := GenInitialValueAssets(initAssetsValues, []byte(config.CsID))
 
-	testAssetProposer(initAssets, NewValueAsset, GenValueAssetTransfer, CheckValueOutputFunc, t)
+	testAssetProposer(initAssets, NewValueAsset, GenValueAssetTransfer, CheckValueOutputFunc,
+		ValueSendToSelf, t)
 }
 
 func testAssetProposer(initAssets []AssetInterface, newAssetInterfaceFunc func() AssetInterface,
 	genAssetTransferFunc GenAssetTransferFunc, validFunc CheckTransferOutputFunc,
+	sendToSelfFunc SendToSelfAsset,
 	t *testing.T) {
 
 	privs := make([]sig.Priv, initCount)
@@ -90,7 +93,7 @@ func testAssetProposer(initAssets []AssetInterface, newAssetInterfaceFunc func()
 
 	for i, priv := range privs {
 		proposers[i] = NewAssetProposer(false, rnd, [][]byte{buff.Bytes()}, priv, newAssetInterfaceFunc,
-			newAssetFunc, genAssetTransferFunc, validFunc, true, len(privs), pubs[0].New, priv.NewSig)
+			newAssetFunc, genAssetTransferFunc, validFunc, sendToSelfFunc, true, len(privs), pubs[0].New, priv.NewSig)
 
 		gc := &generalconfig.GeneralConfig{Stats: stats.GetStatsObject(types.MvCons2Type, false)}
 		mainChannels[i] = &testobjects.MockMainChannel{}
@@ -117,15 +120,16 @@ func testAssetProposer(initAssets []AssetInterface, newAssetInterfaceFunc func()
 	}
 
 	prvNode := root
-	for k := 0; k < endAfter; k++ {
+	for k := 0; k < endAfter+1; k++ {
 		for i := range newProposers {
 			proposals := mainChannels[i].GetProposals()
 			assert.Equal(t, 1, len(proposals))
 
 			p := proposals[0].Header.(*messagetypes.MvProposeMessage)
-			nxtNode := &utils.StringNode{Value: string(p.Proposal)}
-			prvNode.Children = append(prvNode.Children, nxtNode)
-			prvNode = nxtNode
+			if k == 2 { // decide nil once
+				p.Proposal = nil
+			}
+			var updatedDecision []byte
 
 			// Process our proposal at all other proposers
 			for j, nxtProposer := range newProposers {
@@ -138,14 +142,21 @@ func testAssetProposer(initAssets []AssetInterface, newAssetInterfaceFunc func()
 				newProposer := proposers[i].GenerateNewSM(append([]types.ConsensusID{p.Index.FirstIndex}, p.Index.AdditionalIndices...),
 					parentSMs)
 
-				err = newProposer.ValidateProposal(pubs[i], p.Proposal)
-				assert.Nil(t, err)
-				outputs := newProposer.HasDecided(pubs[i], p.Index, p.Proposal)
+				if p.Proposal != nil {
+					err = newProposer.ValidateProposal(pubs[i], p.Proposal)
+					assert.Nil(t, err)
+				}
+				var outputs []sig.ConsIDPub
+				outputs, updatedDecision = newProposer.HasDecided(pubs[i], p.Index, []sig.Pub{pubs[i]}, p.Proposal)
 				for _, nxtOut := range outputs {
 					outputsToProposers[j][nxtOut.ID.(types.ConsensusHash)] = newProposer.(*AssetProposer)
 				}
 				nxtProposer[types.ParentConsensusHash(parHash.Index.(types.ConsensusHash))] = newProposer.(*AssetProposer)
 			}
+			p.Proposal = updatedDecision
+			nxtNode := &utils.StringNode{Value: string(p.Proposal)}
+			prvNode.Children = append(prvNode.Children, nxtNode)
+			prvNode = nxtNode
 		}
 	}
 	// Be sure they all finished
@@ -155,7 +166,7 @@ func testAssetProposer(initAssets []AssetInterface, newAssetInterfaceFunc func()
 
 	// Now check the decided values are valid
 	checkProposer := NewAssetProposer(false, rnd, [][]byte{buff.Bytes()}, privs[0], newAssetInterfaceFunc,
-		newAssetFunc, genAssetTransferFunc, validFunc, false, len(pubs), pubs[0].New, privs[0].NewSig)
+		newAssetFunc, genAssetTransferFunc, validFunc, sendToSelfFunc, false, len(pubs), pubs[0].New, privs[0].NewSig)
 
 	errors := checkProposer.CheckDecisions(root)
 	for _, nxtErr := range errors {

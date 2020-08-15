@@ -93,7 +93,7 @@ func (sc *RbBcast1) PrevHasBeenReset() {
 }
 
 // HasReceivedProposal returns true if the cons has received a valid proposal.
-func (sc *RbBcast1) HasReceivedProposal() bool {
+func (sc *RbBcast1) HasValidStarted() bool {
 	return len(sc.validatedInitHashes) > 0
 }
 

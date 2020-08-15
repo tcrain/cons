@@ -84,9 +84,9 @@ type MessageState struct {
 	auxValues map[types.ConsensusRound]*auxRandRoundStruct // map from round index to auxRandRoundStruct
 	index     types.ConsensusIndex                         // consensus index
 	isMv      bool                                         // true if this is being used as part of mv cons
-	mv0Valid  bool                                         // for use with multivalued reduction MvCons1, set to true if 0 is valid for round 1
-	mv1Valid  bool                                         // for use with multivalued reduction MvCons1, set to true if 1 is valid for round 1
-	gc        *generalconfig.GeneralConfig                 // configuration object
+	// mv0Valid  bool                                         // for use with multivalued reduction MvCons1, set to true if 0 is valid for round 1
+	// mv1Valid  bool                                         // for use with multivalued reduction MvCons1, set to true if 1 is valid for round 1
+	gc        *generalconfig.GeneralConfig // configuration object
 	coinState consinterface.CoinMessageStateInterface
 	mutex     sync.RWMutex
 }
@@ -99,24 +99,25 @@ func (sms *MessageState) SetSimpleMessageStateWrapper(sm *messagestate.SimpleMes
 
 // SetMv0Valid is called by the multivalue reduction MvCons1, when 0 becomes valid for round 1
 func (sms *MessageState) SetMv0Valid() {
+	panic("unused")
 	// dont need locks because only accessed in main thread
 	// sms.mutex.Lock()
-	if !sms.mv0Valid {
-		logging.Info("Setting 0 valid for mv cons for index", sms.index)
-		sms.mv0Valid = true
-	}
+	// if !sms.mv0Valid {
+	// 	logging.Info("Setting 0 valid for mv cons for index", sms.index)
+	//	sms.mv0Valid = true
+	// }
 	// sms.mutex.Unlock()
 }
 
 // SetMv1Valid is called by the multivalue reduction MvCons1, when 1 becomes valid for round 1
-func (sms *MessageState) SetMv1Valid() {
+func (sms *MessageState) SetMv1Valid(mc *consinterface.MemCheckers) {
 	// dont need locks because only accessed in main thread
-	// sms.mutex.Lock()
-	if !sms.mv1Valid {
-		logging.Info("Setting 1 valid for mv cons for index", sms.index)
-		sms.mv1Valid = true
-	}
-	// sms.mutex.Unlock()
+	sms.mutex.Lock()
+	defer sms.mutex.Unlock()
+
+	rs := sms.getAuxRoundStruct(1, mc)
+	nmt := mc.MC.GetMemberCount() - mc.MC.GetFaultCount()
+	rs.supportBvInfo[1].msgCount = nmt
 }
 
 // Lock the object
@@ -166,11 +167,10 @@ func (sms *MessageState) SentProposal(round types.ConsensusRound,
 
 	var ret bool
 	sms.mutex.Lock()
-	panic("TODO mv reduction")
-	//ars := sms.getAuxRoundStruct(round, mc)
-	//ret = ars.sentProposal
+	ars := sms.getAuxRoundStruct(round+1, mc)
+	ret = ars.sentProposal
 	if shouldSet {
-		// ars.sentProposal = shouldSet
+		ars.sentProposal = shouldSet
 	}
 	sms.mutex.Unlock()
 	return ret
@@ -203,6 +203,7 @@ func (sms *MessageState) GetProofs(headerID messages.HeaderID, sigCount int,
 func (sms *MessageState) GetValidMessageCount(round types.ConsensusRound, mc *consinterface.MemCheckers) int {
 	sms.mutex.Lock()
 	defer sms.mutex.Unlock()
+
 	roundStruct := sms.getAuxRoundStruct(round, mc)
 	return roundStruct.TotalAuxBinMsgCount
 }
@@ -222,17 +223,14 @@ func (sms *MessageState) getAuxRoundStruct(round types.ConsensusRound,
 			item.supportBvInfo[1] = &item.bvInfo[1]
 			item.checkedCoin = true
 			item.prevCoinVal = 1
-		} else if round == 1 && sms.isMv { // when using mv reduction, first round coin value is always 1 so we can decide 1 right away
-			item.gotCoin = true
-			item.sentCoin = true
-			item.prevCoinVal = 1
-			item.checkedCoin = true
-			item.coinVal = 1
-			// TODO what about bv info?
-			panic("TODO")
+			if sms.isMv {
+				// sending of bv messages is done by the multi-value reduction
+				item.supportBvInfo[1].echod = true
+			}
 		}
 		sms.auxValues[round] = item
 	}
+
 	return item
 }
 
@@ -263,12 +261,20 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 	// Update the round struct with the new pubs
 	// we don't mind if someone already updated these in the mean time
 	sms.mutex.Lock()
+	defer sms.mutex.Unlock()
 
 	switch w := deser.Header.(messages.InternalSignedMsgHeader).GetBaseMsgHeader().(type) {
 	case *messagetypes.BVMessage0, *messagetypes.BVMessage1:
 		binVal, round, stage := messagetypes.GetBVMessageInfo(w)
+		if round == 0 {
+			return nil, types.ErrInvalidRound
+		}
 		if stage != 0 {
 			return nil, types.ErrInvalidStage
+		}
+		if sms.isMv && binVal == 1 && round == 1 {
+			// round 1 is controlled by the mv reduction
+			return nil, types.ErrInvalidRound
 		}
 		roundStruct := sms.getAuxRoundStruct(round, mc)
 
@@ -302,7 +308,6 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 
 	}
 
-	sms.mutex.Unlock()
 	return ret, nil
 }
 
@@ -318,23 +323,24 @@ func (sms *MessageState) getMostRecentValids(nmt, t int, round types.ConsensusRo
 	mc *consinterface.MemCheckers) (valids [2]bool, validRounds [2]types.ConsensusRound) {
 
 	_ = t
-	if round == 0 && sms.isMv {
-		// false
-	} else if round == 1 && sms.isMv {
-		// special case when used in multivalue (set by SetMv1Valid() and SetMv0Valid())
-		valids[0], valids[1] = sms.mv0Valid, sms.mv1Valid
-	} else {
-		ars := sms.getAuxRoundStruct(round, mc)
-		if ars.supportBvInfo[0] != nil {
-			if !ars.gotPrevCoin {
-				panic("should have gotten coin")
-			}
-			for i := 0; i < 2; i++ {
-				valids[i] = ars.supportBvInfo[i].msgCount >= nmt
-				validRounds[i] = ars.supportBvInfo[i].round
-			}
+	/*	if round == 0 && sms.isMv {
+			// false
+		} else if round == 1 && sms.isMv {
+			// special case when used in multivalue (set by SetMv1Valid() and SetMv0Valid())
+			valids[0], valids[1] = sms.mv0Valid, sms.mv1Valid
+		} else {
+	*/
+	ars := sms.getAuxRoundStruct(round, mc)
+	if ars.supportBvInfo[0] != nil {
+		if !ars.gotPrevCoin {
+			panic("should have gotten coin")
+		}
+		for i := 0; i < 2; i++ {
+			valids[i] = ars.supportBvInfo[i].msgCount >= nmt
+			validRounds[i] = ars.supportBvInfo[i].round
 		}
 	}
+	// }
 	return
 }
 
@@ -346,18 +352,18 @@ func (sms *MessageState) GenerateProofs(headerID messages.HeaderID, sigCount int
 		panic("invalid header id")
 	}
 
-	// if MvCons and round == 2, est == 1, then we could not have decided 0, so we dont need proofs
-	// (the proofs are the echo messages from mv-cons)
-	if round <= 2 && binVal == 1 && sms.mv1Valid {
-		panic("TODO")
-		return nil, nil
-	}
-	// When using mv and round = 1 we dont need proofs for 0 since it is made valid on a timeout.
-	if round == 1 && binVal == 0 && sms.mv0Valid {
-		panic("TODO")
-		return nil, nil
-	}
-
+	/*	// if MvCons and round == 2, est == 1, then we could not have decided 0, so we dont need proofs
+		// (the proofs are the echo messages from mv-cons)
+		if round <= 2 && binVal == 1 && sms.mv1Valid {
+			panic("TODO")
+			return nil, nil
+		}
+		// When using mv and round = 1 we dont need proofs for 0 since it is made valid on a timeout.
+		if round == 1 && binVal == 0 && sms.mv0Valid {
+			panic("TODO")
+			return nil, nil
+		}
+	*/
 	t := mc.MC.GetFaultCount()
 	nmt := mc.MC.GetMemberCount() - t
 	// var ret []*sig.MultipleSignedMessage

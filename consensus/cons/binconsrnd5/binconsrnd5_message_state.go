@@ -182,7 +182,7 @@ func (sms *MessageState) getValidsAuxBoth(round types.ConsensusRound, mc *consin
 }
 
 // SetMv1Valid is called by the multivalue reduction MvCons1, when 1 becomes valid for round 1
-func (sms *MessageState) SetMv1Valid() {
+func (sms *MessageState) SetMv1Valid(*consinterface.MemCheckers) {
 	// dont need locks because only accessed in main thread
 	// sms.mutex.Lock()
 	if !sms.mv1Valid {

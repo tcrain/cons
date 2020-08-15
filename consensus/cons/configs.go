@@ -24,73 +24,11 @@ import (
 	"github.com/tcrain/cons/consensus/types"
 )
 
-/*func sigComputeSigAndEncoding(options types.TestOptions) (noSignatures, encryptChannels bool) {
-	noSignatures = false
-	switch options.EncryptChannels {
-	case types.ConsDepedentChannels:
-		switch options.CoinType {
-		case types.StrongCoin1EchoType, types.StrongCoin2EchoType:
-			encryptChannels = true
-		}
-	case types.EncryptedChannels:
-		encryptChannels = true
-	case types.NonEncryptedChannels:
-		encryptChannels = false
-	default:
-		panic(options.EncryptChannels)
-	}
-	return
-}
-
-func NonSigComputeSigAndEncoding(options types.TestOptions) (noSignatures, encryptChannels bool) {
-	switch options.NoSignatures {
-	case types.ConsDependentSignatures:
-		noSignatures = true
-	case types.NoSignatures:
-		return true, true
-	case types.UseSignatures:
-		noSignatures = false
-	default:
-		panic(options.NoSignatures)
-	}
-	switch options.EncryptChannels {
-	case types.ConsDepedentChannels:
-		if !noSignatures {
-			switch options.CoinType {
-			case types.StrongCoin1EchoType, types.StrongCoin2EchoType:
-				encryptChannels = true
-			default:
-				encryptChannels = false
-			}
-		} else {
-			encryptChannels = true
-		}
-	case types.EncryptedChannels:
-		encryptChannels = true
-	case types.NonEncryptedChannels:
-		if !noSignatures {
-			encryptChannels = false
-		} else {
-			encryptChannels = true
-		}
-	default:
-		panic(options.EncryptChannels)
-	}
-	return
-}
-*/
-
 type StandardMvConfig struct{}
 
 // GetCoinTypes returns the types of coins allowed.
 func (StandardMvConfig) GetCoinTypes(optionType GetOptionType) []types.CoinType {
 	return []types.CoinType{types.NoCoinType}
-}
-
-// ComputeSigAndEncoding returns whether signatures should be used or messages should be encoded
-func (StandardMvConfig) ComputeSigAndEncoding(options types.TestOptions) (noSignatures, encryptChannels bool) {
-	// return sigComputeSigAndEncoding(options)
-	return
 }
 
 // GetStopOnCommitTypes returns the types to test when to terminate.
@@ -258,12 +196,6 @@ func (StandardMvConfig) GetAllowConcurrentTypes(gt GetOptionType) []bool {
 //////////////////////////////////////////////////////////////////////
 
 type StandardBinConfig struct{}
-
-// ComputeSigAndEncoding returns whether signatures should be used or messages should be encoded
-func (StandardBinConfig) ComputeSigAndEncoding(options types.TestOptions) (noSignatures, encryptChannels bool) {
-	// return sigComputeSigAndEncoding(options)
-	return
-}
 
 // GetCoinTypes returns the types of coins allowed.
 func (StandardBinConfig) GetCoinTypes(optionType GetOptionType) []types.CoinType {
@@ -450,12 +382,6 @@ func (SimpleConsConfig) GetStopOnCommitTypes(optionType GetOptionType) []types.S
 // GetCoinTypes returns the types of coins allowed.
 func (SimpleConsConfig) GetCoinTypes(optionType GetOptionType) []types.CoinType {
 	return []types.CoinType{types.NoCoinType}
-}
-
-// ComputeSigAndEncoding returns whether signatures should be used or messages should be encoded
-func (SimpleConsConfig) ComputeSigAndEncoding(options types.TestOptions) (noSignatures, encryptChannels bool) {
-	// return sigComputeSigAndEncoding(options)
-	return
 }
 
 // GetBroadcastFunc returns the broadcast function for the given byzantine type

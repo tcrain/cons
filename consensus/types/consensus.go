@@ -337,6 +337,7 @@ const (
 	BinConsRnd6Type                   // Randomized binary consensus combination of BinConsRnd2 and BinConsRnd4
 	MvBinCons1Type                    // Multivalue reduction to binary consensus BinCons1
 	MvBinConsRnd1Type                 // Multivalue reduction to binary consensus BinConsRnd1
+	MvBinConsRnd2Type                 // Multivalue reduction to binary consensus BinConsRnd2
 	MvCons2Type                       // Multivalue PBFT like
 	MvCons3Type                       // Multivalue HotStuff like
 	RbBcast1Type                      // Reliable broadcast like
@@ -366,6 +367,8 @@ func (ct ConsType) String() string {
 		return "MvBinCons1"
 	case MvBinConsRnd1Type:
 		return "MvBinConsRnd1"
+	case MvBinConsRnd2Type:
+		return "MvBinConsRnd2"
 	case MvCons2Type:
 		return "MvCons2"
 	case MvCons3Type:

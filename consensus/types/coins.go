@@ -46,7 +46,8 @@ type CoinType int
 
 const (
 	NoCoinType          CoinType = iota
-	KnownCoinType                // predefined coins
+	KnownCoinType                // predefined coins (predictable random)
+	FlipCoinType                 // predefined coins, flips from 1 to 0
 	LocalCoinType                // each process chooses a random local coin
 	StrongCoin1Type              // a strong coin implemented by an n-t (or t+1) threshold signature
 	StrongCoin1EchoType          // StrongCoin1 with an extra message step (allows use of t+1 coin)
@@ -63,7 +64,7 @@ func CheckStrongCoin(coinType CoinType) bool {
 	return false
 }
 
-var StrongCoins = []CoinType{StrongCoin1Type, StrongCoin1EchoType, StrongCoin2Type, StrongCoin2EchoType, KnownCoinType}
+var StrongCoins = []CoinType{StrongCoin1Type, StrongCoin1EchoType, StrongCoin2Type, StrongCoin2EchoType, KnownCoinType, FlipCoinType}
 var WeakCoins = []CoinType{LocalCoinType}
 var AllCoins = append(StrongCoins, WeakCoins...) // append([]CoinType{NoCoinType}, append(StrongCoins, WeakCoins...)...)
 
@@ -79,6 +80,8 @@ func (ct CoinType) String() string {
 		return "StrongCoin2"
 	case LocalCoinType:
 		return "LocalCoin"
+	case FlipCoinType:
+		return "FlipCoin"
 	case StrongCoin2EchoType:
 		return "StrongCoin2Echo"
 	case KnownCoinType:
