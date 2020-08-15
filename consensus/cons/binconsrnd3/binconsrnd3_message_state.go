@@ -442,33 +442,15 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 				roundStruct.BinNumsAux[binVal] = deser.NewTotalSigCount
 			}
 
-			// If we got n-t of a single value then we must set that as a valid value for the auxBoth messages
-			nmt := mc.MC.GetMemberCount() - mc.MC.GetFaultCount()
-			foundVal := -1
-			for i := 0; i < 2; i++ {
-				if roundStruct.BinNumsAux[i] >= nmt {
-					foundVal = i
-				}
-			}
-			if w.Round > 0 && len(roundStruct.auxBothHeaders) == 0 && foundVal >= 0 {
-				hdr1 := messagetypes.NewAuxBothMessage()
-				hdr1.Round = w.Round
-				hdr1.BinVal = types.BinVal(foundVal)
-				hdr2 := messagetypes.NewAuxBothMessage()
-				hdr2.Round = w.Round
-				hdr2.BinVal = types.BothBin
-				roundStruct.auxBothHeaders = []messages.InternalSignedMsgHeader{hdr1, hdr2}
-				sms.Sms.TrackTotalSigCount(mc, roundStruct.auxBothHeaders...)
-				sms.updateBothMsgCount(roundStruct, mc)
-				/*				count := sms.Sms.GetTotalSigCount(mc, roundStruct.auxBothHeaders...)
-								if roundStruct.TotalBinBothMsgCount >= nmt &&
-									roundStruct.TotalBinBothMsgCount > count {
+			sms.updateBothMsgCount(w.Round, roundStruct, mc)
+			/*				count := sms.Sms.GetTotalSigCount(mc, roundStruct.auxBothHeaders...)
+							if roundStruct.TotalBinBothMsgCount >= nmt &&
+								roundStruct.TotalBinBothMsgCount > count {
 
-									panic("should not have more messages for a single value")
-								}
-								roundStruct.TotalBinBothMsgCount = count
-				*/
-			}
+								panic("should not have more messages for a single value")
+							}
+							roundStruct.TotalBinBothMsgCount = count
+			*/
 
 			// If we allow coin support, then we must calculate for both coin support types messages
 			if gc.AllowSupportCoin && w.Round > 1 {
@@ -477,6 +459,7 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 					panic("cant support coin and have a weak coin")
 				}
 				if prevRoundStruct.gotCoin {
+					nmt := mc.MC.GetMemberCount() - mc.MC.GetFaultCount()
 					// update the count for supporters of the coin
 					count, _ := sms.Sms.GetTotalSigCount(mc, roundStruct.coinHeaders...)
 					if roundStruct.BinNumsAux[prevRoundStruct.coinVals[0]] >= nmt &&
@@ -501,7 +484,7 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 		}
 		// If we know what values are valid then we get the total msg count for those valid values
 		if len(roundStruct.auxBothHeaders) > 0 {
-			sms.updateBothMsgCount(roundStruct, mc)
+			sms.updateBothMsgCount(w.Round, roundStruct, mc)
 			// roundStruct.TotalBinBothMsgCount = sms.Sms.GetTotalSigCount(mc, roundStruct.auxBothHeaders...)
 		} else if binVal == types.BothBin { // Otherwise we just get the count for the values that support BinBoth
 			if roundStruct.TotalBinBothMsgCount < deser.NewTotalSigCount {
@@ -522,12 +505,35 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 	return ret, nil
 }
 
-func (sms *MessageState) updateBothMsgCount(roundStruct *auxRandRoundStruct, mc *consinterface.MemCheckers) {
-	var eachCount []int
-	roundStruct.TotalBinBothMsgCount, eachCount = sms.Sms.GetTotalSigCount(mc, roundStruct.auxBothHeaders...)
-	for i, nxt := range roundStruct.auxBothHeaders {
-		if roundStruct.BinNumsBoth[nxt.(*messagetypes.AuxBothMessage).BinVal] < eachCount[i] {
-			roundStruct.BinNumsBoth[nxt.(*messagetypes.AuxBothMessage).BinVal] = eachCount[i]
+func (sms *MessageState) updateBothMsgCount(round types.ConsensusRound,
+	roundStruct *auxRandRoundStruct, mc *consinterface.MemCheckers) {
+
+	// If we got n-t of a single value then we must set that as a valid value for the auxBoth messages
+	nmt := mc.MC.GetMemberCount() - mc.MC.GetFaultCount()
+	foundVal := -1
+	for i := 0; i < 2; i++ {
+		if roundStruct.BinNumsAux[i] >= nmt {
+			foundVal = i
+		}
+	}
+	if round > 0 && len(roundStruct.auxBothHeaders) == 0 && foundVal >= 0 {
+		hdr1 := messagetypes.NewAuxBothMessage()
+		hdr1.Round = round
+		hdr1.BinVal = types.BinVal(foundVal)
+		hdr2 := messagetypes.NewAuxBothMessage()
+		hdr2.Round = round
+		hdr2.BinVal = types.BothBin
+		roundStruct.auxBothHeaders = []messages.InternalSignedMsgHeader{hdr1, hdr2}
+		sms.Sms.TrackTotalSigCount(mc, roundStruct.auxBothHeaders...)
+	}
+
+	if len(roundStruct.auxBothHeaders) > 0 {
+		var eachCount []int
+		roundStruct.TotalBinBothMsgCount, eachCount = sms.Sms.GetTotalSigCount(mc, roundStruct.auxBothHeaders...)
+		for i, nxt := range roundStruct.auxBothHeaders {
+			if roundStruct.BinNumsBoth[nxt.(*messagetypes.AuxBothMessage).BinVal] < eachCount[i] {
+				roundStruct.BinNumsBoth[nxt.(*messagetypes.AuxBothMessage).BinVal] = eachCount[i]
+			}
 		}
 	}
 }

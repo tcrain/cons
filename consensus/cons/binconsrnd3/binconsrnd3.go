@@ -262,6 +262,8 @@ func (sc *BinConsRnd3) CheckRound(nmt int, t int, round types.ConsensusRound,
 
 				// update the count for supporters of the coin in the next round
 				nxtRndStruct.BinNumsAux[roundStruct.coinVals[0]], _ = binMsgState.Sms.GetTotalSigCount(sc.ConsItems.MC, auxMsg, auxMsgCoin)
+				// this may cause a new both message type to be valid so we check it
+				binMsgState.updateBothMsgCount(round, roundStruct, sc.ConsItems.MC)
 			}
 		}
 	}
@@ -269,9 +271,10 @@ func (sc *BinConsRnd3) CheckRound(nmt int, t int, round types.ConsensusRound,
 	if round > 0 {
 		prvRoundStruct := sc.getMsgState().getAuxRoundStruct(round-1, sc.ConsItems.MC)
 		if round > 1 {
+			// See if we have enough information to check Aux messages for this round
 			if sc.CheckMemberLocal() && (!prvRoundStruct.sentAuxProof ||
 				!prvRoundStruct.sentAuxBoth || (!prvRoundStruct.sentCoin && !sc.GeneralConfig.AllowSupportCoin)) {
-
+				// have not yet received enough messages
 				return false
 			}
 		}
