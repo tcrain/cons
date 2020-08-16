@@ -61,6 +61,7 @@ type SingleConsSetup struct {
 
 	SetInitialConfig *bool
 	SetInitialHash   *bool
+	Shared           *Shared
 }
 
 // SingleConsState tracks the state of a single node when running an experiment over a network.
@@ -69,8 +70,6 @@ type SingleConsState struct {
 	MyIP               string                         // The ip address and port of the node
 	PrivKey            sig.Priv                       // The private key
 	RandKey            [32]byte                       // Key for random number generation
-	PubKeys            sig.PubList                    // The sorted list of public keys
-	DSSShared          *ed.CoinShared                 // Information for threshold keys
 	To                 types.TestOptions              // The test setup
 	TestProc           channelinterface.MainChannel   // The main channel
 	NetNodeInfo        []channelinterface.NetNodeInfo // The local connection information
@@ -93,92 +92,12 @@ type SingleConsState struct {
 	ParRegsInt []network.PregInterface      // Interface to ParReg for using functions from cons package
 	Gc         *generalconfig.GeneralConfig // the general config
 
-	blsShare  *bls.BlsShared // state of shared generated keys when using threshold BLS
-	blsShare2 *bls.BlsShared // state of shared generated keys when using threshold BLS
+	*Shared
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-
-func getAllPubKeys(scs *SingleConsState) error {
-	// get all participants
-	allPar, err := scs.ParReg.GetAllParticipants(0)
-	if err != nil {
-		return err
-	}
-
-	makeKeys := true
-	switch scs.To.SigType {
-	case types.TBLS, types.TBLSDual, types.EDCOIN, types.CoinDual: // threshold/coin keys are constructed below
-		makeKeys = false
-	}
-	if scs.To.SleepCrypto { // For sleep crypto we use use the normal setup
-		makeKeys = true
-	}
-	if makeKeys {
-		for _, parInfo := range allPar {
-			var pub sig.Pub
-			pub, err = scs.PrivKey.GetPub().New().FromPubBytes(sig.PubKeyBytes(parInfo.Pub))
-			if err != nil {
-				return err
-			}
-			scs.PubKeys = append(scs.PubKeys, pub)
-		}
-	}
-	if !scs.To.SleepCrypto {
-		switch scs.To.SigType {
-		case types.EDCOIN:
-			dssThrsh := scs.DSSShared
-			for i, nxtMem := range dssThrsh.MemberPoints {
-				pub := ed.NewEdPartPub(sig.PubKeyIndex(i), nxtMem, ed.NewEdThresh(sig.PubKeyIndex(i), dssThrsh))
-				scs.PubKeys = append(scs.PubKeys, pub)
-			}
-			for i, nxtNonMem := range dssThrsh.NonMemberPoints {
-				numMembers := scs.To.NumTotalProcs - scs.To.NumNonMembers
-				pub := ed.NewEdPartPub(sig.PubKeyIndex(i+numMembers),
-					nxtNonMem, ed.NewEdThresh(sig.PubKeyIndex(i+numMembers), dssThrsh))
-				scs.PubKeys = append(scs.PubKeys, pub)
-			}
-		case types.TBLS:
-			// TBLS keys we construct directly from the BlsShared object
-			for i := 0; i < scs.To.NumTotalProcs; i++ {
-				scs.PubKeys = append(scs.PubKeys, bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare.NumParticipants,
-					scs.blsShare.NumThresh, scs.blsShare.PubPoints[i]))
-			}
-		case types.TBLSDual:
-			priv := scs.PrivKey.(*dual.DualPriv)
-			for i := 0; i < scs.To.NumTotalProcs; i++ {
-				pub1 := bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare.NumParticipants,
-					scs.blsShare.NumThresh, scs.blsShare.PubPoints[i])
-				pub2 := bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare.NumParticipants,
-					scs.blsShare.NumThresh, scs.blsShare2.PubPoints[i])
-				dpub := priv.GetPub().New().(*dual.DualPub)
-				dpub.SetPubs(pub1, pub2)
-				scs.PubKeys = append(scs.PubKeys, dpub)
-			}
-		case types.CoinDual:
-			priv := scs.PrivKey.(*dual.DualPriv)
-			for i, parInfo := range allPar {
-				// we get the ec pub from the bytes
-				dp, err := priv.GetPub().New().FromPubBytes(sig.PubKeyBytes(parInfo.Pub))
-				if err != nil {
-					return err
-				}
-				// we gen the bls pub from the share
-				blsPub := bls.NewBlsPartPub(sig.PubKeyIndex(i), scs.blsShare.NumParticipants,
-					scs.blsShare.NumThresh, scs.blsShare.PubPoints[i])
-				dpub := priv.GetPub().New().(*dual.DualPub)
-				dpub.SetPubs(dp.(*dual.DualPub).Pub, blsPub)
-				scs.PubKeys = append(scs.PubKeys, dpub)
-			}
-		}
-	}
-	for i, nxt := range scs.PubKeys {
-		nxt.SetIndex(sig.PubKeyIndex(i))
-	}
-	return nil
-}
 
 func getDssShared(preg ParRegClientInterface) (*ed.CoinShared, error) {
 	dssMarshaled, err := preg.GetDSSShared(0)
@@ -202,17 +121,19 @@ func initialSetup(setup *SingleConsSetup) (err error) {
 		I:      setup.I,
 		MyIP:   setup.MyIP,
 		To:     setup.To,
-		ParReg: setup.ParReg}
+		ParReg: setup.ParReg,
+		Shared: setup.Shared}
 	scs := setup.SCS
 	// TODO memory race here
 	setup.Mutex.Lock()
 	cons.SetTestConfigOptions(&scs.To, !*setup.SetInitialConfig)
 	*setup.SetInitialConfig = true
 	setup.Mutex.Unlock()
+
 	scs.Stats = stats.GetStatsObject(scs.To.ConsType, scs.To.EncryptChannels)
 	// scs.NwStats = &stats.BasicNwStats{}
 	switch scs.To.SigType {
-	case types.TBLS, types.TBLSDual, types.EDCOIN, types.CoinDual: // with TBLS the priv key is gererated in the shared state
+	case types.TBLS, types.TBLSDual, types.EDCOIN, types.CoinDual: // with TBLS the priv key is gererated in the Shared state
 	default:
 		scs.PrivKey, err = cons.MakeKey(sig.PubKeyIndex(scs.I), scs.To)
 		if err != nil {
@@ -230,17 +151,12 @@ func initialSetup(setup *SingleConsSetup) (err error) {
 			}
 		} else {
 			// setup the threshold keys
-			// we use a special path because we need to agree on the shared values
-			dssShared, err := getDssShared(scs.ParReg)
-			if err != nil {
-				return err
-			}
-			edThresh := ed.NewEdThresh(sig.PubKeyIndex(scs.I), dssShared)
+			// we use a special path because we need to agree on the Shared values
+			edThresh := ed.NewEdThresh(sig.PubKeyIndex(scs.I), scs.DSSShared)
 			scs.PrivKey, err = ed.NewEdPartPriv(edThresh)
 			if err != nil {
 				return err
 			}
-			scs.DSSShared = dssShared
 		}
 	case types.TBLS:
 		numMembers := scs.To.NumTotalProcs - scs.To.NumNonMembers
@@ -253,27 +169,21 @@ func initialSetup(setup *SingleConsSetup) (err error) {
 			}
 		} else {
 			// setup the threshold keys
-			// we use a special path because we need to agree on the shared values
+			// we use a special path because we need to agree on the Shared values
 			// before creating the key
 			// note that this is done in a centralized (unsafe) manner for efficiency
 			// and we share all the private keys
-			blss, err := getBlsShared(0, scs.ParReg)
-			if err != nil {
-				return err
-			}
-
 			if scs.I < numMembers {
-				scs.PrivKey, err = cons.MakePrivBlsS(scs.To, thrsh, sig.PubKeyIndex(scs.I), blss)
+				scs.PrivKey, err = cons.MakePrivBlsS(scs.To, thrsh, sig.PubKeyIndex(scs.I), scs.BlsShare)
 				if err != nil {
 					return err
 				}
 			} else {
-				blsThresh := bls.NewNonMemberBlsThrsh(thrshn, thrsh, sig.PubKeyIndex(scs.I), blss.SharedPub)
+				blsThresh := bls.NewNonMemberBlsThrsh(thrshn, thrsh, sig.PubKeyIndex(scs.I), scs.BlsShare.SharedPub)
 				if scs.PrivKey, err = bls.NewBlsPartPriv(blsThresh); err != nil {
 					return err
 				}
 			}
-			scs.blsShare = blss
 		}
 	case types.TBLSDual:
 		if sleepCrypto {
@@ -282,21 +192,11 @@ func initialSetup(setup *SingleConsSetup) (err error) {
 				return err
 			}
 		} else {
-			blss1, err := getBlsShared(0, scs.ParReg)
-			if err != nil {
-				return err
-			}
-			scs.blsShare = blss1
-			blss2, err := getBlsShared(1, scs.ParReg)
-			if err != nil {
-				return err
-			}
-			scs.blsShare2 = blss2
 			numMembers := scs.To.NumTotalProcs - scs.To.NumNonMembers
 			if scs.I < numMembers {
-				scs.PrivKey = cons.GenTBLSDualThreshPriv(sig.PubKeyIndex(scs.I), blss1, blss2, scs.To)
+				scs.PrivKey = cons.GenTBLSDualThreshPriv(sig.PubKeyIndex(scs.I), scs.BlsShare, scs.BlsShare2, scs.To)
 			} else {
-				scs.PrivKey = cons.GenTBLSDualThreshPrivNonMember(sig.PubKeyIndex(scs.I), blss1, blss2, scs.To)
+				scs.PrivKey = cons.GenTBLSDualThreshPrivNonMember(sig.PubKeyIndex(scs.I), scs.BlsShare, scs.BlsShare2, scs.To)
 			}
 		}
 	case types.CoinDual:
@@ -307,19 +207,14 @@ func initialSetup(setup *SingleConsSetup) (err error) {
 			}
 		} else {
 			numMembers := scs.To.NumTotalProcs - scs.To.NumNonMembers
-			blss, err := getBlsShared(0, scs.ParReg)
-			if err != nil {
-				return err
-			}
-			scs.blsShare = blss
 			var secondary sig.Priv
 			thrsh := sig.GetCoinThresh(scs.To)
 			if scs.I < numMembers {
-				if secondary, err = cons.MakePrivBlsS(scs.To, thrsh, sig.PubKeyIndex(scs.I), blss); err != nil {
+				if secondary, err = cons.MakePrivBlsS(scs.To, thrsh, sig.PubKeyIndex(scs.I), scs.BlsShare); err != nil {
 					panic(err)
 				}
 			} else {
-				blsThreshSecondary := bls.NewNonMemberBlsThrsh(numMembers, thrsh, sig.PubKeyIndex(scs.I), blss.SharedPub)
+				blsThreshSecondary := bls.NewNonMemberBlsThrsh(numMembers, thrsh, sig.PubKeyIndex(scs.I), scs.BlsShare.SharedPub)
 				if secondary, err = bls.NewBlsPartPriv(blsThreshSecondary); err != nil {
 					panic(err)
 				}
@@ -419,7 +314,7 @@ func runInitialSetup(setup *SingleConsSetup, t assert.TestingT) (err error) {
 
 	// get all the public keys
 	logging.Info("Getting participant public keys")
-	if err := getAllPubKeys(scs); err != nil {
+	if err := scs.getAllPubKeys(scs.To, scs.PrivKey, scs.ParReg); err != nil {
 		logging.Error(err)
 		panic(err)
 	}

@@ -20,5 +20,6 @@
     "MvProposalSizeBytes": 10,
     "SleepCrypto": true,
     "EncryptChannels": true,
+    "SharePubsRPC": true,
     "RndMemberType": 4
 }

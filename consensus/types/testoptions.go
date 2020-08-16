@@ -88,6 +88,7 @@ type TestOptions struct {
 	NoSignatures          bool                 // Use encrypted channels for message authentification instead of signatures
 	CoinType              CoinType             // The type of coin being used
 	UseFixedCoinPresets   bool                 // If true then will use predefined coins for the initial rounds of randomized consensus
+	SharePubsRPC          bool                 // If true then during RPC tests nodes on the same machine will share public key objects for external nodes
 }
 
 // UsesVRFs returns true if this test configuration uses VRFs.
@@ -99,7 +100,7 @@ func (to TestOptions) UsesVRFs() bool {
 	return false
 }
 func (to TestOptions) String() string {
-	return fmt.Sprintf("{ConsType: %v, Rounds: %v, Fail round: %v, Total procs: %v, Nonmember procs: %v, Fail procs: %v, Byz procs: %v, ByzType: %s, \n\tConnection: %s, Msg Drop%%: %v, Network: %s, Nw fan out: %v, Storage type: %s, Clear disk on restart: %v, \n\tInclude proofs: %v, Sig type: %s, Use multisig: %v, Use pub index: %v, Buffer Forwarder: %v, \n\tState machine: %v, Allow concurrent: %v, Rotate cord: %v, Gen rand bytes: %v, Ordering: %v,\n\tRand member type: %v, Rand members %v, LocalRandMemberChange: %v, AllowSupportCoin: %v, MCType: %v, \n\tUseFullBinaryState %v, StorageBuffer %v, IncludeCurrentSigs %v, CPUProfile %v, MemProfile %v,\n\tNumMsgProcessThreads %v, MvProposalSizeBytes %v, BinConsPercentOnes %v, CollectBroadcast: %v,\n\tStopOnCommit: %v, FixedSeed: %v, EncryptChannels: %v, NoSignatures: %v,\n\tCoinType: %v, UseFixedCoinPresets: %v, Sleep Crypto: %v, TestID %v}",
+	return fmt.Sprintf("{ConsType: %v, Rounds: %v, Fail round: %v, Total procs: %v, Nonmember procs: %v, Fail procs: %v, Byz procs: %v, ByzType: %s, \n\tConnection: %s, Msg Drop%%: %v, Network: %s, Nw fan out: %v, Storage type: %s, Clear disk on restart: %v, \n\tInclude proofs: %v, Sig type: %s, Use multisig: %v, Use pub index: %v, Buffer Forwarder: %v, \n\tState machine: %v, Allow concurrent: %v, Rotate cord: %v, Gen rand bytes: %v, Ordering: %v,\n\tRand member type: %v, Rand members %v, LocalRandMemberChange: %v, AllowSupportCoin: %v, MCType: %v, \n\tUseFullBinaryState %v, StorageBuffer %v, IncludeCurrentSigs %v, CPUProfile %v, MemProfile %v,\n\tNumMsgProcessThreads %v, MvProposalSizeBytes %v, BinConsPercentOnes %v, CollectBroadcast: %v,\n\tStopOnCommit: %v, FixedSeed: %v, EncryptChannels: %v, NoSignatures: %v,\n\tCoinType: %v, UseFixedCoinPresets: %v, Sleep Crypto: %v, Share Pubs: %v, TestID %v}",
 		to.ConsType, to.MaxRounds, to.FailRounds, to.NumTotalProcs, to.NumNonMembers, to.NumFailProcs, to.NumByz,
 		to.ByzType, to.ConnectionType, to.MsgDropPercent, to.NetworkType, to.FanOut, to.StorageType,
 		to.ClearDiskOnRestart, to.IncludeProofs, to.SigType, to.UseMultisig, to.UsePubIndex, to.BufferForwarder,
@@ -107,7 +108,7 @@ func (to TestOptions) String() string {
 		to.LocalRandMemberChange, to.AllowSupportCoin, to.MCType,
 		to.UseFullBinaryState, to.StorageBuffer, to.IncludeCurrentSigs, to.CPUProfile, to.MemProfile,
 		to.NumMsgProcessThreads, to.MvProposalSizeBytes, to.BinConsPercentOnes, to.CollectBroadcast, to.StopOnCommit, to.UseFixedSeed,
-		to.EncryptChannels, to.NoSignatures, to.CoinType, to.UseFixedCoinPresets, to.SleepCrypto, to.TestID)
+		to.EncryptChannels, to.NoSignatures, to.CoinType, to.UseFixedCoinPresets, to.SleepCrypto, to.SharePubsRPC, to.TestID)
 }
 
 func AllowsGetRandBytes(smType StateMachineType) bool {

@@ -62,6 +62,7 @@ type RunningCons struct {
 	myIP             string
 	setInitialConfig bool
 	setInitialHash   bool
+	shared           *rpcsetup.Shared
 }
 
 // Reset clears all running consensus object.
@@ -72,7 +73,7 @@ func (rc *RunningCons) Reset(none rpcsetup.None, res *rpcsetup.None) error {
 	for _, scs := range rc.running {
 		rpcsetup.Reset(scs.SCS)
 	}
-
+	rc.shared = nil
 	rc.setInitialHash = false
 	rc.setInitialConfig = false
 
@@ -182,6 +183,16 @@ func (rc *RunningCons) NewConsRunning(nra rpcsetup.NewRunningArgs, none *rpcsetu
 		return fmt.Errorf("Already registered index %v", nra.I)
 	}
 
+	var shared *rpcsetup.Shared
+	if nra.To.SharePubsRPC {
+		if rc.shared == nil {
+			rc.shared = &rpcsetup.Shared{}
+		}
+		shared = rc.shared
+	} else {
+		shared = &rpcsetup.Shared{}
+	}
+
 	scs := &rpcsetup.SingleConsSetup{
 		I:                nra.I,
 		To:               nra.To,
@@ -190,6 +201,7 @@ func (rc *RunningCons) NewConsRunning(nra rpcsetup.NewRunningArgs, none *rpcsetu
 		Mutex:            &rc.mutex,
 		SetInitialConfig: &rc.setInitialConfig,
 		SetInitialHash:   &rc.setInitialHash,
+		Shared:           shared,
 	}
 	rc.running[nra.I] = scs
 	rc.mutex.Unlock()

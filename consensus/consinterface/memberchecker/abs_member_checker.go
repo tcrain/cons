@@ -332,8 +332,10 @@ func (mc *absMemberChecker) SetMainChannel(mainChannel channelinterface.MainChan
 // memberPubs must be equal to or a subset of newAllPubs.
 func (mc *absMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, otherPubs sig.PubList, initRandBytes [32]byte) {
 
-	mc.sortedMemberPubs = memberPubKeys
-	mc.otherPubs = otherPubs
+	mc.sortedMemberPubs = make(sig.PubList, len(memberPubKeys))
+	copy(mc.sortedMemberPubs, memberPubKeys)
+	mc.otherPubs = make(sig.PubList, len(otherPubs))
+	copy(mc.otherPubs, otherPubs)
 	mc.fixedCoord = fixedCoord
 
 	mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs, mc.memberPubStrings = sig.AfterSortPubs(

@@ -18,5 +18,6 @@
     "BinConsPercentOnes": 100,
     "IncludeCurrentSigs": true,
     "SleepCrypto": true,
+    "SharePubsRPC": true,
     "AdditionalP2PNetworks": 2
 }

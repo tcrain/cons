@@ -14,4 +14,10 @@ From the console run:
 
 	go tool pprof http://localhost:6060/debug/pprof/heap
 	
-	go tool pprof http://localhost:6060/debug/pprof/profile	
+	go tool pprof http://localhost:6060/debug/pprof/profile
+	
+	go tool pprof http://localhost:6060/debug/pprof/allocs
+	
+Or open in the browser:
+
+``http://localhost:6060/debug/pprof/``

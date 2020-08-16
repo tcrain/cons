@@ -18,5 +18,6 @@
     "MvProposalSizeBytes": 10,
     "BinConsPercentOnes": 100,
     "SleepCrypto": true,
+    "SharePubsRPC": true,
     "RndMemberType": 2
 }
