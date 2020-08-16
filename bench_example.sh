@@ -8,4 +8,4 @@ do
   PRINT_MIN=true ./rpcbench -o $file
 done
 # ./rpcbench -c 1
-# ./scripts/killgo.sh
+# bash ./scripts/killgo.sh

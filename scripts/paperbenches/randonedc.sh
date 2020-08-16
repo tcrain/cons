@@ -1,7 +1,7 @@
 regions="us-central1-a"
 homezone="us-central1-a"
 genimage=1 # Generate the image for building the benchmark
-deleteimage=1 # Delete the generated image at the end of the benchmark
+deleteimage=0 # Delete the generated image at the end of the benchmark
 instancetype="n1-standard-2" # instance type of the nodes
 branch="$GITBRANCH"
 singleZoneRegion="1"

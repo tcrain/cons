@@ -25,8 +25,8 @@ sleep 20
 
 echo "Killing procs"
 bash ./scripts/killgo.sh
-./runcmd -f "$ipfile" -k "$key" -u "$user" ~/go/src/github.com/tcrain/cons/scripts/killgo.sh
-ssh -o "StrictHostKeyChecking no" -i "${key}" "${user}"@"${pregip}" "~/go/src/github.com/tcrain/cons/scripts/killgo.sh"
+./runcmd -f "$ipfile" -k "$key" -u "$user" bash ~/go/src/github.com/tcrain/cons/scripts/killgo.sh
+ssh -o "StrictHostKeyChecking no" -i "${key}" "${user}"@"${pregip}" "bash ~/go/src/github.com/tcrain/cons/scripts/killgo.sh"
 
 #if [ "$dorsync" -eq 1 ]
 #then
