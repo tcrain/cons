@@ -131,6 +131,10 @@ func initialSetup(setup *SingleConsSetup) (err error) {
 	setup.Mutex.Unlock()
 
 	scs.Stats = stats.GetStatsObject(scs.To.ConsType, scs.To.EncryptChannels)
+
+	if err = scs.initialKeySetup(scs.To, scs.ParReg); err != nil {
+		return err
+	}
 	// scs.NwStats = &stats.BasicNwStats{}
 	switch scs.To.SigType {
 	case types.TBLS, types.TBLSDual, types.EDCOIN, types.CoinDual: // with TBLS the priv key is gererated in the Shared state
