@@ -47,6 +47,12 @@ type AbsConsItem struct {
 	MainChannel   channelinterface.MainChannel
 }
 
+func (sc *AbsConsItem) Collect() {
+	sc.ConsItems = nil
+	sc.PrevItem = nil
+	sc.NextItem = nil
+}
+
 // HasStarted returns true if Start has ben called
 func (sc *AbsConsItem) HasStarted() bool {
 	return sc.Started

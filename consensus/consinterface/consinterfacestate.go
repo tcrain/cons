@@ -557,6 +557,9 @@ func (mcs *ConsInterfaceState) getIndex(endidx types.ConsensusInt, alreadyWriteL
 				// we need to allocate this item
 				newItem := &ConsInterfaceItems{}
 				// create the new member checkers
+				//runtime.SetFinalizer(newItem, func(item *ConsInterfaceItems) {
+				//	fmt.Println("finalize", item.ConsItem.GetIndex())
+				//})
 
 				parIndex, err := types.SingleComputeConsensusID(nxtIdx, nil)
 				if err != nil {

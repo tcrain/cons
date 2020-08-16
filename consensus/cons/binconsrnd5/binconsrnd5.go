@@ -790,7 +790,3 @@ func (*BinConsRnd5) GenerateMessageState(gc *generalconfig.GeneralConfig) consin
 
 	return NewBinConsRnd5MessageState(false, gc)
 }
-
-// Collect is called when the item is being garbage collected.
-func (sc *BinConsRnd5) Collect() {
-}

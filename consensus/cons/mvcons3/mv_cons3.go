@@ -888,6 +888,7 @@ func (*MvCons3) GenerateMessageState(gc *generalconfig.GeneralConfig) consinterf
 
 // Collect is called when the item is being garbage collected.
 func (sc *MvCons3) Collect() {
+	sc.AbsConsItem.Collect()
 	sc.stopTimers()
 	sc.StopRecoverTimeout()
 }

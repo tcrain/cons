@@ -659,6 +659,8 @@ func (*MvCons1) GenerateMessageState(
 
 // Collect is called when the item is being garbage collected.
 func (sc *MvCons1) Collect() {
+	sc.AbsConsItem.Collect()
+	sc.binCons.Collect()
 	sc.stopTimers()
 	sc.StopRecoverTimeout()
 }

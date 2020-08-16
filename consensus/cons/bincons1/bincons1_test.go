@@ -37,7 +37,7 @@ func getBinConsStateMachineTypes() []types.StateMachineType {
 var binTO = types.TestOptions{BinConsPercentOnes: 50, IncludeProofs: true}
 
 func TestBinCons1Basic(t *testing.T) {
-	cons.RunBasicTests(binTO, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)
+	cons.RunBasicTests(binTO, types.BinCons1Type, &BinCons1{}, Config{}, []int{1}, t)
 }
 
 func TestBinCons1SleepBasic(t *testing.T) {

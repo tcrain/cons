@@ -593,6 +593,8 @@ func (*MvBinConsRnd2) GenerateMessageState(gc *generalconfig.GeneralConfig) cons
 
 // Collect is called when the item is being garbage collected.
 func (sc *MvBinConsRnd2) Collect() {
+	sc.AbsConsItem.Collect()
+	sc.binCons.Collect()
 	sc.stopTimers()
 	sc.StopRecoverTimeout()
 }

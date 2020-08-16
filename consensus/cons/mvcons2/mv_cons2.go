@@ -880,6 +880,7 @@ func (sc *MvCons2) SetInitialState([]byte) {}
 
 // Collect is called when the item is being garbage collected.
 func (sc *MvCons2) Collect() {
+	sc.AbsConsItem.Collect()
 	sc.stopTimers()
 	sc.StopRecoverTimeout()
 }

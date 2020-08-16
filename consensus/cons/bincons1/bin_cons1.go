@@ -531,5 +531,6 @@ func (*BinCons1) GenerateMessageState(gc *generalconfig.GeneralConfig) consinter
 
 // Collect is called when the item is being garbage collected.
 func (sc *BinCons1) Collect() {
+	sc.AbsConsItem.Collect()
 	sc.stopTimers()
 }

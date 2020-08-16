@@ -437,5 +437,6 @@ func (*RbBcast1) GenerateMessageState(gc *generalconfig.GeneralConfig) consinter
 
 // Collect is called when the item is being garbage collected.
 func (sc *RbBcast1) Collect() {
+	sc.AbsConsItem.Collect()
 	sc.StopRecoverTimeout()
 }
