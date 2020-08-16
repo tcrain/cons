@@ -15,6 +15,7 @@ then
 
     # wait for reboot
     until ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -o ConnectTimeout=5 -i $key root@$ip "exit"; do sleep 5; done
+    sleep 15
 
     # Make a user, allow him to sudo without password
     echo Making a user $user;
@@ -31,6 +32,7 @@ fi
 echo "Waiting for node to start"
 # wait for reboot
 until ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -o ConnectTimeout=5 -i $key $user@$ip "exit"; do sleep 5; done
+sleep 15
 
 # Copy ssh key
 echo Copying ssh key

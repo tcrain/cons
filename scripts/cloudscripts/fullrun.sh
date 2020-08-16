@@ -47,6 +47,7 @@ fi
 
 # wait for start
 until ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -o ConnectTimeout=5 -i "$key" "$user"@"$inip" "exit"; do sleep 5; done
+sleep 15
 
 # Copy the key
 scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$credentialfile" "$inip":~/go/src/github.com/tcrain/cons/cloud.json
