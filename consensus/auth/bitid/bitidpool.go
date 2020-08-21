@@ -1,6 +1,7 @@
 package bitid
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -10,7 +11,7 @@ type BitIDPoolInterface interface {
 }
 
 func NewBitIDPool(idFunc NewBitIDFunc, allowConcurrency bool) BitIDPoolInterface {
-	if allowConcurrency {
+	if false {
 		ret := &ConcurrentBitIDPool{}
 		ret.pool.New = func() interface{} { return idFunc() }
 		return ret
@@ -24,20 +25,26 @@ type BitIDPool struct {
 	objs      []NewBitIDInterface
 	newFunc   NewBitIDFunc
 	allocated int
+	mutex     sync.Mutex
 }
 
 func (bp *BitIDPool) Done(bid NewBitIDInterface) {
 	bid.Done()
+	bp.mutex.Lock()
 	bp.objs = append(bp.objs, bid)
+	bp.mutex.Unlock()
 }
 func (bp *BitIDPool) Get() NewBitIDInterface {
+	bp.mutex.Lock()
 	if len(bp.objs) == 0 {
 		bp.objs = append(bp.objs, bp.newFunc())
 		bp.allocated++
+		fmt.Print(bp.allocated, " ")
 	}
 	ret := bp.objs[0]
 	bp.objs[0] = bp.objs[len(bp.objs)-1]
 	bp.objs = bp.objs[:len(bp.objs)-1]
+	bp.mutex.Unlock()
 	return ret
 }
 
