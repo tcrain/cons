@@ -122,7 +122,7 @@ type blsSigState struct {
 	pool         bitid.BitIDPoolInterface
 }
 
-func newBlsSigMsgState(sm *sig.MultipleSignedMessage, intFunc bitid.FromIntFunc, idFunc bitid.NewBitIDFunc,
+func newBlsSigMsgState(sm *sig.MultipleSignedMessage, intFunc bitid.FromIntFunc, _ bitid.NewBitIDFunc,
 	pool bitid.BitIDPoolInterface) (*blsSigMsgState, error) {
 	allSigs := intFunc(nil)
 	validatingSigs := intFunc(nil)
@@ -309,7 +309,6 @@ tryValidate:
 		if bitid.HasNewItemsHelper(imValidating, newSigs) {
 			// check if someone is already validating these sigs
 			// if len(item.validatingSigs.GetNewItems(pbid)) == 0 {
-			item.pool.Done(newSigs)
 
 			if bitid.HasIntersectionHelper(item.validatingSigs, pbid) {
 				// conflicting validate, retry
@@ -317,6 +316,7 @@ tryValidate:
 				retry++
 				item.cond.Wait()
 				sigItems = append(newItems, sigItems[i:]...)
+				item.pool.Done(newSigs)
 				item.pool.Done(imValidating)
 				goto tryValidate
 			}
@@ -329,6 +329,7 @@ tryValidate:
 		} else {
 			// logging.Info("no new sigs", pbid.GetItemList(), item.allSigs.GetItemList(), imValidating.GetItemList())
 		}
+		item.pool.Done(newSigs)
 	}
 
 	// Let the oters know what you are validating
