@@ -195,6 +195,8 @@ func CreateGeneralConfig(testId int, eis generalconfig.ExtraInitState,
 	gc.CoinType = to.CoinType
 	gc.UseTp1CoinThresh = types.UseTp1CoinThresh(to)
 	gc.UseFixedCoinPresets = to.UseFixedCoinPresets
+	gc.MemCheckerBitIDType = to.MemCheckerBitIDType
+	gc.SigBitIDType = to.SigBitIDType
 	return gc
 }
 

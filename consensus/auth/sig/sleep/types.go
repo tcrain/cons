@@ -1,6 +1,7 @@
 package sleep
 
 import (
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/dual"
@@ -15,34 +16,44 @@ import (
 
 var AllSigStats = []sig.SigStats{ec.Stats, ed.EDDSAStats, ed.SchnorrStats, bls.Stats}
 
-func GetAllSigStatsNewPriv(onlyVrf, onlyMulti bool) (ret []func() (sig.Priv, error)) {
-	for _, nxt := range AllSigStats {
-		if onlyVrf && !nxt.AllowsVRF {
-			continue
-		}
-		if onlyMulti && !nxt.AllowsMulti {
-			continue
-		}
-		var nxtFunc func() (sig.Priv, error)
-		var i sig.PubKeyIndex
-		nxtFunc = func() (sig.Priv, error) {
-			p, err := NewSleepPriv(&nxt, i)
-			if err != nil {
-				return nil, err
+func GetAllSigStatsNewPriv(onlyVrf, onlyMulti bool, newBitIDFunc []bitid.FromIntFunc) (ret []func() (sig.Priv, error), retStats []sig.SigStats) {
+	for _, nxtBid := range append(newBitIDFunc, nil) {
+		for _, nxt := range AllSigStats {
+			if onlyVrf && !nxt.AllowsVRF {
+				continue
 			}
-			i++
-			if nxt.AllowsVRF {
-				p, err = NewSleepVrfPriv(p, &nxt)
+			if onlyMulti && !nxt.AllowsMulti {
+				continue
+			}
+			if nxt.AllowsMulti && nxtBid == nil {
+				continue
+			}
+			if !nxt.AllowsMulti && nxtBid != nil {
+				continue
+			}
+			bidFunc := nxtBid
+			var nxtFunc func() (sig.Priv, error)
+			var i sig.PubKeyIndex
+			nxtFunc = func() (sig.Priv, error) {
+				p, err := NewSleepPriv(&nxt, i)
 				if err != nil {
 					return nil, err
 				}
+				i++
+				if nxt.AllowsVRF {
+					p, err = NewSleepVrfPriv(p, &nxt)
+					if err != nil {
+						return nil, err
+					}
+				}
+				if nxt.AllowsMulti && sig.UseMultisig {
+					p, err = NewSleepMultiPriv(p, bidFunc, &nxt)
+				}
+				return p, err
 			}
-			if nxt.AllowsMulti && sig.UseMultisig {
-				p, err = NewSleepMultiPriv(p, &nxt)
-			}
-			return p, err
+			retStats = append(retStats, nxt)
+			ret = append(ret, nxtFunc)
 		}
-		ret = append(ret, nxtFunc)
 	}
 	return
 }
@@ -88,8 +99,8 @@ func (p *MultiPriv) ShallowCopy() sig.Priv {
 	return &newP
 }
 
-func NewSleepMultiPriv(priv sig.Priv, stats *sig.SigStats) (sig.Priv, error) {
-	priv.(SleepPriv).setPub(newMultiPub(priv.GetPub(), stats))
+func NewSleepMultiPriv(priv sig.Priv, newBitIDFunc bitid.FromIntFunc, stats *sig.SigStats) (sig.Priv, error) {
+	priv.(SleepPriv).setPub(newMultiPub(priv.GetPub(), newBitIDFunc, stats))
 	return &MultiPriv{
 		SleepPriv: priv.(SleepPriv),
 	}, nil
@@ -192,20 +203,20 @@ func NewSchnorrPriv(i sig.PubKeyIndex) (sig.Priv, error) {
 	return NewSleepPriv(&ed.SchnorrStats, i)
 }
 
-func NewBLSPriv(i sig.PubKeyIndex) (sig.Priv, error) {
+func NewBLSPriv(i sig.PubKeyIndex, newBitIDFunc bitid.FromIntFunc) (sig.Priv, error) {
 	p, err := NewSleepPriv(&bls.Stats, i)
 	utils.PanicNonNil(err)
 
 	p, err = NewSleepVrfPriv(p, &bls.Stats)
 	if sig.UseMultisig {
-		p, err = NewSleepMultiPriv(p, &bls.Stats)
+		p, err = NewSleepMultiPriv(p, newBitIDFunc, &bls.Stats)
 		utils.PanicNonNil(err)
 	}
 	return p, err
 }
 
 func NewTBLSPriv(n, t int, i sig.PubKeyIndex) (sig.Priv, error) {
-	p, err := NewBLSPriv(i)
+	p, err := NewBLSPriv(i, bitid.NewBitIDFromInts)
 	utils.PanicNonNil(err)
 	return NewSleepThrshPriv(n, t, p, &bls.Stats)
 }

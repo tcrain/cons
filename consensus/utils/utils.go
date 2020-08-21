@@ -64,9 +64,16 @@ func PanicNonNil(err error) {
 }
 
 func EncodeUvarint(v uint64, writer io.Writer) (int, error) {
-	arr := make([]byte, binary.MaxVarintLen64)
-	n := binary.PutUvarint(arr, v)
+	var arr [binary.MaxVarintLen64]byte
+	n := binary.PutUvarint(arr[:], v)
 	return writer.Write(arr[:n])
+}
+
+func AppendUvarint(v uint64, byt []byte) (int, []byte) {
+	var arr [binary.MaxVarintLen64]byte
+	n := binary.PutUvarint(arr[:], v)
+	byt = append(byt, arr[:n]...)
+	return n, byt
 }
 
 type readByte struct {
@@ -81,43 +88,105 @@ func (rb *readByte) ReadByte() (byte, error) {
 	return rb.item[0], err
 }
 
+// ReadUvarint reads an encoded unsigned integer from r and returns it as a uint64.
+// This is modified from the golang library to use io.Reader instead of byte reader
+func ReadUvarintReader(r io.Reader) (uint64, int, error) {
+	var x uint64
+	var s uint
+	var tmp [1]byte
+	b := tmp[:]
+	var n int
+	for i := 0; ; i++ {
+		n1, err := r.Read(b)
+		n += n1
+		if err != nil {
+			return x, n, err
+		}
+		if b[0] < 0x80 {
+			if i > 9 || i == 9 && b[0] > 1 {
+				return x, n, types.ErrInvalidVarint
+			}
+			return x | uint64(b[0])<<s, n, nil
+		}
+		x |= uint64(b[0]&0x7f) << s
+		s += 7
+	}
+}
+
+func ReadUvarintByteReader(r io.ByteReader) (uint64, int, error) {
+	var x uint64
+	var s uint
+	var n int
+	for i := 0; ; i++ {
+		b, err := r.ReadByte()
+		n++
+		if err != nil {
+			return x, n, err
+		}
+		if b < 0x80 {
+			if i > 9 || i == 9 && b > 1 {
+				return x, n, types.ErrInvalidVarint
+			}
+			return x | uint64(b)<<s, n, nil
+		}
+		x |= uint64(b&0x7f) << s
+		s += 7
+	}
+}
+
 func ReadUvarint(reader io.Reader) (v uint64, n int, err error) {
 	// TODO better way to implement this?
-	rb := &readByte{reader: reader}
-	v, err = binary.ReadUvarint(rb)
-	n = rb.n
-	return
+	if r, ok := reader.(io.ByteReader); ok {
+		return ReadUvarintByteReader(r)
+	}
+	return ReadUvarintReader(reader)
 }
 
 func ReadUint64(reader io.Reader) (v uint64, n int, err error) {
-	arr := make([]byte, 8)
-	n, err = reader.Read(arr)
+	var arr [8]byte
+	n, err = reader.Read(arr[:])
 	if err != nil {
 		return
 	}
-	v = config.Encoding.Uint64(arr)
+	v = config.Encoding.Uint64(arr[:])
+	return
+}
+
+func ReadUint32(reader io.Reader) (v uint32, n int, err error) {
+	var arr [4]byte
+	n, err = reader.Read(arr[:])
+	if err != nil {
+		return
+	}
+	v = config.Encoding.Uint32(arr[:])
 	return
 }
 
 func EncodeUint64(v uint64, writer io.Writer) (int, error) {
-	arr := make([]byte, 8)
-	config.Encoding.PutUint64(arr, v)
-	return writer.Write(arr)
+	var arr [8]byte
+	config.Encoding.PutUint64(arr[:], v)
+	return writer.Write(arr[:])
+}
+
+func EncodeUint32(v uint32, writer io.Writer) (int, error) {
+	var arr [4]byte
+	config.Encoding.PutUint32(arr[:], v)
+	return writer.Write(arr[:])
 }
 
 func EncodeUint16(v uint16, writer io.Writer) (int, error) {
-	arr := make([]byte, 2)
-	config.Encoding.PutUint16(arr, v)
-	return writer.Write(arr)
+	var arr [2]byte
+	config.Encoding.PutUint16(arr[:], v)
+	return writer.Write(arr[:])
 }
 
 func ReadUint16(reader io.Reader) (v uint16, n int, err error) {
-	arr := make([]byte, 2)
-	n, err = reader.Read(arr)
+	var arr [2]byte
+	n, err = reader.Read(arr[:])
 	if err != nil {
 		return
 	}
-	v = config.Encoding.Uint16(arr)
+	v = config.Encoding.Uint16(arr[:])
 	return
 }
 
@@ -787,4 +856,76 @@ func ConvertInt64(n interface{}) int64 {
 		panic(n)
 	}
 
+}
+
+// IncreaseCap increases the capacitiy of the array if needed
+func IncreaseCap(arr []byte, newCap int) []byte {
+	if cap(arr) >= newCap {
+		return arr
+	}
+	ret := make([]byte, newCap)
+	copy(ret, arr)
+	return ret[:len(arr)]
+}
+
+// ReadBytes reads the given number of bytes into a new slice.
+// An error is returned if less than n bytes are read.
+func ReadBytes(n int, reader io.Reader) (read int, buff []byte, err error) {
+	buff = make([]byte, n)
+	read, err = reader.Read(buff)
+	if err != nil {
+		return
+	}
+	if read != n {
+		err = types.ErrInvalidBuffSize
+	}
+	return
+}
+
+func DecodeHelper(reader io.Reader) (n int, buff []byte, err error) {
+	var n1 int
+	var size uint64
+	size, n1, err = ReadUvarint(reader)
+	n += n1
+	if err != nil {
+		return
+	}
+	if size == 0 {
+		return
+	}
+	n1, buff, err = ReadBytes(int(size), reader)
+	n += n1
+	return
+}
+
+func EncodeHelper(arr []byte, writer io.Writer) (n int, err error) {
+	var n1 int
+	n1, err = EncodeUvarint(uint64(len(arr)), writer)
+	n += n1
+	if err != nil {
+		return
+	}
+	n1, err = writer.Write(arr)
+	n += n1
+	return
+}
+
+// SubSortedSlice subtracts s2 from s1
+func SubSortedSlice(s1 sort.IntSlice, s2 sort.IntSlice) sort.IntSlice {
+	ret := make(sort.IntSlice, len(s1))
+	copy(ret, s1)
+	for _, nxt := range s2 {
+		_, ret = RemoveFromSlice(nxt, ret)
+	}
+	ret.Sort()
+	return ret
+}
+
+// ContainsSlice returns true if s2 is contained in s1
+func ContainsSlice(s1 sort.IntSlice, s2 sort.IntSlice) bool {
+	sub := SubSortedSlice(s1, s2)
+	if len(sub)+len(s2) == len(s1) {
+		return true
+	}
+	return false
 }

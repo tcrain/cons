@@ -24,6 +24,7 @@ import (
 	// "sync/atomic"
 	"encoding/binary"
 	"github.com/tcrain/cons/consensus/types"
+	"io"
 	"math/bits"
 	"sort"
 
@@ -38,11 +39,65 @@ type BitID struct {
 	str        string        // This is Buff stored as a string
 	itemList   sort.IntSlice // This is a sorted list of the unencoded indecies
 	numItems   int           // This is the count of indecies stored
+	min, max   int
 }
 
-func get1Count(buff []byte) int {
-	var count int
-	for _, b := range buff {
+func (bid *BitID) New() NewBitIDInterface {
+	return &BitID{numItems: -1}
+}
+func (bid *BitID) DoMakeCopy() NewBitIDInterface {
+	return bid.MakeCopy().(*BitID)
+}
+func (bid *BitID) NewIterator() BIDIter {
+	ret := NewBitIDIterator()
+	ret.bid = bid
+	return ret
+}
+
+// Returns the smallest element, the largest element, and the total number of elements
+func (bid *BitID) GetBasicInfo() (min, max, count int) {
+	bid.GetNumItems() // populate the items
+	return bid.min, bid.max, bid.numItems
+}
+
+// Allocate the expected initial size
+func (bid *BitID) SetInitialSize(v int) {
+	bid.encodeBuff = make([]byte, v/8+1+1)
+	bid.Buff = bid.encodeBuff[1:]
+}
+
+// Append an item at the end of the bitID (must be bigger than all existing items)
+func (bid *BitID) AppendItem(v int) {
+	bid.AddBitID(v, false, nil)
+}
+
+func (bid *BitID) Encode(writer io.Writer) (n int, err error) {
+	return utils.EncodeHelper(bid.DoEncode(), writer)
+}
+func (bid *BitID) Decode(reader io.Reader) (n int, err error) {
+	var buff []byte
+	n, buff, err = utils.DecodeHelper(reader)
+	if err != nil {
+		return
+	}
+	err = bid.doDecode(buff)
+	return
+}
+
+func get1Count(buff []byte) (min, max, count int) {
+	var foundMin bool
+	for i, b := range buff {
+		if !foundMin {
+			z := bits.TrailingZeros8(b) // TODO does endian matter here?
+			if z < 8 {
+				min = i*8 + z
+				foundMin = true
+			}
+		}
+		z := bits.LeadingZeros8(b)
+		if z < 8 {
+			max = i*8 + (7 - z)
+		}
 		count += bits.OnesCount8(b)
 		// for _, j := range bitItems {
 		// 	if b&j > 0 {
@@ -50,13 +105,14 @@ func get1Count(buff []byte) int {
 		// 	}
 		// }
 	}
-	return count
+	return
 }
 
 func (bid *BitID) NextID(iter *BitIDIterator) (nxt int, err error) {
 	for true {
 		bytID := iter.iterIdx / 8
 		if bytID >= len(bid.Buff) {
+			iter.started = false
 			return 0, types.ErrNoItems
 		}
 		switch (1 << uint(iter.iterIdx%8)) & bid.Buff[bytID] {
@@ -72,16 +128,21 @@ func (bid *BitID) NextID(iter *BitIDIterator) (nxt int, err error) {
 }
 
 func (bid *BitID) MakeCopy() BitIDInterface {
+	if bid.GetNumItems() == 0 {
+		return &BitID{}
+	}
 	encodeBuff := make([]byte, len(bid.encodeBuff))
 	copy(encodeBuff, bid.encodeBuff)
 	return &BitID{
 		Buff:       encodeBuff[1:],
 		encodeBuff: encodeBuff,
 		str:        bid.str,
-		numItems:   bid.numItems}
+		numItems:   bid.numItems,
+		min:        bid.min,
+		max:        bid.max}
 }
 
-func (bid *BitID) Encode() []byte {
+func (bid *BitID) DoEncode() []byte {
 	if len(bid.Buff) <= bid.GetNumItems()*4 {
 		// generalconfig.Encoding.PutUint32(bid.encodeBuff[1:], uint32(bid.GetNumItems()))
 		return bid.encodeBuff
@@ -89,7 +150,7 @@ func (bid *BitID) Encode() []byte {
 
 	// smaller to just encode the values as ints directly
 	enc := make([]byte, 1, bid.GetNumItems()*binary.MaxVarintLen32+1)
-	enc[0] = byte(BitIDBasic)
+	enc[0] = byte(types.BitIDBasic)
 
 	putIn := make([]byte, binary.MaxVarintLen64)
 	for _, nxt := range bid.GetItemList() {
@@ -99,18 +160,19 @@ func (bid *BitID) Encode() []byte {
 	return enc
 }
 
-func DecodeBitID(buff []byte) (*BitID, error) {
+func (bid *BitID) doDecode(buff []byte) error {
 	if len(buff) < 1 {
-		return nil, types.ErrInvalidBitID
+		return types.ErrInvalidBitID
 	}
 	switch buff[0] {
-	case byte(BitIDSingle):
+	case byte(types.BitIDSingle):
 		// we construct the itemList lazily
 		buff = utils.TrimZeros(buff, 1)
-		return &BitID{Buff: buff[1:],
-			encodeBuff: buff,
-			numItems:   -1}, nil
-	case byte(BitIDBasic):
+		bid.Buff = buff[1:]
+		bid.encodeBuff = buff
+		bid.numItems = -1
+		return nil
+	case byte(types.BitIDBasic):
 		var itemList sort.IntSlice
 		pos := 1
 		prv := -1
@@ -119,23 +181,33 @@ func DecodeBitID(buff []byte) (*BitID, error) {
 			vint := int(v)
 			if vint < 0 || vint <= prv {
 				// must be sorted and no duplicates
-				return nil, types.ErrUnsortedBitID
+				return types.ErrUnsortedBitID
 			}
 			pos += n
 			itemList = append(itemList, vint)
 			prv = vint
 		}
 		if !sort.IsSorted(itemList) {
-			return nil, types.ErrInvalidBitID
+			return types.ErrInvalidBitID
 		}
-		return CreateBitIDFromInts(itemList)
+		return bid.fromInts(itemList)
 	}
-	return nil, types.ErrInvalidBitID
+	return types.ErrInvalidBitID
 }
 
+func DecodeBitID(buff []byte) (*BitID, error) {
+	ret := &BitID{}
+	err := ret.doDecode(buff)
+	return ret, err
+}
+
+// Done is called when this item is no longer needed
+func (bid *BitID) Done() {
+	panic("TODO")
+}
 func (bid *BitID) GetNumItems() int {
 	if bid.numItems == -1 {
-		bid.numItems = get1Count(bid.Buff)
+		bid.min, bid.max, bid.numItems = get1Count(bid.Buff)
 	}
 	return bid.numItems
 }
@@ -151,9 +223,14 @@ func bitIDGetMaxLen(maxMembers int) int {
 	return (maxMembers / 8) + extra
 }
 
+// AllowDuplicates returns false.
+func (bid *BitID) AllowsDuplicates() bool {
+	return false
+}
+
 func (bid *BitID) GetStr() string {
 	if bid.str == "" {
-		bid.str = string(bid.Encode())
+		bid.str = string(bid.DoEncode())
 	}
 	// if bid.str == "" && len(bid.Buff) > 0 {
 	// 	bid.str = string(bid.Buff)
@@ -170,7 +247,7 @@ func MergeBitIDList(bList ...BitIDInterface) *BitID {
 		}
 	}
 	encBuff := make([]byte, maxLen+1)
-	encBuff[0] = byte(BitIDSingle)
+	encBuff[0] = byte(types.BitIDSingle)
 	buff := encBuff[1:]
 	for i := 0; i < maxLen; i++ {
 		for _, bid := range bList {
@@ -188,17 +265,17 @@ func MergeBitIDList(bList ...BitIDInterface) *BitID {
 		numItems:   -1}
 }
 
-func (bid1 *BitID) GetNewItems(otherBid BitIDInterface) BitIDInterface {
+func (bid *BitID) GetNewItems(otherBid BitIDInterface) BitIDInterface {
 	bid2 := otherBid.(*BitID)
-	encBuff := make([]byte, utils.Max(len(bid1.Buff), len(bid2.Buff))+1)
-	encBuff[0] = byte(BitIDSingle)
+	encBuff := make([]byte, utils.Max(len(bid.Buff), len(bid2.Buff))+1)
+	encBuff[0] = byte(types.BitIDSingle)
 	buff := encBuff[1:]
 
-	end := utils.Min(len(bid1.Buff), len(bid2.Buff))
+	end := utils.Min(len(bid.Buff), len(bid2.Buff))
 	for i := 0; i < end; i++ {
-		buff[i] = (bid1.Buff[i] ^ bid2.Buff[i]) & bid2.Buff[i]
+		buff[i] = (bid.Buff[i] ^ bid2.Buff[i]) & bid2.Buff[i]
 	}
-	if len(bid1.Buff) < len(bid2.Buff) {
+	if len(bid.Buff) < len(bid2.Buff) {
 		copy(buff[end:], bid2.Buff[end:])
 	}
 	encBuff = utils.TrimZeros(encBuff, 1)
@@ -211,7 +288,7 @@ func (bid1 *BitID) GetNewItems(otherBid BitIDInterface) BitIDInterface {
 
 func MergeBitID(bid1 *BitID, bid2 *BitID) *BitID {
 	encBuff := make([]byte, utils.Max(len(bid1.Buff), len(bid2.Buff))+1)
-	encBuff[0] = byte(BitIDSingle)
+	encBuff[0] = byte(types.BitIDSingle)
 	buff := encBuff[1:]
 
 	var longBid, shortBid []byte
@@ -244,7 +321,7 @@ func SubBitID(bid1 *BitID, bid2 *BitID) *BitID {
 	// }
 
 	encBuff := make([]byte, len(bid1.Buff)+1)
-	encBuff[0] = byte(BitIDSingle)
+	encBuff[0] = byte(types.BitIDSingle)
 	buff := encBuff[1:]
 	minEnd := utils.Min(len(bid1.Buff), len(bid2.Buff))
 
@@ -359,7 +436,7 @@ func (bid *BitID) CheckBitID(ID int) bool {
 	return false
 }
 
-func (bid *BitID) AddBitID(ID int, allowDup bool, iter *BitIDIterator) bool {
+func (bid *BitID) AddBitID(ID int, allowDup bool, _ *BitIDIterator) bool {
 	if allowDup {
 		panic("single bitid cant be used with duplicates")
 	}
@@ -403,6 +480,12 @@ func (bid *BitID) AddBitID(ID int, allowDup bool, iter *BitIDIterator) bool {
 	}
 	if bid.numItems != -1 {
 		bid.numItems++
+		if bid.min > ID {
+			bid.min = ID
+		}
+		if bid.max < ID {
+			bid.max = ID
+		}
 	}
 	return true
 }
@@ -414,7 +497,7 @@ func CreateBitIDFromBytes(arr []byte) (*BitID, error) {
 	}
 
 	encodeBuff := make([]byte, len(arr)+1)
-	encodeBuff[0] = byte(BitIDSingle)
+	encodeBuff[0] = byte(types.BitIDSingle)
 	copy(encodeBuff[1:], arr)
 	encodeBuff = utils.TrimZeros(encodeBuff, 1)
 	// we construct the itemList lazily
@@ -425,22 +508,23 @@ func CreateBitIDFromBytes(arr []byte) (*BitID, error) {
 
 // var count int32
 
-// CreateBitIDFromInts does not clopy the int slice and may modify it when adding new items
-func CreateBitIDFromInts(items sort.IntSlice) (*BitID, error) {
+func (bid *BitID) fromInts(items sort.IntSlice) error {
 	if len(items) == 0 {
 		//n := atomic.AddInt32(&count, 1)
 		enc := make([]byte, 1)
-		enc[0] = byte(BitIDBasic)
-		return &BitID{encodeBuff: enc, numItems: -1}, nil
+		enc[0] = byte(types.BitIDBasic)
+		bid.encodeBuff = enc
+		bid.numItems = -1
+		return nil
 	}
 	end := items[len(items)-1]
 	if end < 0 || end >= (1<<15-1) {
-		return nil, types.ErrUnsortedBitID
+		return types.ErrUnsortedBitID
 	}
 
 	encRet := make([]byte, (end+8)/8+1)
 	// generalconfig.Encoding.PutUint32(encRet[1:], uint32(len(items)))
-	encRet[0] = byte(BitIDSingle)
+	encRet[0] = byte(types.BitIDSingle)
 	ret := encRet[1:]
 
 	var itemsIdx int
@@ -450,8 +534,15 @@ func CreateBitIDFromInts(items sort.IntSlice) (*BitID, error) {
 		var cur byte
 		for itemsIdx < len(items) && items[itemsIdx] <= i {
 			nxt := items[itemsIdx]
-			if nxt <= prv {
-				return nil, types.ErrUnsortedBitID
+			if nxt < 0 {
+				return types.ErrUnsortedBitID
+			}
+			if nxt == prv {
+				itemsIdx++
+				continue
+			}
+			if nxt < prv {
+				return types.ErrUnsortedBitID
 			}
 			switch nxt % 8 {
 			case 0:
@@ -482,11 +573,26 @@ func CreateBitIDFromInts(items sort.IntSlice) (*BitID, error) {
 	// // we make a copy of the item list because we will modify it if we add new items
 	// cop := make([]int, len(items), cap(items))
 	// copy(cop, items)
-	return &BitID{
-		Buff:       ret,
-		numItems:   len(items),
-		encodeBuff: encRet,
-		itemList:   items}, nil
+	bid.Buff = ret
+	bid.numItems = len(items)
+	bid.min = items[0]
+	bid.max = items[len(items)-1]
+	bid.encodeBuff = encRet
+	bid.itemList = items
+	return nil
+}
+
+func NewBitIDFromInts(items sort.IntSlice) NewBitIDInterface {
+	ret, err := CreateBitIDFromInts(items)
+	utils.PanicNonNil(err)
+	return ret
+}
+
+// CreateBitIDFromInts does not clopy the int slice and may modify it when adding new items
+func CreateBitIDFromInts(items sort.IntSlice) (*BitID, error) {
+	ret := &BitID{}
+	err := ret.fromInts(items)
+	return ret, err
 }
 
 func (bid *BitID) GetItemList() sort.IntSlice {

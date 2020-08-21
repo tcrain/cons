@@ -93,11 +93,11 @@ type MultiPub interface {
 	// MergePubPartial merges the pubs without updating the BitID identifiers.
 	MergePubPartial(MultiPub)
 	// DonePartialMerge should be called after merging keys with MergePubPartial to set the bitid.
-	DonePartialMerge(bitid.BitIDInterface)
+	DonePartialMerge(idInterface bitid.NewBitIDInterface)
 	// MergePub combines two BLS public key objects into a single one (doing all necessary steps)
 	MergePub(MultiPub) (MultiPub, error)
 	// GetBitID returns the BitID for this public key
-	GetBitID() bitid.BitIDInterface
+	GetBitID() bitid.NewBitIDInterface
 	// SubMultiPub removes the input pub from he pub and returns the new pub
 	SubMultiPub(MultiPub) (MultiPub, error)
 	// GenerateSerializedSig serialized the public key and the signature and returns the bytes
@@ -163,6 +163,8 @@ type Pub interface {
 type VRFPriv interface {
 	Evaluate(m SignedMessage) (index [32]byte, proof VRFProof) // For generating VRFs.
 }
+
+type NewPrivFunc func() (Priv, error)
 
 // Priv is a private key object
 type Priv interface {

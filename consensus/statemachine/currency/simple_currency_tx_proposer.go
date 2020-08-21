@@ -280,7 +280,7 @@ func (spi *SimpleCurrencyTxProposer) GetByzProposal(originProposal []byte,
 	if _, err := buff.Write(originProposal[:n]); err != nil {
 		panic(err)
 	}
-	// Encode the txs
+	// DoEncode the txs
 	if _, err := txBlock.Encode(buff); err != nil {
 		panic(err)
 	}
@@ -536,7 +536,7 @@ func (spi *SimpleCurrencyTxProposer) GetProposal() {
 	}
 	spi.myProposals = txs
 
-	// Encode the proposal
+	// DoEncode the proposal
 	ph, _ := spi.hashes.Read(spi.lastBlockIndex)
 	txBlock := &TxBlock{Index: spi.lastBlockIndex + 1,
 		PrevHash:     ph.(types.HashBytes),

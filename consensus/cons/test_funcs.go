@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/dual"
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
@@ -417,17 +418,21 @@ func MakePrivBlsS(to types.TestOptions, thrsh int, idx sig.PubKeyIndex, blsShare
 // instead used an input to functions to that only use the new functions of the interfaces
 // to generate new key objects.
 func MakeUnusedKey(i sig.PubKeyIndex, to types.TestOptions) (p sig.Priv, err error) {
+	intFunc, _ := bitid.GetBitIDFuncs(to.SigBitIDType)
+	newBlsFunc := func() (sig.Priv, error) {
+		return bls.NewBlspriv(intFunc)
+	}
 	switch to.SigType {
 	case types.TBLS:
-		p, err = bls.NewBlspriv()
+		p, err = bls.NewBlspriv(intFunc)
 	case types.TBLSDual:
 		coinType := types.NormalSignature
 		if types.UseTp1CoinThresh(to) {
 			coinType = types.SecondarySignature
 		}
-		p, err = dual.NewDualpriv(bls.NewBlspriv, bls.NewBlspriv, coinType, types.SecondarySignature)
+		p, err = dual.NewDualpriv(newBlsFunc, newBlsFunc, coinType, types.SecondarySignature)
 	case types.CoinDual:
-		p, err = dual.NewDualpriv(ec.NewEcpriv, bls.NewBlspriv, types.SecondarySignature, types.NormalSignature)
+		p, err = dual.NewDualpriv(ec.NewEcpriv, newBlsFunc, types.SecondarySignature, types.NormalSignature)
 	case types.EDCOIN:
 		p, err = ed.NewSchnorrpriv() // we will use this to create the EDCOIN later
 	default:
@@ -446,10 +451,11 @@ func MakeKey(i sig.PubKeyIndex, to types.TestOptions) (p sig.Priv, err error) {
 			p, err = ec.NewEcpriv()
 		}
 	case types.BLS:
+		intFunc, _ := bitid.GetBitIDFuncs(to.SigBitIDType)
 		if to.SleepCrypto {
-			p, err = sleep.NewBLSPriv(i)
+			p, err = sleep.NewBLSPriv(i, intFunc)
 		} else {
-			p, err = bls.NewBlspriv()
+			p, err = bls.NewBlspriv(intFunc)
 		}
 	case types.QSAFE:
 		if to.SleepCrypto {
@@ -522,12 +528,13 @@ func MakeKeys(to types.TestOptions) ([]sig.Priv, []sig.Pub) {
 		}
 	case types.BLS:
 		privFunc = func(i sig.PubKeyIndex) (p sig.Priv) {
+			intFunc, _ := bitid.GetBitIDFuncs(to.SigBitIDType)
 			var err error
 			if to.SleepCrypto {
-				p, err = sleep.NewBLSPriv(i)
+				p, err = sleep.NewBLSPriv(i, intFunc)
 				utils.PanicNonNil(err)
 			} else {
-				p, err = bls.NewBlspriv()
+				p, err = bls.NewBlspriv(intFunc)
 				utils.PanicNonNil(err)
 			}
 			return

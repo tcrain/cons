@@ -59,7 +59,7 @@ func DecodePbitid(buff []byte) (*Pbitid, error) {
 		return nil, types.ErrInvalidBitID
 	}
 	switch buff[0] {
-	case byte(BitIDP):
+	case byte(types.BitIDP):
 		buff = utils.TrimZeros(buff, 1)
 		return &Pbitid{buff: buff, numItems: -1}, nil
 	default:
@@ -82,7 +82,7 @@ func CreatePbitIDFromBytes(arr []byte) (*Pbitid, error) {
 func CreatePbitidFromInts(items sort.IntSlice) (*Pbitid, error) {
 	if len(items) == 0 {
 		enc := make([]byte, 1)
-		enc[0] = byte(BitIDP)
+		enc[0] = byte(types.BitIDP)
 		return &Pbitid{buff: enc, numItems: -1}, nil
 	}
 	end := items[len(items)-1]
@@ -115,8 +115,8 @@ func (bid *Pbitid) MakeCopy() BitIDInterface {
 		n:        bid.n,
 		numItems: bid.numItems}
 }
-func (bid *Pbitid) Encode() []byte {
-	bid.buff[0] = byte(BitIDP) // TODO
+func (bid *Pbitid) DoEncode() []byte {
+	bid.buff[0] = byte(types.BitIDP) // TODO
 	return bid.buff
 }
 func (bid *Pbitid) GetNumItems() int {
@@ -180,7 +180,7 @@ func (bid *Pbitid) GetItemList() sort.IntSlice {
 }
 func (bid *Pbitid) GetStr() string {
 	if bid.str == "" {
-		bid.str = string(bid.Encode())
+		bid.str = string(bid.DoEncode())
 	}
 	return bid.str
 }

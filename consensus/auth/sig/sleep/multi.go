@@ -12,14 +12,16 @@ import (
 
 type multiPub struct {
 	sleepPub
-	stats *sig.SigStats
-	bitID bitid.BitIDInterface
+	stats        *sig.SigStats
+	bitID        bitid.NewBitIDInterface
+	newBitIDFunc bitid.FromIntFunc
 }
 
-func newMultiPub(p sig.Pub, stats *sig.SigStats) *multiPub {
+func newMultiPub(p sig.Pub, newBitIDFunc bitid.FromIntFunc, stats *sig.SigStats) *multiPub {
 	ret := &multiPub{
-		sleepPub: p.(sleepPub),
-		stats:    stats,
+		sleepPub:     p.(sleepPub),
+		stats:        stats,
+		newBitIDFunc: newBitIDFunc,
 	}
 	// ret.SetIndex(p.GetIndex())
 	return ret
@@ -28,8 +30,9 @@ func newMultiPub(p sig.Pub, stats *sig.SigStats) *multiPub {
 // New creates a new public key object of the same type
 func (pub *multiPub) New() sig.Pub {
 	return &multiPub{
-		sleepPub: pub.sleepPub.New().(sleepPub),
-		stats:    pub.stats,
+		sleepPub:     pub.sleepPub.New().(sleepPub),
+		stats:        pub.stats,
+		newBitIDFunc: pub.newBitIDFunc,
 	}
 }
 
@@ -40,8 +43,9 @@ func (pub *multiPub) FromPubBytes(b sig.PubKeyBytes) (sig.Pub, error) {
 		panic(err)
 	}
 	return &multiPub{
-		sleepPub: p.(sleepPub),
-		stats:    pub.stats,
+		newBitIDFunc: pub.newBitIDFunc,
+		sleepPub:     p.(sleepPub),
+		stats:        pub.stats,
 	}, nil
 }
 
@@ -52,18 +56,15 @@ func (pub *multiPub) DeserializeSig(m *messages.Message, signType types.SignType
 
 // GetSigMemberNumber returns the number of nodes represented by this pub key
 func (pub *multiPub) GetSigMemberNumber() int {
-	return pub.bitID.GetNumItems()
+	_, _, count := pub.bitID.GetBasicInfo()
+	return count
 }
 
 // SetIndex sets the index of the node represented by this public key in the consensus participants
 func (pub *multiPub) SetIndex(index sig.PubKeyIndex) {
 	// pub.pubID = ""
 	pub.sleepPub.SetIndex(index)
-	var err error
-	pub.bitID, err = bitid.CreateBitIDTypeFromInts([]int{int(index)})
-	if err != nil {
-		panic(err)
-	}
+	pub.bitID = pub.newBitIDFunc([]int{int(index)})
 }
 
 // GetIndex gets the index of the node represented by this key in the consensus participants
@@ -90,12 +91,12 @@ func (pub *multiPub) ShallowCopy() sig.Pub {
 func (pub *multiPub) SubMultiPub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 	p1bid := pub.GetBitID()
 	p2bid := pub2.GetBitID()
-	if p1bid.GetNumItems() <= p2bid.GetNumItems() {
-		return nil, types.ErrInvalidBitIDSub
+
+	nPbid, err := bitid.SubHelper(p1bid, p2bid, bitid.NonIntersectingAndEmpty, p1bid.New, nil)
+	if err != nil {
+		return nil, err
 	}
-	if len(p1bid.CheckIntersection(p2bid)) != p2bid.GetNumItems() {
-		return nil, types.ErrInvalidBitIDSub
-	}
+
 	pb1, err := pub.GetPubBytes()
 	if err != nil {
 		panic(err)
@@ -115,7 +116,9 @@ func (pub *multiPub) SubMultiPub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 	}
 
 	time.Sleep(pub.stats.MultiCombineTime)
-	return &multiPub{sleepPub: newPub.(sleepPub), bitID: bitid.SubBitIDType(p1bid, p2bid), stats: pub.stats}, nil
+	return &multiPub{sleepPub: newPub.(sleepPub),
+		newBitIDFunc: pub.newBitIDFunc,
+		bitID:        nPbid, stats: pub.stats}, nil
 }
 
 // MergePubPartial only merges the pub itself, does not create the new bitid
@@ -135,7 +138,7 @@ func (pub *multiPub) GetPubID() (sig.PubKeyID, error) {
 }
 
 // DonePartialMerge should be called after merging keys with MergePubPartial to set the bitid
-func (pub *multiPub) DonePartialMerge(bid bitid.BitIDInterface) {
+func (pub *multiPub) DonePartialMerge(bid bitid.NewBitIDInterface) {
 	pub.bitID = bid
 }
 
@@ -156,8 +159,9 @@ func (pub *multiPub) MergePub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 	if p1bid == nil || p2bid == nil {
 		return nil, types.ErrInvalidBitID
 	}
-	if !config.AllowMultiMerge && len(p1bid.CheckIntersection(p2bid)) > 0 {
-		return nil, types.ErrIntersectingBitIDs
+	nBid, err := bitid.AddHelper(p1bid, p2bid, config.AllowMultiMerge, !config.AllowMultiMerge, p1bid.New, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	pb1, err := pub.GetPubBytes()
@@ -179,13 +183,14 @@ func (pub *multiPub) MergePub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 	}
 
 	return &multiPub{
-		stats:    pub.stats,
-		sleepPub: newPub.(sleepPub),
-		bitID:    bitid.MergeBitIDType(p1bid, p2bid, config.AllowMultiMerge)}, nil
+		newBitIDFunc: pub.newBitIDFunc,
+		stats:        pub.stats,
+		sleepPub:     newPub.(sleepPub),
+		bitID:        nBid}, nil
 }
 
 // GetBitID returns the bit id object representing the indecies of the nodes represented by the BLS public key oject
-func (pub *multiPub) GetBitID() bitid.BitIDInterface {
+func (pub *multiPub) GetBitID() bitid.NewBitIDInterface {
 	return pub.bitID
 }
 
@@ -196,17 +201,18 @@ func (pub *multiPub) Serialize(m *messages.Message) (int, error) {
 	// now the pub
 	if sig.UseMultisig && pub.stats.AllowsMulti {
 		// the bit id
+		// the bit id
 		bid := pub.GetBitID()
 		if bid == nil {
 			return 0, types.ErrInvalidBitID
 		}
-		bidEncoding := bid.Encode()
-		l1, _ := (*messages.MsgBuffer)(m).AddUint32(uint32(len(bidEncoding)))
+		l1, err := bid.Encode((*messages.MsgBuffer)(m))
 		l += l1
-		(*messages.MsgBuffer)(m).AddBytes(bidEncoding)
-		l += len(bidEncoding)
+		if err != nil {
+			return l, err
+		}
 		// now update the size
-		err := (*messages.MsgBuffer)(m).WriteUint32At(sizeOffset, uint32(l))
+		err = (*messages.MsgBuffer)(m).WriteUint32At(sizeOffset, uint32(l))
 		if err != nil {
 			return 0, err
 		}
@@ -226,19 +232,11 @@ func (pub *multiPub) Deserialize(m *messages.Message, unmarFunc types.ConsensusI
 			return 0, err
 		}
 		// the bit id
-		bitIDlen, br, err := (*messages.MsgBuffer)(m).ReadUint32()
-		if err != nil {
-			return 0, err
-		}
+		pub.bitID = pub.newBitIDFunc(nil)
+		br, err := pub.bitID.Decode((*messages.MsgBuffer)(m))
 		l += br
-		bitID, err := (*messages.MsgBuffer)(m).ReadBytes(int(bitIDlen))
 		if err != nil {
-			return 0, err
-		}
-		l += len(bitID)
-		pub.bitID, err = bitid.DecodeBitIDType(bitID)
-		if err != nil {
-			return 0, err
+			return l, err
 		}
 		if size != uint32(l) {
 			return 0, types.ErrInvalidMsgSize

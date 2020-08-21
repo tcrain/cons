@@ -64,7 +64,7 @@ func (ba *BasicAsset) New() types.EncodeInterface {
 
 // Encode the the asset to the writer.
 func (ba *BasicAsset) Encode(writer io.Writer) (n int, err error) {
-	// if n, err = ba.Owner.Encode(writer); err != nil {
+	// if n, err = ba.Owner.DoEncode(writer); err != nil {
 	//	return
 	// }
 

@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package bls
 
 import (
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/types"
 	"testing"
@@ -347,115 +348,144 @@ func TestBlsMerge(t *testing.T) {
 	toSign := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
 
 	var err error
-	for i := range privs {
-		privs[i], err = NewBlspriv()
-		assert.Nil(t, err)
+	for _, newBid := range bitid.NewBitIDFuncs {
+		for i := range privs {
+			privs[i], err = NewBlspriv(newBid)
+			assert.Nil(t, err)
 
-		sigs[i], err = privs[i].(*Blspriv).Sign(toSign)
-		assert.Nil(t, err)
+			sigs[i], err = privs[i].(*Blspriv).Sign(toSign)
+			assert.Nil(t, err)
 
-		pub := privs[i].GetPub()
-		pub.SetIndex(sig.PubKeyIndex(i))
+			pub := privs[i].GetPub()
+			pub.SetIndex(sig.PubKeyIndex(i))
+
+			msg := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
+			v, err := pub.VerifySig(msg, sigs[i])
+			assert.Nil(t, err)
+			assert.True(t, v)
+		}
+
+		mergeSig := sigs[0]
+		mergePub := privs[0].GetPub()
+		for i := 1; i < multiSigCount; i++ {
+			newMergeSig, err := mergeSig.(sig.AllMultiSig).MergeSig(sigs[i].(sig.MultiSig))
+			assert.Nil(t, err)
+			mergeSig = newMergeSig.(sig.AllMultiSig)
+
+			newMergePub, err := mergePub.(sig.MultiPub).MergePub(privs[i].GetPub().(sig.MultiPub))
+			assert.Nil(t, err)
+			mergePub = newMergePub.(sig.AllMultiPub)
+
+			msg := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
+			v, err := mergePub.(sig.AllMultiPub).VerifySig(msg, mergeSig.(sig.AllMultiSig))
+			assert.Nil(t, err)
+			assert.True(t, v)
+		}
+
+		subSig := mergeSig
+		subPub := mergePub
+		for i := 1; i < multiSigCount; i++ {
+			newSubSig, err := subSig.(sig.AllMultiSig).SubSig(sigs[i].(sig.AllMultiSig))
+			assert.Nil(t, err)
+			subSig = newSubSig.(sig.AllMultiSig)
+
+			newSubPub, err := subPub.(sig.MultiPub).SubMultiPub(privs[i].GetPub().(sig.MultiPub))
+			assert.Nil(t, err)
+			subPub = newSubPub.(sig.AllMultiPub)
+
+			msg := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
+			v, err := subPub.VerifySig(msg, subSig)
+			assert.Nil(t, err)
+			assert.True(t, v)
+		}
 
 		msg := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
-		v, err := pub.VerifySig(msg, sigs[i])
+		v, err := subPub.VerifySig(msg, sigs[0])
+		assert.Nil(t, err)
+		assert.True(t, v)
+
+		msg = &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
+		v, err = privs[0].GetPub().VerifySig(msg, subSig)
 		assert.Nil(t, err)
 		assert.True(t, v)
 	}
-
-	mergeSig := sigs[0]
-	mergePub := privs[0].GetPub()
-	for i := 1; i < multiSigCount; i++ {
-		newMergeSig, err := mergeSig.(sig.AllMultiSig).MergeSig(sigs[i].(sig.MultiSig))
-		assert.Nil(t, err)
-		mergeSig = newMergeSig.(sig.AllMultiSig)
-
-		newMergePub, err := mergePub.(sig.MultiPub).MergePub(privs[i].GetPub().(sig.MultiPub))
-		assert.Nil(t, err)
-		mergePub = newMergePub.(sig.AllMultiPub)
-
-		msg := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
-		v, err := mergePub.(sig.AllMultiPub).VerifySig(msg, mergeSig.(sig.AllMultiSig))
-		assert.Nil(t, err)
-		assert.True(t, v)
-	}
-
-	subSig := mergeSig
-	subPub := mergePub
-	for i := 1; i < multiSigCount; i++ {
-		newSubSig, err := subSig.(sig.AllMultiSig).SubSig(sigs[i].(sig.AllMultiSig))
-		assert.Nil(t, err)
-		subSig = newSubSig.(sig.AllMultiSig)
-
-		newSubPub, err := subPub.(sig.MultiPub).SubMultiPub(privs[i].GetPub().(sig.MultiPub))
-		assert.Nil(t, err)
-		subPub = newSubPub.(sig.AllMultiPub)
-
-		msg := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
-		v, err := subPub.VerifySig(msg, subSig)
-		assert.Nil(t, err)
-		assert.True(t, v)
-	}
-
-	msg := &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
-	v, err := subPub.VerifySig(msg, sigs[0])
-	assert.Nil(t, err)
-	assert.True(t, v)
-
-	msg = &sig.MultipleSignedMessage{Hash: hash, Msg: sigMsg}
-	v, err = privs[0].GetPub().VerifySig(msg, subSig)
-	assert.Nil(t, err)
-	assert.True(t, v)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+var newBlsPrivFuncs []sig.NewPrivFunc
+
+func init() {
+	for _, nxt := range bitid.NewBitIDFuncs {
+		bitIDFunc := nxt
+		newBlsPrivFuncs = append(newBlsPrivFuncs, func() (sig.Priv, error) {
+			return NewBlspriv(bitIDFunc)
+		})
+	}
+}
+
 func TestBlsPrintStats(t *testing.T) {
 	t.Log("BLS stats")
-	sig.RunFuncWithConfigSetting(func() { sig.SigTestPrintStats(NewBlspriv, t) },
+	sig.RunFuncWithConfigSetting(func() { sig.SigTestPrintStats(newBlsPrivFuncs[0], t) },
 		types.WithFalse, types.WithBothBool, types.WithTrue, types.WithFalse)
 }
 
 func TestBlsSharedSecret(t *testing.T) {
-	sig.RunFuncWithConfigSetting(func() { sig.SigTestComputeSharedSecret(NewBlspriv, t) },
-		types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	for _, nxt := range newBlsPrivFuncs {
+		sig.RunFuncWithConfigSetting(func() { sig.SigTestComputeSharedSecret(nxt, t) },
+			types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	}
 }
 
 func TestBlsEncode(t *testing.T) {
-	sig.RunFuncWithConfigSetting(func() { sig.SigTestEncode(NewBlspriv, t) },
-		types.WithFalse, types.WithFalse, types.WithFalse, types.WithBothBool)
+	for _, nxt := range newBlsPrivFuncs {
+		sig.RunFuncWithConfigSetting(func() { sig.SigTestEncode(nxt, t) },
+			types.WithFalse, types.WithFalse, types.WithFalse, types.WithBothBool)
+	}
 }
 
 func TestBlsFromBytes(t *testing.T) {
-	sig.RunFuncWithConfigSetting(func() { sig.SigTestFromBytes(NewBlspriv, t) },
-		types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	for _, nxt := range newBlsPrivFuncs {
+		sig.RunFuncWithConfigSetting(func() { sig.SigTestFromBytes(nxt, t) },
+			types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	}
 }
 
 func TestBlsSort(t *testing.T) {
-	sig.RunFuncWithConfigSetting(func() { sig.SigTestSort(NewBlspriv, t) },
-		types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	for _, nxt := range newBlsPrivFuncs {
+		sig.RunFuncWithConfigSetting(func() { sig.SigTestSort(nxt, t) },
+			types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	}
 }
 
 func TestBlsSign(t *testing.T) {
-	sig.RunFuncWithConfigSetting(func() { sig.SigTestSign(NewBlspriv, types.NormalSignature, t) },
-		types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithFalse)
+	for _, nxt := range newBlsPrivFuncs {
+		sig.RunFuncWithConfigSetting(func() { sig.SigTestSign(nxt, types.NormalSignature, t) },
+			types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithFalse)
+	}
 }
 
 func TestBlsGetRand(t *testing.T) {
-	sig.RunFuncWithConfigSetting(func() { sig.SigTestRand(NewBlspriv, t) },
-		types.WithFalse, types.WithFalse, types.WithFalse, types.WithFalse)
+	for _, nxt := range newBlsPrivFuncs {
+		sig.RunFuncWithConfigSetting(func() { sig.SigTestRand(nxt, t) },
+			types.WithFalse, types.WithFalse, types.WithFalse, types.WithFalse)
+	}
 }
 
 func TestBlsSerialize(t *testing.T) {
-	sig.RunFuncWithConfigSetting(func() { sig.SigTestSerialize(NewBlspriv, types.NormalSignature, t) },
-		types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	for _, nxt := range newBlsPrivFuncs {
+		sig.RunFuncWithConfigSetting(func() { sig.SigTestSerialize(nxt, types.NormalSignature, t) },
+			types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	}
 }
 
 func TestBlsVRF(t *testing.T) {
-	sig.RunFuncWithConfigSetting(func() { sig.SigTestVRF(NewBlspriv, t) },
-		types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	for _, nxt := range newBlsPrivFuncs {
+		sig.RunFuncWithConfigSetting(func() { sig.SigTestVRF(nxt, t) },
+			types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	}
 }
 
 // func TestBlsTestMessageSerialize(t *testing.T) {
@@ -464,16 +494,22 @@ func TestBlsVRF(t *testing.T) {
 // }
 
 func TestBlsMultiSignTestMsgSerialize(t *testing.T) {
-	sig.RunFuncWithConfigSetting(func() { sig.SigTestMultiSignTestMsgSerialize(NewBlspriv, t) },
-		types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	for _, nxt := range newBlsPrivFuncs {
+		sig.RunFuncWithConfigSetting(func() { sig.SigTestMultiSignTestMsgSerialize(nxt, t) },
+			types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	}
 }
 
 func TestBlsSignTestMsgSerialize(t *testing.T) {
-	sig.RunFuncWithConfigSetting(func() { sig.SigTestSignTestMsgSerialize(NewBlspriv, t) },
-		types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	for _, nxt := range newBlsPrivFuncs {
+		sig.RunFuncWithConfigSetting(func() { sig.SigTestSignTestMsgSerialize(nxt, t) },
+			types.WithBothBool, types.WithBothBool, types.WithBothBool, types.WithBothBool)
+	}
 }
 
 func TestBlsSignMerge(t *testing.T) {
-	sig.RunFuncWithConfigSetting(func() { sig.TestSigMerge(NewBlspriv, t) },
-		types.WithBothBool, types.WithBothBool, types.WithTrue, types.WithBothBool)
+	for _, nxt := range newBlsPrivFuncs {
+		sig.RunFuncWithConfigSetting(func() { sig.TestSigMerge(nxt, t) },
+			types.WithBothBool, types.WithBothBool, types.WithTrue, types.WithBothBool)
+	}
 }

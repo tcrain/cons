@@ -234,7 +234,7 @@ func (spi *SimpleTxProposer) GetProposal() {
 	writer := bytes.NewBuffer(nil)
 	spi.RandGetProposal(writer)
 
-	// Encode the proposal
+	// DoEncode the proposal
 	txList := transactionsm.TransactionList{validTx, allocFunc}
 	_, err := txList.Encode(writer)
 	if err != nil {
@@ -277,7 +277,7 @@ func (spi *SimpleTxProposer) GetByzProposal(originProposal []byte,
 	if _, err := buff.Write(originProposal[:n]); err != nil {
 		panic(err)
 	}
-	// Encode the txs
+	// DoEncode the txs
 	if _, err := txList.Encode(buff); err != nil {
 		panic(err)
 	}

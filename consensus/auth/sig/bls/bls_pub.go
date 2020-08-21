@@ -26,6 +26,7 @@ import (
 	"go.dedis.ch/kyber/v3/pairing"
 	"golang.org/x/crypto/blake2b"
 	"io"
+	"sort"
 	"time"
 
 	"github.com/tcrain/cons/config"
@@ -68,18 +69,18 @@ func (prf VRFProof) New() sig.VRFProof {
 func (pub *Blspub) SubMultiPub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 	p1bid := pub.GetBitID()
 	p2bid := pub2.GetBitID()
-	if p1bid.GetNumItems() <= p2bid.GetNumItems() {
-		return nil, types.ErrInvalidBitIDSub
-	}
-	if len(p1bid.CheckIntersection(p2bid)) != p2bid.GetNumItems() {
-		return nil, types.ErrInvalidBitIDSub
+
+	nPbid, err := bitid.SubHelper(p1bid, p2bid, bitid.NonIntersectingAndEmpty, p1bid.New, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	pb := pub.newPub.Clone().Sub(pub.newPub, pub2.(*Blspub).newPub)
 	return &Blspub{
-		pub:    pb,
-		newPub: pb,
-		bitID:  bitid.SubBitIDType(p1bid, p2bid)}, nil
+		newBidFunc: pub.newBidFunc,
+		pub:        pb,
+		newPub:     pb,
+		bitID:      nPbid}, nil
 }
 
 // MergePubPartial only merges the pub itself, does not create the new bitid
@@ -90,7 +91,7 @@ func (pub *Blspub) MergePubPartial(pub2 sig.MultiPub) {
 }
 
 // DonePartialMerge should be called after merging keys with MergePubPartial to set the bitid
-func (pub *Blspub) DonePartialMerge(bid bitid.BitIDInterface) {
+func (pub *Blspub) DonePartialMerge(bid bitid.NewBitIDInterface) {
 	pub.bitID = bid
 }
 
@@ -111,19 +112,21 @@ func (pub *Blspub) MergePub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 	if p1bid == nil || p2bid == nil {
 		return nil, types.ErrInvalidBitID
 	}
-	if !config.AllowMultiMerge && len(p1bid.CheckIntersection(p2bid)) > 0 {
-		return nil, types.ErrIntersectingBitIDs
+	nBid, err := bitid.AddHelper(p1bid, p2bid, config.AllowMultiMerge, !config.AllowMultiMerge, p1bid.New, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	pb := pub.newPub.Clone().Add(pub2.(*Blspub).newPub, pub.newPub)
 	return &Blspub{
-		pub:    pb,
-		newPub: pb,
-		bitID:  bitid.MergeBitIDType(p1bid, p2bid, config.AllowMultiMerge)}, nil
+		newBidFunc: pub.newBidFunc,
+		pub:        pb,
+		newPub:     pb,
+		bitID:      nBid}, nil
 }
 
 // GetBitID returns the bit id object representing the indecies of the nodes represented by the BLS public key oject
-func (pub *Blspub) GetBitID() bitid.BitIDInterface {
+func (pub *Blspub) GetBitID() bitid.NewBitIDInterface {
 	return pub.bitID
 }
 
@@ -134,8 +137,9 @@ func (pub *Blspub) GetBitID() bitid.BitIDInterface {
 // Clone returns a new Blspub only containing the points (no bitid), should be called before merging the first set of keys with MergePubPartial
 func (pub *Blspub) Clone() sig.MultiPub {
 	return &Blspub{
-		pub:    pub.pub.Clone(),
-		newPub: pub.newPub.Clone()}
+		newBidFunc: pub.newBidFunc,
+		pub:        pub.pub.Clone(),
+		newPub:     pub.newPub.Clone()}
 }
 
 // NewVRFProof returns an empty VRFProof object
@@ -165,7 +169,7 @@ func (pub *Blspub) CheckSignature(msg *sig.MultipleSignedMessage, sigItem *sig.S
 func (pub *Blspub) ProofToHash(m sig.SignedMessage, proof sig.VRFProof) (index [32]byte, err error) {
 	bsig := &Blssig{}
 	var n int
-	n, err = bsig.Decode(bytes.NewReader(proof.(VRFProof)))
+	n, err = bsig.Decode(bytes.NewBuffer(proof.(VRFProof)))
 	if err != nil {
 		return
 	}
@@ -191,7 +195,7 @@ func (pub *Blspub) ProofToHash(m sig.SignedMessage, proof sig.VRFProof) (index [
 	return
 }
 
-// MergeBlsPubList combines a list of BLS public key objects into a single one
+/*// MergeBlsPubList combines a list of BLS public key objects into a single one
 // Note this is not currently used, instead the MergePubPartial is used
 func MergeBlsPubList(pubs ...*Blspub) (*Blspub, error) {
 	if len(pubs) == 0 {
@@ -217,6 +221,7 @@ func MergeBlsPubList(pubs ...*Blspub) (*Blspub, error) {
 		newPub: pb,
 		bitID:  bitid.MergeBitIDListType(true, bids...)}, nil
 }
+*/
 
 ///////////////////////////////////////////////////////////////////////////
 // Public key
@@ -224,16 +229,17 @@ func MergeBlsPubList(pubs ...*Blspub) (*Blspub, error) {
 
 // Blspub represent a BLS public key object
 type Blspub struct {
-	pub         kyber.Point          // public key as a point on the ecCurve
-	newPub      kyber.Point          // if using new multi sigs, is pub * hpk, otherwise is just the public key
-	hpk         kyber.Scalar         // if using new multi sigs is the hash of the public key, otherwise nil
-	pubBytes    sig.PubKeyBytes      // the serialized public key
-	newPubBytes sig.PubKeyBytes      // if using new multi sigs, is pub * hpk, otherwise is just the public key
-	pubString   sig.PubKeyStr        // should be the string representation of newPubBytes
-	bitID       bitid.BitIDInterface // Array of bits inidcating which indecies of the members this public key represents (i.e. can be multiple if using multi-sigs)
+	pub         kyber.Point             // public key as a point on the ecCurve
+	newPub      kyber.Point             // if using new multi sigs, is pub * hpk, otherwise is just the public key
+	hpk         kyber.Scalar            // if using new multi sigs is the hash of the public key, otherwise nil
+	pubBytes    sig.PubKeyBytes         // the serialized public key
+	newPubBytes sig.PubKeyBytes         // if using new multi sigs, is pub * hpk, otherwise is just the public key
+	pubString   sig.PubKeyStr           // should be the string representation of newPubBytes
+	bitID       bitid.NewBitIDInterface // Array of bits inidcating which indecies of the members this public key represents (i.e. can be multiple if using multi-sigs)
 	// pubID       PubKeyID
 	// pubID should only be used when sig.UseMultiSig= false
-	pubID sig.PubKeyID // A unique string represeting this key for a consensus iteration (see PubKeyID type)
+	pubID      sig.PubKeyID // A unique string represeting this key for a consensus iteration (see PubKeyID type)
+	newBidFunc bitid.FromIntFunc
 }
 
 // Shallow copy makes a copy of the object without following pointers.
@@ -250,11 +256,7 @@ func (pub *Blspub) GetMsgID() messages.MsgID {
 // SetIndex sets the index of the node represented by this public key in the consensus participants
 func (pub *Blspub) SetIndex(index sig.PubKeyIndex) {
 	pub.pubID = ""
-	var err error
-	pub.bitID, err = bitid.CreateBitIDTypeFromInts([]int{int(index)})
-	if err != nil {
-		panic(err)
-	}
+	pub.bitID = pub.newBidFunc(sort.IntSlice{int(index)})
 }
 
 // GetIndex gets the index of the node represented by this key in the consensus participants
@@ -272,7 +274,8 @@ func (pub *Blspub) GetIndex() sig.PubKeyIndex {
 // GetSigMemberNumber returns the number of nodes represented by this BLS pub key
 func (pub *Blspub) GetSigMemberNumber() int {
 	if sig.UsePubIndex {
-		return pub.GetBitID().GetNumItems()
+		_, _, count := pub.GetBitID().GetBasicInfo()
+		return count
 	}
 	return 1
 }
@@ -288,7 +291,9 @@ func (pub *Blspub) FromPubBytes(b sig.PubKeyBytes) (sig.Pub, error) {
 
 // New generates an empty Blspub object
 func (pub *Blspub) New() sig.Pub {
-	return &Blspub{}
+	return &Blspub{
+		newBidFunc: pub.newBidFunc,
+	}
 }
 
 // DeserializeSig takes a message and returns a BLS public key object and signature as well as the number of bytes read
@@ -471,11 +476,11 @@ func (pub *Blspub) Serialize(m *messages.Message) (int, error) {
 		if bid == nil {
 			return 0, types.ErrInvalidBitID
 		}
-		bidEncoding := bid.Encode()
-		l1, _ := (*messages.MsgBuffer)(m).AddUint32(uint32(len(bidEncoding)))
+		l1, err := bid.Encode((*messages.MsgBuffer)(m))
 		l += l1
-		(*messages.MsgBuffer)(m).AddBytes(bidEncoding)
-		l += len(bidEncoding)
+		if err != nil {
+			return l, err
+		}
 	} else if sig.UsePubIndex {
 		ids := pub.bitID.GetItemList()
 		if len(ids) != 1 {
@@ -525,19 +530,11 @@ func (pub *Blspub) Deserialize(m *messages.Message, unmarFunc types.ConsensusInd
 
 	if sig.UseMultisig {
 		// the bit id
-		bitIDlen, br, err := (*messages.MsgBuffer)(m).ReadUint32()
-		if err != nil {
-			return 0, err
-		}
+		pub.bitID = pub.newBidFunc(nil)
+		br, err := pub.bitID.Decode((*messages.MsgBuffer)(m))
 		l += br
-		bitID, err := (*messages.MsgBuffer)(m).ReadBytes(int(bitIDlen))
 		if err != nil {
-			return 0, err
-		}
-		l += len(bitID)
-		pub.bitID, err = bitid.DecodeBitIDType(bitID)
-		if err != nil {
-			return 0, err
+			return l, err
 		}
 	} else if sig.UsePubIndex {
 		index, br, err := (*messages.MsgBuffer)(m).ReadUint32()
@@ -545,11 +542,7 @@ func (pub *Blspub) Deserialize(m *messages.Message, unmarFunc types.ConsensusInd
 			return 0, err
 		}
 		l += br
-		pub.bitID, err = bitid.CreateBitIDTypeFromInts([]int{int(index)})
-		if err != nil {
-			return 0, err
-		}
-
+		pub.bitID = pub.newBidFunc([]int{int(index)})
 	} else {
 		// Now the pub
 		buff, err := (*messages.MsgBuffer)(m).ReadBytes(int(size) - l)

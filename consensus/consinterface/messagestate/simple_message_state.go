@@ -22,6 +22,7 @@ package messagestate
 import (
 	"bytes"
 	"fmt"
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/generalconfig"
@@ -48,7 +49,10 @@ type SimpleMessageState struct {
 func NewSimpleMessageState(gc *generalconfig.GeneralConfig) *SimpleMessageState {
 	var msgMap sigMsgMapInterface
 	if gc.UseMultiSig {
-		msgMap = &blsSigState{}
+		fromIntFunc, newBitIDFunc := bitid.GetBitIDFuncs(gc.MemCheckerBitIDType)
+		msgMap = &blsSigState{intFunc: fromIntFunc,
+			newBitIDFunc: newBitIDFunc,
+			pool:         bitid.NewBitIDPool(newBitIDFunc, true)}
 	} else {
 		msgMap = &signedMsgMap{}
 	}
@@ -345,7 +349,7 @@ func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 			validSigs := make([]*sig.SigItem, 0, len(allSigs))
 			for _, sigItem := range allSigs {
 				// Check which signatures are valid and which are invalid
-				err := consinterface.CheckMember(mc, deser.Index, sigItem, v)
+				err := consinterface.CheckMember(mc, deser.Index, sigItem, v, sms.gc)
 				if err == nil {
 					validSigs = append(validSigs, sigItem)
 				} else {

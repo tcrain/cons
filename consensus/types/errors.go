@@ -79,6 +79,9 @@ var ErrInvalidBitIDEncoding = fmt.Errorf("invalid bitID encoding")
 var ErrInvalidFormat = fmt.Errorf("string in invalid format")
 var ErrInvalidMsgSize = fmt.Errorf("invalid msg size")
 
+var ErrInvalidBuffSize = fmt.Errorf("invalid buffer size")
+var ErrInvalidVarint = fmt.Errorf("invalid var int")
+
 // csnet
 var ErrConnAlreadyExists = fmt.Errorf("connection already exists")
 var ErrConnDoesntExist = fmt.Errorf("connection doesn't exist")

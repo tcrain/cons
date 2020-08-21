@@ -162,3 +162,33 @@ func (ect EncryptChannelsType) String() string {
 		return fmt.Sprintf("EncryptChannelsType%d", ect)
 	}
 }
+
+type BitIDType int
+
+const (
+	BitIDUvarint BitIDType = iota
+	BitIDSlice
+	BitIDMulti
+	BitIDBasic
+	BitIDP
+	BitIDSingle
+)
+
+func (bt BitIDType) String() string {
+	switch bt {
+	case BitIDMulti:
+		return "BitIDMulti"
+	case BitIDSlice:
+		return "BitIDSlice"
+	case BitIDUvarint:
+		return "BitIDUvarint"
+	case BitIDBasic:
+		return "BitIDBasic"
+	case BitIDP:
+		return "BitIDP"
+	case BitIDSingle:
+		return "BitIDSingle"
+	default:
+		panic(bt)
+	}
+}

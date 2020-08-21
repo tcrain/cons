@@ -22,6 +22,7 @@ package bls
 import (
 	"bytes"
 	"fmt"
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
@@ -50,7 +51,7 @@ func (priv *PartPriv) ShallowCopy() sig.Priv {
 
 func NewBlsPartPriv(thrsh *BlsThrsh) (sig.Priv, error) {
 	ret := &PartPriv{BlsThrsh: thrsh}
-	ret.blsPriv = NewBlsprivFrom(ret.secret).(*Blspriv)
+	ret.blsPriv = NewBlsprivFrom(ret.secret, bitid.NewBitIDFromInts).(*Blspriv)
 	return ret, nil
 }
 
@@ -66,7 +67,7 @@ func (priv *PartPriv) ComputeSharedSecret(pub sig.Pub) [32]byte {
 
 func (priv *PartPriv) Evaluate(m sig.SignedMessage) (index [32]byte, proof sig.VRFProof) {
 	if priv.blsPriv == nil {
-		priv.blsPriv = NewBlsprivFrom(priv.secret).(*Blspriv)
+		priv.blsPriv = NewBlsprivFrom(priv.secret, bitid.NewBitIDFromInts).(*Blspriv)
 	}
 	return priv.blsPriv.Evaluate(m)
 }
@@ -79,7 +80,7 @@ func (priv *PartPriv) SetIndex(idx sig.PubKeyIndex) {
 
 // GetBaseKey returns threshold key as a normal BSL key.
 func (priv *PartPriv) GetBaseKey() sig.Priv {
-	return NewBlsprivFrom(priv.secret)
+	return NewBlsprivFrom(priv.secret, bitid.NewBitIDFromInts)
 }
 
 // New creates an empty BLS private key object
@@ -104,7 +105,7 @@ func (priv *PartPriv) Sign(msg sig.SignedMessage) (sig.Sig, error) {
 
 // GenerateSig signs a message and returns the SigItem object containing the signature
 func (priv *PartPriv) GenerateSig(header sig.SignedMessage, vrfProof sig.VRFProof,
-	st types.SignType) (*sig.SigItem, error) {
+	_ types.SignType) (*sig.SigItem, error) {
 
 	m := messages.NewMessage(nil)
 	if err := sig.CheckSerVRF(vrfProof, m); err != nil {
@@ -159,7 +160,7 @@ func NewSharedPub(point kyber.Point, memberCount int) *SharedPub {
 		panic("error encoding int")
 	}
 	return &SharedPub{
-		Blspub:      Blspub{pub: point, newPub: point},
+		Blspub:      Blspub{pub: point, newPub: point, newBidFunc: bitid.NewBitIDFromInts},
 		memberCount: memberCount,
 		id:          sig.PubKeyID(buff.Bytes()),
 	}
@@ -235,7 +236,7 @@ func (bpp *PartPub) CombineProofs(myPriv sig.Priv, items []*sig.SigItem) (coinVa
 }
 
 func NewBlsPartPub(idx sig.PubKeyIndex, n, t int, p kyber.Point) *PartPub {
-	pub := Blspub{pub: p, newPub: p}
+	pub := Blspub{pub: p, newPub: p, newBidFunc: bitid.NewBitIDFromInts}
 	pub.SetIndex(idx)
 	return &PartPub{
 		Blspub: pub,
@@ -252,7 +253,7 @@ func (bpp *PartPub) ShallowCopy() sig.Pub {
 
 // New generates an empty Blspub object
 func (bpp *PartPub) New() sig.Pub {
-	return &PartPub{}
+	return &PartPub{Blspub: *bpp.Blspub.New().(*Blspub)}
 }
 
 func (bpp *PartPub) SetIndex(index sig.PubKeyIndex) {

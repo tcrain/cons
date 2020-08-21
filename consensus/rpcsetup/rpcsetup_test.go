@@ -55,6 +55,7 @@ func TestRpcSetup(t *testing.T) {
 			SetInitialConfig: &sic,
 			SetInitialHash:   &sih,
 			Mutex:            mutex,
+			Shared:           &Shared{},
 		}
 		running[i] = scs
 

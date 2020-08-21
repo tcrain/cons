@@ -86,7 +86,7 @@ func TestPBitID(t *testing.T) {
 	// Test decode
 	// return
 	// TODO finish test
-	byt2, err = DecodePbitid(byt1.Encode())
+	byt2, err = DecodePbitid(byt1.DoEncode())
 	assert.Nil(t, err)
 	assert.Equal(t, byt1.GetItemList(), byt2.GetItemList())
 	assert.Equal(t, byt1.GetNumItems(), byt2.GetNumItems())
@@ -97,7 +97,7 @@ func TestEncodeMultiBitID(t *testing.T) {
 	t1 := sort.IntSlice{0, 1, 2, 3, 4, 5, 6, 7, 5000}
 	byt1, err := CreateMultiBitIDFromInts(t1)
 	assert.Nil(t, err)
-	enc := byt1.Encode()
+	enc := byt1.DoEncode()
 	decBitID, err := DecodeMultiBitID(enc)
 	assert.Nil(t, err)
 	assert.Equal(t, byt1.GetItemList(), decBitID.GetItemList(), t1)
@@ -106,7 +106,7 @@ func TestEncodeMultiBitID(t *testing.T) {
 	t1 = sort.IntSlice{0, 1, 2, 3, 4, 5, 6, 7}
 	byt1, err = CreateMultiBitIDFromInts(t1)
 	assert.Nil(t, err)
-	enc = byt1.Encode()
+	enc = byt1.DoEncode()
 	decBitID, err = DecodeMultiBitID(enc)
 	assert.Nil(t, err)
 	assert.Equal(t, byt1.GetItemList(), decBitID.GetItemList(), t1)
@@ -115,7 +115,7 @@ func TestEncodeMultiBitID(t *testing.T) {
 	t1 = sort.IntSlice{0, 1, 1, 1, 2, 3, 3, 3, 4, 5, 6, 7}
 	byt1, err = CreateMultiBitIDFromInts(t1)
 	assert.Nil(t, err)
-	enc = byt1.Encode()
+	enc = byt1.DoEncode()
 	decBitID, err = DecodeMultiBitID(enc)
 	assert.Nil(t, err)
 	assert.Equal(t, byt1.GetItemList(), decBitID.GetItemList(), t1)
@@ -124,7 +124,7 @@ func TestEncodeMultiBitID(t *testing.T) {
 	t1 = sort.IntSlice{0, 0, 0, 1, 2, 2, 2, 3, 4, 5, 6, 7, 10, 10, 5000}
 	byt1, err = CreateMultiBitIDFromInts(t1)
 	assert.Nil(t, err)
-	enc = byt1.Encode()
+	enc = byt1.DoEncode()
 	decBitID, err = DecodeMultiBitID(enc)
 	assert.Nil(t, err)
 	assert.Equal(t, byt1.GetItemList(), decBitID.GetItemList(), t1)
@@ -279,8 +279,8 @@ func TestCheckMultiBitID(t *testing.T) {
 
 func TestBadBitID(t *testing.T) {
 	t1 := sort.IntSlice{0, 0, 1, 2, 3}
-	_, err := CreateBitIDFromInts(t1)
-	assert.NotNil(t, err)
+	_, err := CreateBitIDFromInts(t1) // This will be ok, since dupicates are just not added
+	assert.Nil(t, err)
 
 	t1 = sort.IntSlice{0, -1, 2, 3}
 	_, err = CreateBitIDFromInts(t1)
@@ -311,7 +311,7 @@ func TestMergeBitID(t *testing.T) {
 	t1 := sort.IntSlice{0, 1, 2, 3, 4, 5, 6, 7, 5000}
 	byt1, err := CreateBitIDFromInts(t1)
 	assert.Nil(t, err)
-	enc := byt1.Encode()
+	enc := byt1.DoEncode()
 	decBitID, err := DecodeBitID(enc)
 	assert.Nil(t, err)
 	assert.Equal(t, decBitID.Buff, byt1.Buff)
@@ -338,7 +338,7 @@ func TestMergeBitID(t *testing.T) {
 	}
 
 	// testencoding
-	enc = byt1.Encode()
+	enc = byt1.DoEncode()
 	decBitID, err = DecodeBitID(enc)
 	assert.Nil(t, err)
 	assert.Equal(t, decBitID.Buff, byt1.Buff)
@@ -363,7 +363,7 @@ func TestMergeBitID(t *testing.T) {
 	assert.NotEqual(t, byt1merge.Buff[len(byt1merge.Buff)-1], 0)
 
 	// testencoding
-	enc = byt1merge.Encode()
+	enc = byt1merge.DoEncode()
 	decBitID, err = DecodeBitID(enc)
 	assert.Nil(t, err)
 	assert.Equal(t, decBitID.Buff, byt1merge.Buff)

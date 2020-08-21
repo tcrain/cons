@@ -89,7 +89,7 @@ func newSigMsgMap(prev sigMsgMapInterface, index types.ConsensusIndex) sigMsgMap
 	case *blsSigState:
 		// If we use BLS signatures, and multi-signatures, and pub key indecides then we use the special BLS sig map
 		// that allow for merging signatures
-		return newBlsSigState(index)
+		return newBlsSigState(index, v.intFunc, v.newBitIDFunc, v)
 	case *signedMsgMap:
 		return newSignedMsgMap()
 	default:

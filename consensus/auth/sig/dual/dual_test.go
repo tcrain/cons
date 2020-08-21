@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package dual
 
 import (
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/types"
@@ -27,7 +28,10 @@ import (
 )
 
 func NewDualPrivBls() (sig.Priv, error) {
-	return NewDualpriv(bls.NewBlspriv, bls.NewBlspriv, types.NormalSignature, types.SecondarySignature)
+	blsFunc := func() (sig.Priv, error) {
+		return bls.NewBlspriv(bitid.NewUvarintBitIDFromInts)
+	}
+	return NewDualpriv(blsFunc, blsFunc, types.NormalSignature, types.SecondarySignature)
 }
 
 func TestDualSharedSecret(t *testing.T) {

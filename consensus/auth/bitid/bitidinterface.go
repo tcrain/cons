@@ -32,7 +32,7 @@ import (
 
 type BitIDInterface interface {
 	MakeCopy() BitIDInterface
-	Encode() []byte
+	DoEncode() []byte
 	GetNumItems() int                                         // Returns the number of items in the bitID
 	GetNewItems(BitIDInterface) BitIDInterface                // Returns a bitID of all the items in the agrument bitid and not in the bitid calling the function (does not return duplicates)
 	HasNewItems(BitIDInterface) bool                          // Returns true if the argument bitid has at least one item not in the bitid calling the function
@@ -48,19 +48,22 @@ type BitIDInterface interface {
 	NextID(iter *BitIDIterator) (nxt int, err error) // For iterating through the bitid, an iterator is created using NewBitIDIterator(), returns an error if the iterator has traversed all items
 }
 
-type BitIDType int
-
-const (
-	BitIDBasic BitIDType = iota
-	BitIDSingle
-	BitIDMulti
-	BitIDP
-)
-
 type BitIDIterator struct {
+	bid        *BitID
 	iterIdx    int
 	currentVal int
 	prevVal    bool
+	started    bool
+}
+
+// Done is called when the iterator is no longer needed
+func (iter *BitIDIterator) Done() {
+	iter.started = false
+}
+
+// For iterating through the bitid, an iterator is created using NewBitIDIterator(), returns an error if the iterator has traversed all items
+func (iter *BitIDIterator) NextID() (nxt int, err error) {
+	return iter.bid.NextID(iter)
 }
 
 func NewBitIDIterator() *BitIDIterator {
@@ -84,21 +87,21 @@ func CreateBitIDTypeFromInts(items sort.IntSlice) (BitIDInterface, error) {
 }
 
 func DecodeBitIDType(buff []byte) (BitIDInterface, error) {
-	t := BitIDType(buff[0])
+	t := types.BitIDType(buff[0])
 	switch t {
-	case BitIDMulti, BitIDP:
+	case types.BitIDMulti, types.BitIDP:
 		if !config.AllowMultiMerge {
 			return nil, types.ErrInvalidBitIDEncoding
 		}
 	}
 	switch t {
-	case BitIDBasic:
+	case types.BitIDBasic:
 		return DecodeBitID(buff)
-	case BitIDSingle:
+	case types.BitIDSingle:
 		return DecodeBitID(buff)
-	case BitIDMulti:
+	case types.BitIDMulti:
 		return DecodeMultiBitID(buff)
-	case BitIDP:
+	case types.BitIDP:
 		return DecodePbitid(buff)
 	default:
 		return nil, types.ErrInvalidBitIDEncoding

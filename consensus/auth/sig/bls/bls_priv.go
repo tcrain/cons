@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"crypto/sha512"
 	"github.com/tcrain/cons/config"
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/types"
 	"go.dedis.ch/kyber/v3"
@@ -113,17 +114,12 @@ func (priv *Blspriv) GetBaseKey() sig.Priv {
 	return priv
 }
 
-// New creates an empty BLS private key object
-func (priv *Blspriv) New() sig.Priv {
-	return &Blspriv{}
-}
-
 // GetPub returns the coresponding BLS public key object
 func (priv *Blspriv) GetPub() sig.Pub {
 	return priv.pub
 }
 
-func NewBlsprivFrom(secret kyber.Scalar) sig.Priv {
+func NewBlsprivFrom(secret kyber.Scalar, newBidFunc bitid.FromIntFunc) sig.Priv {
 	var hpk kyber.Scalar
 	var pub, newPub kyber.Point
 	if sig.BlsMultiNew {
@@ -135,16 +131,17 @@ func NewBlsprivFrom(secret kyber.Scalar) sig.Priv {
 	return &Blspriv{
 		priv: secret,
 		pub: &Blspub{
-			pub:    pub,
-			newPub: newPub,
-			hpk:    hpk,
+			newBidFunc: newBidFunc,
+			pub:        pub,
+			newPub:     newPub,
+			hpk:        hpk,
 		},
 	}
 
 }
 
 // NewBlspriv creates a new random BLS private key
-func NewBlspriv() (sig.Priv, error) {
+func NewBlspriv(newBidFunc bitid.FromIntFunc) (sig.Priv, error) {
 	var priv, hpk kyber.Scalar
 	var pub, newPub kyber.Point
 	if sig.BlsMultiNew {
@@ -156,9 +153,10 @@ func NewBlspriv() (sig.Priv, error) {
 	return &Blspriv{
 		priv: priv,
 		pub: &Blspub{
-			pub:    pub,
-			newPub: newPub,
-			hpk:    hpk,
+			newBidFunc: newBidFunc,
+			pub:        pub,
+			newPub:     newPub,
+			hpk:        hpk,
 		},
 	}, nil
 }

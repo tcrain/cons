@@ -34,16 +34,16 @@ import (
 	"runtime"
 	"sync"
 
-	// _ "net/http/pprof"
+	_ "net/http/pprof"
 
 	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/rpcsetup"
 )
 
 func init() {
-	// go func() {
-	// 	logging.Info(http.ListenAndServe("localhost:6060", nil))
-	// }()
+	go func() {
+		logging.Info(http.ListenAndServe("localhost:6060", nil))
+	}()
 }
 
 // NewRunningCons generates a new RunningCons object.

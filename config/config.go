@@ -64,8 +64,8 @@ const (
 	MvConsRequestRecoverTimeout = 500  // millseconds timeout before requesting the full proposal after delivering the hash
 
 	// For the main channel
-	Timeoutrecvms    = 500  // number of miliseconds before timeout on receiving a message, before performing some recovery action, based on ProgressTimeout (ie this value should be smaller)
-	InternalBuffSize = 1000 // buffer of messages to process for the main thread loop
+	Timeoutrecvms    = 500 // number of miliseconds before timeout on receiving a message, before performing some recovery action, based on ProgressTimeout (ie this value should be smaller)
+	InternalBuffSize = 50  // buffer of messages to process for the main thread loop
 	// SendBuffSize = 100 * InternalBuffSize
 	RcvConUDPTimeout = 30000 // milliseconds if we don't hear from a rcv connection we close it
 	RcvConUDPUpdate  = 5000  // milliseconds how often we send a keep alive for UDP conns

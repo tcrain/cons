@@ -59,6 +59,8 @@ type TestOptions struct {
 	BufferForwarder       bool                   // Buffer several messages before forwarding them (in a gossip network)
 	UseMultisig           bool                   // Use multi-signautres
 	BlsMultiNew           bool                   // Use the new type of BLS multi-signatures (see https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html)
+	MemCheckerBitIDType   BitIDType              // If using multi-sigs the type of bit ID to use in the member checker
+	SigBitIDType          BitIDType              // If using multi-sigs the type of bit ID to use with the signatures
 	StateMachineType      StateMachineType       // The application being implemented by the state machines
 	PartialMessageType    PartialMessageType     // The type of partial messsages to use during broadcasts
 	AllowConcurrent       uint64                 // Number of concurrent consensus indecies to allow to run.
@@ -100,7 +102,7 @@ func (to TestOptions) UsesVRFs() bool {
 	return false
 }
 func (to TestOptions) String() string {
-	return fmt.Sprintf("{ConsType: %v, Rounds: %v, Fail round: %v, Total procs: %v, Nonmember procs: %v, Fail procs: %v, Byz procs: %v, ByzType: %s, \n\tConnection: %s, Msg Drop%%: %v, Network: %s, Nw fan out: %v, Storage type: %s, Clear disk on restart: %v, \n\tInclude proofs: %v, Sig type: %s, Use multisig: %v, Use pub index: %v, Buffer Forwarder: %v, \n\tState machine: %v, Allow concurrent: %v, Rotate cord: %v, Gen rand bytes: %v, Ordering: %v,\n\tRand member type: %v, Rand members %v, LocalRandMemberChange: %v, AllowSupportCoin: %v, MCType: %v, \n\tUseFullBinaryState %v, StorageBuffer %v, IncludeCurrentSigs %v, CPUProfile %v, MemProfile %v,\n\tNumMsgProcessThreads %v, MvProposalSizeBytes %v, BinConsPercentOnes %v, CollectBroadcast: %v,\n\tStopOnCommit: %v, FixedSeed: %v, EncryptChannels: %v, NoSignatures: %v,\n\tCoinType: %v, UseFixedCoinPresets: %v, Sleep Crypto: %v, Share Pubs: %v, TestID %v}",
+	return fmt.Sprintf("{ConsType: %v, Rounds: %v, Fail round: %v, Total procs: %v, Nonmember procs: %v, Fail procs: %v, Byz procs: %v, ByzType: %s, \n\tConnection: %s, Msg Drop%%: %v, Network: %s, Nw fan out: %v, Storage type: %s, Clear disk on restart: %v, \n\tInclude proofs: %v, Sig type: %s, Use multisig: %v, Use pub index: %v, Buffer Forwarder: %v, \n\tState machine: %v, Allow concurrent: %v, Rotate cord: %v, Gen rand bytes: %v, Ordering: %v,\n\tRand member type: %v, Rand members %v, LocalRandMemberChange: %v, AllowSupportCoin: %v, MCType: %v, \n\tUseFullBinaryState %v, StorageBuffer %v, IncludeCurrentSigs %v, CPUProfile %v, MemProfile %v,\n\tNumMsgProcessThreads %v, MvProposalSizeBytes %v, BinConsPercentOnes %v, CollectBroadcast: %v,\n\tStopOnCommit: %v, FixedSeed: %v, EncryptChannels: %v, NoSignatures: %v,\n\tCoinType: %v, UseFixedCoinPresets: %v, Sleep Crypto: %v, Share Pubs: %v,\n\tSig BitID: %v, MC BitID: %v, TestID %v}",
 		to.ConsType, to.MaxRounds, to.FailRounds, to.NumTotalProcs, to.NumNonMembers, to.NumFailProcs, to.NumByz,
 		to.ByzType, to.ConnectionType, to.MsgDropPercent, to.NetworkType, to.FanOut, to.StorageType,
 		to.ClearDiskOnRestart, to.IncludeProofs, to.SigType, to.UseMultisig, to.UsePubIndex, to.BufferForwarder,
@@ -108,7 +110,8 @@ func (to TestOptions) String() string {
 		to.LocalRandMemberChange, to.AllowSupportCoin, to.MCType,
 		to.UseFullBinaryState, to.StorageBuffer, to.IncludeCurrentSigs, to.CPUProfile, to.MemProfile,
 		to.NumMsgProcessThreads, to.MvProposalSizeBytes, to.BinConsPercentOnes, to.CollectBroadcast, to.StopOnCommit, to.UseFixedSeed,
-		to.EncryptChannels, to.NoSignatures, to.CoinType, to.UseFixedCoinPresets, to.SleepCrypto, to.SharePubsRPC, to.TestID)
+		to.EncryptChannels, to.NoSignatures, to.CoinType, to.UseFixedCoinPresets, to.SleepCrypto, to.SharePubsRPC,
+		to.SigBitIDType, to.MemCheckerBitIDType, to.TestID)
 }
 
 func AllowsGetRandBytes(smType StateMachineType) bool {

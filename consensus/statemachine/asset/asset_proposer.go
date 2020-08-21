@@ -463,7 +463,7 @@ func (da *AssetProposer) GetByzProposal(originProposal []byte,
 	if _, err := buff.Write(originProposal[:n]); err != nil {
 		panic(err)
 	}
-	// Encode the txs
+	// DoEncode the txs
 	if _, err := tx.Encode(buff); err != nil {
 		panic(err)
 	}

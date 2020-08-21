@@ -24,7 +24,6 @@ import (
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/types"
 
-	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig"
 )
 
@@ -122,21 +121,22 @@ func (msm *MultiSigMemChecker) CheckMember(idx types.ConsensusIndex, pub sig.Pub
 	// We have to construct the new pub
 	blsPub := pub.(sig.MultiPub)
 	bid := blsPub.GetBitID()
-	iter := bitid.NewBitIDIterator()
-	i, err := bid.NextID(iter)
+	iter := bid.NewIterator()
+	i, err := iter.NextID()
 	if i < 0 || i >= len(msm.originPubList) || err != nil {
 		// The bitid contains an invalid index
 		return nil, types.ErrInvalidBitID
 	}
 	mrgPub := msm.originPubList[i].(sig.MultiPub).Clone()
 	// Go through the pub keys and merge them one by one into the new key
-	for i, err := bid.NextID(iter); err == nil; i, err = bid.NextID(iter) {
+	for i, err := iter.NextID(); err == nil; i, err = iter.NextID() {
 		if i < 0 || i >= len(msm.originPubList) {
 			// The bitid contains an invalid index
 			return nil, types.ErrInvalidBitID
 		}
 		mrgPub.MergePubPartial(msm.originPubList[i].(sig.MultiPub))
 	}
+	iter.Done()
 	// finish the merge
 	mrgPub.DonePartialMerge(bid)
 	return mrgPub.(sig.Pub), nil

@@ -41,7 +41,6 @@ type GeneralConfig struct {
 	Ordering           types.OrderingType
 	AllowSupportCoin   bool           // True if AuxProofMessages can support the coin directly instead of a bin value.
 	ConsType           types.ConsType // The type of consensus being used for the test.
-	UseMultiSig        bool           // True if multisignatures are enabled.
 	CPUProfile         bool           // Profile CPU usage
 	MemProfile         bool           // Profile Memory allocation
 	TestID             uint64         // Unique test ID
@@ -59,6 +58,9 @@ type GeneralConfig struct {
 	CoinType            types.CoinType             // The type of coin being used
 	UseTp1CoinThresh    bool                       // if true need t+1 signatures for a threshold signature, false otherwise
 	UseFixedCoinPresets bool                       // If true then will use predefined coins for the initial rounds of randomized consensus
+	UseMultiSig         bool                       // True if multisignatures are enabled.
+	MemCheckerBitIDType types.BitIDType            // If using multi-sigs the type of bit ID to use in the member checker
+	SigBitIDType        types.BitIDType            // If using multi-sigs the type of bit ID to use with the signatures
 }
 
 type ExtraInitState interface {

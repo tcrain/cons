@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
@@ -259,39 +260,46 @@ func CheckRandMember(mc *MemCheckers, pub sig.Pub, isProposalMsg bool, msgID mes
 
 // CheckMemberLocalMsg checks if the pub is a member for the index, and validates the signature with the pub,
 // and returns a new pub object that has all the values filled.
-func CheckMember(mc *MemCheckers, idx types.ConsensusIndex, sigItem *sig.SigItem, msg *sig.MultipleSignedMessage) error {
+func CheckMember(mc *MemCheckers, idx types.ConsensusIndex, sigItem *sig.SigItem, msg *sig.MultipleSignedMessage,
+	gc *generalconfig.GeneralConfig) error {
 	if !mc.MC.CheckIndex(idx) {
 		panic(fmt.Sprintf("wrong member checker index %v", idx))
 	}
 	msgID := msg.GetMsgID()
 	prePub := sigItem.Pub
-	str, err := prePub.GetPubID()
-	if err != nil {
-		return err
-	}
 
-	sigItem.Pub = mc.MC.CheckMemberBytes(idx, str)
-	if sigItem.Pub == nil { // We are not a normal member, check for special member
-		sigItem.Pub, err = mc.SMC.CheckMember(idx, prePub)
-		if err != nil { // Not found as a normal or special member
-			sigItem.Pub = prePub
+	// Frist check if special member type
+	newPub, err := mc.SMC.CheckMember(idx, prePub)
+	if err == nil { // Found as special member
+		sigItem.Pub = newPub
+	} else { // Not found as a special member
+		if gc.UseMultiSig { // For multi-sig we only use the special member checker (to avoid using the bitids concurrently)
 			return types.ErrNotMember
 		}
-	} else { // We are a normal member, check random member if needed
-		if sigItem.VRFProof != nil { // Add the VRF proof  to the random member checker
-			err = mc.MC.GotVrf(sigItem.Pub, msgID, sigItem.VRFProof)
+		str, err := prePub.GetPubID()
+		if err != nil {
+			return err
+		}
+		sigItem.Pub = mc.MC.CheckMemberBytes(idx, str) // Check normal member
+		if sigItem.Pub == nil {                        // Not found as normal member
+			sigItem.Pub = prePub
+			return types.ErrNotMember
+		} else { // We are a normal member, check random member if needed
+			if sigItem.VRFProof != nil { // Add the VRF proof  to the random member checker
+				err = mc.MC.GotVrf(sigItem.Pub, msgID, sigItem.VRFProof)
+				if err != nil {
+					return err
+				}
+			}
+			_, valMsg, err := msg.GetBaseMsgHeader().NeedsSMValidation(msg.Index, 0)
 			if err != nil {
+				panic(err) // TODO panic here or return err?
 				return err
 			}
-		}
-		_, valMsg, err := msg.GetBaseMsgHeader().NeedsSMValidation(msg.Index, 0)
-		if err != nil {
-			panic(err) // TODO panic here or return err?
-			return err
-		}
-		// Check if we are a member based on random selection
-		if err := CheckRandMember(mc, sigItem.Pub, valMsg != nil, msgID); err != nil {
-			return err
+			// Check if we are a member based on random selection
+			if err := CheckRandMember(mc, sigItem.Pub, valMsg != nil, msgID); err != nil {
+				return err
+			}
 		}
 	}
 	mc.MC.Validated(msg.GetSignType())
