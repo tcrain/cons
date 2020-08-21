@@ -10,7 +10,8 @@ import (
 )
 
 type SliceBitID struct {
-	items sort.IntSlice
+	items             sort.IntSlice
+	nonDuplicateCount int
 }
 
 type sliceBitIDIter struct {
@@ -37,7 +38,9 @@ func (iter *sliceBitIDIter) NextID() (nxt int, err error) {
 
 // NewSliceBitIDFromInts allocates a SliceBitID from the int slice
 func NewSliceBitIDFromInts(from sort.IntSlice) NewBitIDInterface {
-	return &SliceBitID{items: from}
+	return &SliceBitID{
+		nonDuplicateCount: utils.GetUniqueCount(from),
+		items:             from}
 }
 
 // New allocates a new empty bit id.
@@ -54,7 +57,9 @@ func (bid *SliceBitID) Done() {
 func (bid *SliceBitID) DoMakeCopy() NewBitIDInterface {
 	cpy := make(sort.IntSlice, len(bid.items))
 	copy(cpy, bid.items)
-	return &SliceBitID{items: cpy}
+	return &SliceBitID{
+		nonDuplicateCount: bid.nonDuplicateCount,
+		items:             cpy}
 }
 
 // Returns true if the argument is in the bid
@@ -90,11 +95,11 @@ func (bid *SliceBitID) AllowsDuplicates() bool {
 }
 
 // Returns the smallest element, the largest element, and the total number of elements
-func (bid *SliceBitID) GetBasicInfo() (min, max, count int) {
+func (bid *SliceBitID) GetBasicInfo() (min, max, count, uniqueItemCount int) {
 	if len(bid.items) == 0 {
 		return
 	}
-	return bid.items[0], bid.items[len(bid.items)-1], len(bid.items)
+	return bid.items[0], bid.items[len(bid.items)-1], len(bid.items), bid.nonDuplicateCount
 }
 
 // Allocate the expected initial size
@@ -104,6 +109,9 @@ func (bid *SliceBitID) SetInitialSize(v int) {
 
 // Append an item at the end of the bitID (must be bigger than all existing items)
 func (bid *SliceBitID) AppendItem(v int) {
+	if len(bid.items) == 0 || v != bid.items[len(bid.items)-1] {
+		bid.nonDuplicateCount++
+	}
 	bid.items = append(bid.items, v)
 }
 
@@ -124,6 +132,7 @@ func (bid *SliceBitID) Decode(reader io.Reader) (n int, err error) {
 		return
 	}
 	bid.items = make(sort.IntSlice, numItems)
+	prev := -1
 	for i := 0; i < int(numItems); i++ {
 		var nxt uint64
 		nxt, n1, err = utils.ReadUvarint(reader)
@@ -131,7 +140,16 @@ func (bid *SliceBitID) Decode(reader io.Reader) (n int, err error) {
 		if err != nil {
 			return
 		}
-		bid.items[i] = int(nxt)
+		val := int(nxt)
+		if val < 0 {
+			err = types.ErrUnsortedBitID
+			return
+		}
+		if val != prev {
+			bid.nonDuplicateCount++
+			prev = val
+		}
+		bid.items[i] = val
 	}
 	return
 }

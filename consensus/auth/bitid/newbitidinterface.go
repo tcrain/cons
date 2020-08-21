@@ -15,15 +15,15 @@ type NewBitIDInterface interface {
 	New() NewBitIDInterface        // New allocates a new bit id.
 	DoMakeCopy() NewBitIDInterface // Do make copy returns a copy of the bit id.
 	// GetNumItems() int                                         // Returns the number of items in the bitID
-	CheckBitID(int) bool                 // Returns true if the argument is in the bid
-	GetItemList() sort.IntSlice          // Returns the list of items of the bitid
-	GetStr() string                      // Gets the string representation of the bitid
-	NewIterator() BIDIter                // Returns a new iterator of the bit id
-	GetBasicInfo() (min, max, count int) // Returns the smallest element, the largest element, and the total number of elements
-	SetInitialSize(int)                  // Allocate the expected initial size
-	AppendItem(int)                      // Append an item at the end of the bitID (must be bigger than all existing items)
-	AllowsDuplicates() bool              // AllowDuplicates returns true if the bit ID allows duplicate elements
-	Done()                               // Done is called when this item is no longer needed
+	CheckBitID(int) bool                              // Returns true if the argument is in the bid
+	GetItemList() sort.IntSlice                       // Returns the list of items of the bitid
+	GetStr() string                                   // Gets the string representation of the bitid
+	NewIterator() BIDIter                             // Returns a new iterator of the bit id
+	GetBasicInfo() (min, max, count, uniqueCount int) // Returns the smallest element, the largest element, and the total number of elements
+	SetInitialSize(int)                               // Allocate the expected initial size
+	AppendItem(int)                                   // Append an item at the end of the bitID (must be bigger than all existing items)
+	AllowsDuplicates() bool                           // AllowDuplicates returns true if the bit ID allows duplicate elements
+	Done()                                            // Done is called when this item is no longer needed
 
 	Encode(writer io.Writer) (n int, err error)
 	Decode(reader io.Reader) (n int, err error)
@@ -39,7 +39,7 @@ type DoneFunc func(NewBitIDInterface) // Called when the input is finished.
 // (does not return duplicates)
 func GetNewItemsHelper(b1, b2 NewBitIDInterface, newFunc NewBitIDFunc) NewBitIDInterface {
 	ret := newFunc()
-	_, _, b2Size := b2.GetBasicInfo()
+	_, _, b2Size, _ := b2.GetBasicInfo()
 	ret.SetInitialSize(b2Size)
 	iter1, iter2 := b1.NewIterator(), b2.NewIterator()
 	defer func() {
@@ -191,8 +191,8 @@ const (
 // If safeSub is true then all b1 must contain all items in b2.
 // If freeB1 is non nil, then it will be called on b1.
 func SubHelper(b1, b2 NewBitIDInterface, safeSub SafeSubType, newFunc NewBitIDFunc, freeB1 DoneFunc) (NewBitIDInterface, error) {
-	_, _, b1Size := b1.GetBasicInfo()
-	_, _, b2Size := b2.GetBasicInfo()
+	_, _, b1Size, _ := b1.GetBasicInfo()
+	_, _, b2Size, _ := b2.GetBasicInfo()
 	switch safeSub {
 	case NonIntersectingAndEmpty:
 		if b2Size >= b1Size {
@@ -258,7 +258,7 @@ func findHepler(v int, b1 NewBitIDInterface) bool {
 
 // toSliceHelper returns the slice of elements in the bid
 func toSliceHelper(b1 NewBitIDInterface) sort.IntSlice {
-	_, _, size := b1.GetBasicInfo()
+	_, _, size, _ := b1.GetBasicInfo()
 	ret := make(sort.IntSlice, 0, size)
 	iter := b1.NewIterator()
 	defer iter.Done()
@@ -284,11 +284,11 @@ func AddHelper(b1, b2 NewBitIDInterface, allowDuplicates, errorOnDuplicate bool,
 		}
 	}()
 
-	_, _, b1Size := b1.GetBasicInfo()
+	_, _, b1Size, _ := b1.GetBasicInfo()
 	if b1Size == 0 {
 		return b2.DoMakeCopy(), nil
 	}
-	_, _, b2Size := b2.GetBasicInfo()
+	_, _, b2Size, _ := b2.GetBasicInfo()
 	if b2Size == 0 {
 		return b1.DoMakeCopy(), nil
 	}

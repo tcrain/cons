@@ -929,3 +929,19 @@ func ContainsSlice(s1 sort.IntSlice, s2 sort.IntSlice) bool {
 	}
 	return false
 }
+
+// GetUnique count returns the number of unique items in s1
+func GetUniqueCount(s1 sort.IntSlice) int {
+	if len(s1) == 0 {
+		return 0
+	}
+	prev := s1[0]
+	count := 1
+	for _, nxt := range s1[1:] {
+		if nxt != prev {
+			count++
+			prev = nxt
+		}
+	}
+	return count
+}

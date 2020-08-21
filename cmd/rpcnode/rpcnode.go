@@ -28,6 +28,7 @@ import (
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/types"
+	"github.com/tcrain/cons/consensus/utils"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -47,11 +48,11 @@ func init() {
 }
 
 // NewRunningCons generates a new RunningCons object.
-func NewRunningCons(myIP string) *RunningCons {
+func NewRunningCons(myIP string) (*RunningCons, error) {
 	return &RunningCons{
 		running:  make(map[int]*rpcsetup.SingleConsSetup),
 		doneChan: make(chan int, 1),
-		myIP:     myIP}
+		myIP:     myIP}, nil
 }
 
 // RunningCons sotres multiple consensus processes accessable through an RPC interface.
@@ -63,10 +64,11 @@ type RunningCons struct {
 	setInitialConfig bool
 	setInitialHash   bool
 	shared           *rpcsetup.Shared
+	myParReg         rpcsetup.ParRegClientInterface
 }
 
 // Reset clears all running consensus object.
-func (rc *RunningCons) Reset(none rpcsetup.None, res *rpcsetup.None) error {
+func (rc *RunningCons) Reset(rpcsetup.None, *rpcsetup.None) error {
 	rc.mutex.Lock()
 	defer rc.mutex.Unlock()
 
@@ -76,15 +78,18 @@ func (rc *RunningCons) Reset(none rpcsetup.None, res *rpcsetup.None) error {
 	rc.shared = nil
 	rc.setInitialHash = false
 	rc.setInitialConfig = false
-
 	rc.running = make(map[int]*rpcsetup.SingleConsSetup)
 
+	var err error
+	if rc.myParReg != nil {
+		err = rc.myParReg.Close()
+	}
 	// perform a garbage collection
 	runtime.GC()
 
 	logging.Info("Num goroutines after reset: %v", runtime.NumGoroutine())
 
-	return nil
+	return err
 }
 
 func (rc *RunningCons) GetCausalDecisions(i int, causalDec *rpcsetup.CausalDecisions) error {
@@ -94,7 +99,7 @@ func (rc *RunningCons) GetCausalDecisions(i int, causalDec *rpcsetup.CausalDecis
 	var scs *rpcsetup.SingleConsSetup
 	var ok bool
 	if scs, ok = rc.running[i]; !ok {
-		return fmt.Errorf("Missing index %v", i)
+		return fmt.Errorf("missing index %v", i)
 	}
 
 	causalDec.Root, causalDec.OrderedDecisions = cons.GetCausalDecisions(scs.SCS.MemberCheckerState)
@@ -109,7 +114,7 @@ func (rc *RunningCons) GetDecisions(i int, dec *[][]byte) error {
 	var scs *rpcsetup.SingleConsSetup
 	var ok bool
 	if scs, ok = rc.running[i]; !ok {
-		return fmt.Errorf("Missing index %v", i)
+		return fmt.Errorf("missing index %v", i)
 	}
 	var err error
 	*dec, err = rpcsetup.GetDecisions(scs.SCS)
@@ -127,7 +132,7 @@ func (rc *RunningCons) GetResults(i int, res *rpcsetup.RpcResults) error {
 	var scs *rpcsetup.SingleConsSetup
 	var ok bool
 	if scs, ok = rc.running[i]; !ok {
-		return fmt.Errorf("Missing index %v", i)
+		return fmt.Errorf("missing index %v", i)
 	}
 	stats := scs.SCS.Stats.MergeLocalStats(int(types.ComputeNumRounds(scs.To)))
 	res.Stats = &stats
@@ -136,10 +141,10 @@ func (rc *RunningCons) GetResults(i int, res *rpcsetup.RpcResults) error {
 }
 
 // AllStart starts all the consensus processes tracked by this physical node.
-func (rc *RunningCons) AllStart(in rpcsetup.None, none *rpcsetup.None) (err error) {
+func (rc *RunningCons) AllStart(rpcsetup.None, *rpcsetup.None) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("Recovered panic: %v", r)
+			err = fmt.Errorf("recovered panic: %v", r)
 		}
 	}()
 
@@ -159,7 +164,7 @@ func (rc *RunningCons) AllStart(in rpcsetup.None, none *rpcsetup.None) (err erro
 }
 
 // AllFinished is called after all consensus processes have completed running on this physical node to shutdown the processes.
-func (rc *RunningCons) AllFinished(in rpcsetup.None, none *rpcsetup.None) error {
+func (rc *RunningCons) AllFinished(rpcsetup.None, *rpcsetup.None) error {
 	rc.mutex.Lock()
 	defer rc.mutex.Unlock()
 
@@ -170,17 +175,21 @@ func (rc *RunningCons) AllFinished(in rpcsetup.None, none *rpcsetup.None) error 
 }
 
 // NewMvConsRunning initalizes a multivalue consensus process at this node.
-func (rc *RunningCons) NewConsRunning(nra rpcsetup.NewRunningArgs, none *rpcsetup.None) error {
-	parReg, err := rpcsetup.NewParRegClient(nra.ParRegAddress)
-	if err != nil {
-		return err
-	}
+func (rc *RunningCons) NewConsRunning(nra rpcsetup.NewRunningArgs, _ *rpcsetup.None) error {
 
 	rc.mutex.Lock()
 
+	if rc.myParReg == nil {
+		var err error
+		rc.myParReg, err = rpcsetup.NewParRegClient(nra.ParRegAddress)
+		if err != nil {
+			return err
+		}
+	}
+
 	if _, ok := rc.running[nra.I]; ok {
 		rc.mutex.Unlock()
-		return fmt.Errorf("Already registered index %v", nra.I)
+		return fmt.Errorf("already registered index %v", nra.I)
 	}
 
 	var shared *rpcsetup.Shared
@@ -196,7 +205,7 @@ func (rc *RunningCons) NewConsRunning(nra rpcsetup.NewRunningArgs, none *rpcsetu
 	scs := &rpcsetup.SingleConsSetup{
 		I:                nra.I,
 		To:               nra.To,
-		ParReg:           parReg,
+		ParReg:           rc.myParReg,
 		MyIP:             rc.myIP,
 		Mutex:            &rc.mutex,
 		SetInitialConfig: &rc.setInitialConfig,
@@ -206,7 +215,7 @@ func (rc *RunningCons) NewConsRunning(nra rpcsetup.NewRunningArgs, none *rpcsetu
 	rc.running[nra.I] = scs
 	rc.mutex.Unlock()
 
-	err = rpcsetup.RunCons(scs)
+	err := rpcsetup.RunCons(scs)
 	if err != nil {
 		return err
 	}
@@ -215,7 +224,7 @@ func (rc *RunningCons) NewConsRunning(nra rpcsetup.NewRunningArgs, none *rpcsetu
 }
 
 // Exit shuts down the RunningCons process.
-func (rc *RunningCons) Exit(none rpcsetup.None, reply *rpcsetup.None) error {
+func (rc *RunningCons) Exit(rpcsetup.None, *rpcsetup.None) error {
 	rc.doneChan <- 1
 	return nil
 }
@@ -229,22 +238,17 @@ func main() {
 
 	fmt.Printf("Running rpc consensus node setup on port %v\n", port)
 
-	rc := NewRunningCons(myIP)
-	err := rpc.Register(rc)
-	if err != nil {
-		panic(err)
-	}
+	rc, err := NewRunningCons(myIP)
+	utils.PanicNonNil(err)
+	err = rpc.Register(rc)
+	utils.PanicNonNil(err)
 	rpc.HandleHTTP()
 	l, err := net.Listen("tcp", fmt.Sprintf(":%v", port))
-	if err != nil {
-		panic(err)
-	}
+	utils.PanicNonNil(err)
 
 	go func() {
 		err = http.Serve(l, nil)
-		if err != nil {
-			panic(err)
-		}
+		utils.PanicNonNil(err)
 	}()
 
 	<-rc.doneChan

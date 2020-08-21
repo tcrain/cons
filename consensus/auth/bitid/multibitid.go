@@ -30,9 +30,10 @@ import (
 )
 
 type MultiBitID struct {
-	itemList sort.IntSlice
-	encode   []byte
-	str      string
+	itemList        sort.IntSlice
+	encode          []byte
+	str             string
+	uniqueItemCount int // number of unique items in the BitID
 }
 
 func NewMultiBitIDFromInts(items sort.IntSlice) NewBitIDInterface {
@@ -51,6 +52,7 @@ func (bid *MultiBitID) DoMakeCopy() NewBitIDInterface {
 	ret.encode = make([]byte, len(bid.encode))
 	copy(ret.encode, bid.encode)
 	ret.str = bid.str
+	ret.uniqueItemCount = bid.uniqueItemCount
 	return ret
 }
 
@@ -61,11 +63,11 @@ func (bid *MultiBitID) NewIterator() BIDIter {
 }
 
 // GetBasicInfo returns the smallest element, the largest element, and the total number of elements
-func (bid *MultiBitID) GetBasicInfo() (min, max, count int) {
+func (bid *MultiBitID) GetBasicInfo() (min, max, count, uniqueCount int) {
 	if len(bid.itemList) == 0 {
 		return
 	}
-	return bid.itemList[0], bid.itemList[len(bid.itemList)-1], len(bid.itemList)
+	return bid.itemList[0], bid.itemList[len(bid.itemList)-1], len(bid.itemList), bid.uniqueItemCount
 }
 
 // SetInitialSize allocates the expected initial size
@@ -80,6 +82,9 @@ func (bid *MultiBitID) Done() {
 
 // AppendItem appends an item at the end of the bitID (must be bigger than all existing items)
 func (bid *MultiBitID) AppendItem(v int) {
+	if len(bid.itemList) == 0 || v != bid.itemList[len(bid.itemList)-1] {
+		bid.uniqueItemCount++
+	}
 	bid.itemList = append(bid.itemList, v)
 }
 
@@ -126,7 +131,8 @@ func (bid *MultiBitID) MakeCopy() BitIDInterface {
 	newItemList := make([]int, len(bid.itemList))
 	copy(newItemList, bid.itemList)
 	return &MultiBitID{
-		itemList: newItemList}
+		uniqueItemCount: bid.uniqueItemCount,
+		itemList:        newItemList}
 }
 
 func (bid *MultiBitID) DoEncode() []byte {
@@ -211,7 +217,9 @@ func (bid *MultiBitID) doDecode(buff []byte) error {
 
 	// allItems := append(prebid.GetItemList(), duplicates...)
 	// sort.Sort(allItems)
-	allItems := utils.SortSorted(prebid.GetItemList(), duplicates)
+	preItems := prebid.GetItemList()
+	bid.uniqueItemCount = len(preItems)
+	allItems := utils.SortSorted(preItems, duplicates)
 
 	bid.itemList = allItems
 	bid.encode = buff
@@ -350,7 +358,8 @@ func CreateMultiBitIDFromInts(items sort.IntSlice) (*MultiBitID, error) {
 		return nil, types.ErrInvalidBitID
 	}
 	return &MultiBitID{
-		itemList: items}, nil
+		uniqueItemCount: utils.GetUniqueCount(items),
+		itemList:        items}, nil
 }
 
 func (bid *MultiBitID) GetItemList() sort.IntSlice {

@@ -73,7 +73,7 @@ func createBinConsTestItems(idx types.ConsensusIndex, to types.TestOptions) *bin
 	msgState := NewBinConsRnd1MessageState(false, gc).New(idx).(*MessageState)
 	memberChecker := &consinterface.MemCheckers{
 		MC:  memberchecker.InitTrueMemberChecker(false, privKeys[0], gc).New(idx),
-		SMC: memberchecker.NewThrshSigMemChecker([]sig.Pub{privKeys[0].(sig.BasicThresholdInterface).GetSharedPub()})}
+		SMC: memberchecker.NewThrshSigMemChecker([]sig.Pub{privKeys[0].(sig.BasicThresholdInterface).GetSharedPub()}).New(idx)}
 	forwardChecker := forwardchecker.NewAllToAllForwarder().New(idx, memberChecker.MC.GetParticipants(), memberChecker.MC.GetAllPubs())
 	memberChecker.MC.(*memberchecker.TrueMemberChecker).AddPubKeys(nil, pubKeys, nil, [32]byte{})
 	mmc := &testobjects.MockMainChannel{}

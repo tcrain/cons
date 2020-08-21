@@ -2,7 +2,6 @@ package bitid
 
 import (
 	"bytes"
-	"encoding/binary"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
 	"io"
@@ -11,12 +10,12 @@ import (
 )
 
 type UvarintBitID struct {
-	min, max, size int
-	hasIteration   bool
-	maxSizeIdx     int // index in arr where the number of items of max is counted
-	maxCount       int // number of items of max
-	arr            []byte
-	iter           uvarintBitIDIter
+	min, max, size, uniqueCount int
+	hasIteration                bool
+	maxSizeIdx                  int // index in arr where the number of items of max is counted
+	maxCount                    int // number of items of max
+	arr                         []byte
+	iter                        uvarintBitIDIter
 }
 
 type uvarintBitIDIter struct {
@@ -29,7 +28,7 @@ type uvarintBitIDIter struct {
 // const sizeBytes = 4 // start with uint64
 
 func allocUvarintArr(size int) int {
-	return (2 * size) * binary.MaxVarintLen32
+	return 3 * size // TODO better estimate?
 }
 
 func NewUvarintBitIDFromInts(items sort.IntSlice) NewBitIDInterface {
@@ -37,16 +36,18 @@ func NewUvarintBitIDFromInts(items sort.IntSlice) NewBitIDInterface {
 	writer := bytes.NewBuffer(arr)
 
 	var n, n1, n2 int
-	var min, max, maxSizeIdx, maxSizeCount int
+	var min, max, maxSizeIdx, maxSizeCount, unique int
 	size := len(items)
 	if size > 0 {
 		min, max = items[0], items[len(items)-1]
 		prev := items[0]
 		count := 0
+		unique = 1
 		for _, nxt := range items[1:] {
 			if nxt == prev {
 				count++
 			} else {
+				unique++
 				n1, n2 = writeValCount(prev, count, writer)
 				n += n1 + n2
 				count = 0
@@ -58,12 +59,13 @@ func NewUvarintBitIDFromInts(items sort.IntSlice) NewBitIDInterface {
 		maxSizeCount = count
 	}
 	return &UvarintBitID{
-		min:        min,
-		max:        max,
-		maxSizeIdx: maxSizeIdx,
-		maxCount:   maxSizeCount,
-		size:       size,
-		arr:        writer.Bytes()}
+		min:         min,
+		uniqueCount: unique,
+		max:         max,
+		maxSizeIdx:  maxSizeIdx,
+		maxCount:    maxSizeCount,
+		size:        size,
+		arr:         writer.Bytes()}
 }
 
 func writeValCount(v, count int, writer io.Writer) (int, int) {
@@ -120,12 +122,13 @@ func (bid *UvarintBitID) DoMakeCopy() NewBitIDInterface {
 	cpy := make([]byte, len(bid.arr))
 	copy(cpy, bid.arr)
 	return &UvarintBitID{
-		min:        bid.min,
-		max:        bid.max,
-		size:       bid.size,
-		maxSizeIdx: bid.maxSizeIdx,
-		maxCount:   bid.maxCount,
-		arr:        cpy,
+		min:         bid.min,
+		max:         bid.max,
+		size:        bid.size,
+		uniqueCount: bid.uniqueCount,
+		maxSizeIdx:  bid.maxSizeIdx,
+		maxCount:    bid.maxCount,
+		arr:         cpy,
 	}
 }
 
@@ -169,14 +172,14 @@ func (bid *UvarintBitID) AllowsDuplicates() bool {
 // Done is called when this item is no longer needed
 func (bid *UvarintBitID) Done() {
 	bid.arr = bid.arr[:0]
-	bid.min, bid.max, bid.size, bid.maxSizeIdx, bid.maxCount = 0, 0, 0, 0, 0
+	bid.min, bid.max, bid.size, bid.uniqueCount, bid.maxSizeIdx, bid.maxCount = 0, 0, 0, 0, 0, 0
 	(&bid.iter).Done()
 	bid.hasIteration = false
 }
 
 // Returns the smallest element, the largest element, and the total number of elements
-func (bid *UvarintBitID) GetBasicInfo() (min, max, count int) {
-	return bid.min, bid.max, bid.size
+func (bid *UvarintBitID) GetBasicInfo() (min, max, count, uniqueCount int) {
+	return bid.min, bid.max, bid.size, bid.uniqueCount
 }
 
 // Allocate the expected initial size
@@ -209,6 +212,7 @@ func (bid *UvarintBitID) AppendItem(v int) {
 		_, bid.arr = utils.AppendUvarint(uint64(v), bid.arr)
 		bid.max = v
 		bid.maxCount = 0
+		bid.uniqueCount++
 		bid.maxSizeIdx = len(bid.arr)
 	} else { // repeated item
 		if v != bid.max {
@@ -242,6 +246,9 @@ func (bid *UvarintBitID) construct() error {
 		n += n1
 		if nxt > math.MaxUint32 || int(nxt) <= prev {
 			return types.ErrInvalidBitID
+		}
+		if prev != int(nxt) {
+			bid.uniqueCount++
 		}
 		if bid.size == 0 {
 			bid.min = int(nxt)

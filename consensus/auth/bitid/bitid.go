@@ -55,9 +55,9 @@ func (bid *BitID) NewIterator() BIDIter {
 }
 
 // Returns the smallest element, the largest element, and the total number of elements
-func (bid *BitID) GetBasicInfo() (min, max, count int) {
+func (bid *BitID) GetBasicInfo() (min, max, count, uniqueCount int) {
 	bid.GetNumItems() // populate the items
-	return bid.min, bid.max, bid.numItems
+	return bid.min, bid.max, bid.numItems, bid.numItems
 }
 
 // Allocate the expected initial size

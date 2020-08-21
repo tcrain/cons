@@ -56,7 +56,7 @@ func (pub *multiPub) DeserializeSig(m *messages.Message, signType types.SignType
 
 // GetSigMemberNumber returns the number of nodes represented by this pub key
 func (pub *multiPub) GetSigMemberNumber() int {
-	_, _, count := pub.bitID.GetBasicInfo()
+	_, _, _, count := pub.bitID.GetBasicInfo()
 	return count
 }
 

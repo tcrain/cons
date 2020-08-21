@@ -249,7 +249,7 @@ func checkSli(t *testing.T, sli sort.IntSlice, bid NewBitIDInterface) {
 		itms = sort.IntSlice{}
 	}
 	assert.Equal(t, sli, itms)
-	min, max, count := bid.GetBasicInfo()
+	min, max, count, unique := bid.GetBasicInfo()
 	var sMin, sMax, sCount int
 	sCount = len(sli)
 	if sCount > 0 {
@@ -259,6 +259,7 @@ func checkSli(t *testing.T, sli sort.IntSlice, bid NewBitIDInterface) {
 	assert.Equal(t, sMin, min)
 	assert.Equal(t, sMax, max)
 	assert.Equal(t, sCount, count)
+	assert.Equal(t, utils.GetUniqueCount(sli), unique)
 }
 
 func TestPool(t *testing.T) {
@@ -279,10 +280,11 @@ func checkPool(t *testing.T, intFunc FromIntFunc) {
 			assert.Nil(t, err)
 			pool.Done(single)
 		}
-		min, max, count := nxt.GetBasicInfo()
+		min, max, count, unique := nxt.GetBasicInfo()
 		assert.Equal(t, 0, min)
 		assert.Equal(t, 0, max)
 		assert.Equal(t, 0, count)
+		assert.Equal(t, utils.GetUniqueCount(nxt.GetItemList()), unique)
 		fmt.Println(nxt.GetItemList())
 		pool.Done(nxt)
 	}

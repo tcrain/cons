@@ -474,10 +474,6 @@ func Reset(scs *SingleConsState) {
 		panic(err)
 	}
 
-	// Close the connection to the participant register
-	if err = scs.ParReg.Close(); err != nil {
-		logging.Error("Error closing participant register connection: ", err)
-	}
 }
 
 // GetDecisions returns the decided values at the node. It should be called after RunSingleConsType has finished,

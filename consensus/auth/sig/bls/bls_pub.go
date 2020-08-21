@@ -274,7 +274,7 @@ func (pub *Blspub) GetIndex() sig.PubKeyIndex {
 // GetSigMemberNumber returns the number of nodes represented by this BLS pub key
 func (pub *Blspub) GetSigMemberNumber() int {
 	if sig.UsePubIndex {
-		_, _, count := pub.GetBitID().GetBasicInfo()
+		_, _, _, count := pub.GetBitID().GetBasicInfo()
 		return count
 	}
 	return 1
