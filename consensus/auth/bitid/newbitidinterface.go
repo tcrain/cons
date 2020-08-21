@@ -123,7 +123,7 @@ func HasNewItemsBothHelper(b1, b2, b3 NewBitIDInterface) bool {
 	nxt3, err3 := iter3.NextID()
 	for (err1 == nil || err2 == nil) && err3 == nil {
 		switch {
-		case nxt1 > nxt3 && nxt2 > nxt3:
+		case (err1 != nil || nxt1 > nxt3) && (err2 != nil || nxt2 > nxt3):
 			return true
 		case nxt1 < nxt3 && err1 == nil:
 			nxt1, err1 = iter1.NextID()

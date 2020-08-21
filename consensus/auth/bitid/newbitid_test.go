@@ -127,10 +127,10 @@ func TestHasNewItems(t *testing.T) {
 func testHasNewItems(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 
 	// hasDuplicates := []bool{false, false, true}
-	s1 := []sort.IntSlice{{1, 2, 8, 10}, {1, 2, 8, 10}, {4, 8, 8}, {}, {1, 2, 4}}
-	s2 := []sort.IntSlice{{1, 2, 8, 10}, {}, {2, 2, 4, 4, 7, 8, 10}, {1}, {2, 4, 6, 6, 7}}
-	s3 := []sort.IntSlice{{1, 2, 8, 10}, {1, 2, 8, 10}, {2, 4, 4, 7, 8, 10}, {1, 2}, {0, 0, 1, 3}}
-	s4 := []bool{false, false, false, true, true}
+	s1 := []sort.IntSlice{{1, 2, 8, 10}, {1, 2, 8, 10}, {4, 8, 8}, {}, {1, 2, 4}, {3}}
+	s2 := []sort.IntSlice{{1, 2, 8, 10}, {}, {2, 2, 4, 4, 7, 8, 10}, {1}, {2, 4, 6, 6, 7}, {}}
+	s3 := []sort.IntSlice{{1, 2, 8, 10}, {1, 2, 8, 10}, {2, 4, 4, 7, 8, 10}, {1, 2}, {0, 0, 1, 3}, {2}}
+	s4 := []bool{false, false, false, true, true, true}
 
 	for i := range s1 {
 		bid1 := intFunc1(s1[i])
