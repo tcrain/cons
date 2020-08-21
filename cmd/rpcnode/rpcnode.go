@@ -84,6 +84,7 @@ func (rc *RunningCons) Reset(rpcsetup.None, *rpcsetup.None) error {
 	if rc.myParReg != nil {
 		err = rc.myParReg.Close()
 	}
+	rc.myParReg = nil
 	// perform a garbage collection
 	runtime.GC()
 
