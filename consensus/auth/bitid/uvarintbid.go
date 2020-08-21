@@ -90,13 +90,13 @@ func (iter *uvarintBitIDIter) NextID() (nxt int, err error) {
 		return
 	}
 	var i uint64
-	i, _, err = utils.ReadUvarint(&iter.buff)
+	i, _, err = utils.ReadUvarintByteReader(&iter.buff)
 	if err != nil {
 		return
 	}
 	iter.previous = int(i)
 	var count uint64
-	count, _, err = utils.ReadUvarint(&iter.buff)
+	count, _, err = utils.ReadUvarintByteReader(&iter.buff)
 	if err != nil {
 		return
 	}
@@ -239,7 +239,7 @@ func (bid *UvarintBitID) construct() error {
 	var n int
 	prev := -1
 	for n < len(bid.arr) {
-		nxt, n1, err := utils.ReadUvarint(buff)
+		nxt, n1, err := utils.ReadUvarintByteReader(buff)
 		if err != nil {
 			return err
 		}
@@ -257,7 +257,7 @@ func (bid *UvarintBitID) construct() error {
 		bid.max = int(nxt)
 		bid.maxSizeIdx = n
 
-		count, n1, err := utils.ReadUvarint(buff)
+		count, n1, err := utils.ReadUvarintByteReader(buff)
 		if err != nil {
 			return err
 		}

@@ -303,10 +303,10 @@ tryValidate:
 		// we only keep the sig if it gives information for at least 1 new sig
 		// TODO also keep sig if it contains more members
 		pbid := si.Pub.(sig.MultiPub).GetBitID()
-		newSigs := bitid.GetNewItemsHelper(item.allSigs, pbid, item.pool.Get)
+		// newSigs := bitid.GetNewItemsHelper(item.allSigs, pbid, item.pool.Get)
 		// TODO check this???
-
-		if bitid.HasNewItemsHelper(imValidating, newSigs) {
+		if bitid.HasNewItemsBothHelper(item.allSigs, imValidating, pbid) {
+			// if bitid.HasNewItemsHelper(imValidating, newSigs) {
 			// check if someone is already validating these sigs
 			// if len(item.validatingSigs.GetNewItems(pbid)) == 0 {
 
@@ -316,7 +316,7 @@ tryValidate:
 				retry++
 				item.cond.Wait()
 				sigItems = append(newItems, sigItems[i:]...)
-				item.pool.Done(newSigs)
+				// item.pool.Done(newSigs)
 				item.pool.Done(imValidating)
 				goto tryValidate
 			}
@@ -329,7 +329,7 @@ tryValidate:
 		} else {
 			// logging.Info("no new sigs", pbid.GetItemList(), item.allSigs.GetItemList(), imValidating.GetItemList())
 		}
-		item.pool.Done(newSigs)
+		// item.pool.Done(newSigs)
 	}
 
 	// Let the oters know what you are validating
@@ -388,31 +388,31 @@ func (smm *blsSigState) storeMsg(sm *sig.MultipleSignedMessage, invalidSigs []*s
 			// TODO DO this merge in single loop
 
 			// update the state with the new sig
-			newBid := bitid.GetNewItemsHelper(item.allSigs, bid, item.pool.Get)
-			_, _, count, _ := newBid.GetBasicInfo()
-			if count > 0 {
-				// newBid := item.allSigs.GetNewItems(bid)
-				//if newBid.GetNumItems() > 0 {
-				item.allSigs, err = bitid.AddHelper(item.allSigs, newBid, false,
-					false, item.pool.Get, item.pool.Done)
-				utils.PanicNonNil(err)
-				// bitid.AddBitIDType(item.allSigs, newBid, false)
-				// item.allSigs = sig.MergeBitIDType(item.allSigs, newBid, false)
-			}
-			item.pool.Done(newBid)
+			// newBid := bitid.GetNewItemsHelper(item.allSigs, bid, item.pool.Get)
+			//_, _, count, _ := newBid.GetBasicInfo()
+			//if count > 0 {
+			// newBid := item.allSigs.GetNewItems(bid)
+			//if newBid.GetNumItems() > 0 {
+			item.allSigs, err = bitid.AddHelper(item.allSigs, bid, false,
+				false, item.pool.Get, item.pool.Done)
+			utils.PanicNonNil(err)
+			// bitid.AddBitIDType(item.allSigs, newBid, false)
+			// item.allSigs = sig.MergeBitIDType(item.allSigs, newBid, false)
+			//}
+			//item.pool.Done(newBid)
 			// update for the msg id
-			newBid = bitid.GetNewItemsHelper(itemID.allSigs, bid, item.pool.Get)
-			_, _, count, _ = newBid.GetBasicInfo()
-			if count > 0 {
-				// newBid = itemID.allSigs.GetNewItems(bid)
-				// if newBid.GetNumItems() > 0 {
-				itemID.allSigs, err = bitid.AddHelper(itemID.allSigs, newBid,
-					false, false, item.pool.Get, item.pool.Done)
-				utils.PanicNonNil(err)
-				// bitid.AddBitIDType(itemID.allSigs, newBid, false)
-				// itemID.allSigs = sig.MergeBitIDType(itemID.allSigs, newBid, false)
-			}
-			item.pool.Done(newBid)
+			//newBid = bitid.GetNewItemsHelper(itemID.allSigs, bid, item.pool.Get)
+			//_, _, count, _ = newBid.GetBasicInfo()
+			//if count > 0 {
+			// newBid = itemID.allSigs.GetNewItems(bid)
+			// if newBid.GetNumItems() > 0 {
+			itemID.allSigs, err = bitid.AddHelper(itemID.allSigs, bid,
+				false, false, item.pool.Get, item.pool.Done)
+			utils.PanicNonNil(err)
+			// bitid.AddBitIDType(itemID.allSigs, newBid, false)
+			// itemID.allSigs = sig.MergeBitIDType(itemID.allSigs, newBid, false)
+			//}
+			//item.pool.Done(newBid)
 			item.fullSigList = append(item.fullSigList, &blsSigItem{pub: si.Pub.(sig.AllMultiPub),
 				sig: si.Sig.(sig.AllMultiSig), proof: si.VRFProof, sigBytes: &si.SigBytes})
 

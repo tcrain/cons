@@ -90,7 +90,7 @@ func (rb *readByte) ReadByte() (byte, error) {
 
 // ReadUvarint reads an encoded unsigned integer from r and returns it as a uint64.
 // This is modified from the golang library to use io.Reader instead of byte reader
-func ReadUvarintReader(r io.Reader) (uint64, int, error) {
+func ReadUvarint(r io.Reader) (uint64, int, error) {
 	var x uint64
 	var s uint
 	var tmp [1]byte
@@ -132,14 +132,6 @@ func ReadUvarintByteReader(r io.ByteReader) (uint64, int, error) {
 		x |= uint64(b&0x7f) << s
 		s += 7
 	}
-}
-
-func ReadUvarint(reader io.Reader) (v uint64, n int, err error) {
-	// TODO better way to implement this?
-	if r, ok := reader.(io.ByteReader); ok {
-		return ReadUvarintByteReader(r)
-	}
-	return ReadUvarintReader(reader)
 }
 
 func ReadUint64(reader io.Reader) (v uint64, n int, err error) {

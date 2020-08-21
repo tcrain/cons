@@ -116,6 +116,32 @@ func testGetNewItems(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 	}
 }
 
+func TestHasNewItems(t *testing.T) {
+	testHasNewItems(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
+	testHasNewItems(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
+	testHasNewItems(NewMultiBitIDFromInts, NewMultiBitIDFromInts, t)
+	testHasNewItems(NewBitIDFromInts, NewBitIDFromInts, t)
+	testHasNewItems(NewUvarintBitIDFromInts, NewSliceBitIDFromInts, t)
+}
+
+func testHasNewItems(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
+
+	// hasDuplicates := []bool{false, false, true}
+	s1 := []sort.IntSlice{{1, 2, 8, 10}, {1, 2, 8, 10}, {4, 8, 8}, {}, {1, 2, 4}}
+	s2 := []sort.IntSlice{{1, 2, 8, 10}, {}, {2, 2, 4, 4, 7, 8, 10}, {1}, {2, 4, 6, 6, 7}}
+	s3 := []sort.IntSlice{{1, 2, 8, 10}, {1, 2, 8, 10}, {2, 4, 4, 7, 8, 10}, {1, 2}, {0, 0, 1, 3}}
+	s4 := []bool{false, false, false, true, true}
+
+	for i := range s1 {
+		bid1 := intFunc1(s1[i])
+		bid2 := intFunc2(s2[i])
+		bid3 := intFunc2(s3[i])
+
+		assert.Equal(t, s4[i], HasNewItemsBothHelper(bid1, bid2, bid3))
+		assert.Equal(t, s4[i], HasNewItemsBothHelper(bid2, bid1, bid3))
+	}
+}
+
 func TestInterection(t *testing.T) {
 	testIntersection(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testIntersection(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)

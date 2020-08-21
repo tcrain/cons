@@ -82,7 +82,8 @@ func GetNewItemsHelper(b1, b2 NewBitIDInterface, newFunc NewBitIDFunc) NewBitIDI
 	return ret
 }
 
-// HasNewItemsHelper returns true if b2 has at least one item not in b1
+// HasNewItemsHelper returns true if b2 has at least one item not in b1.
+// Duplicates are only checked once.
 func HasNewItemsHelper(b1, b2 NewBitIDInterface) bool {
 	iter1, iter2 := b1.NewIterator(), b2.NewIterator()
 	defer func() { iter1.Done(); iter2.Done() }()
@@ -107,6 +108,43 @@ func HasNewItemsHelper(b1, b2 NewBitIDInterface) bool {
 		}
 	}
 	if err2 != nil {
+		return false
+	}
+	return true
+}
+
+// HasNewItemsBothHelper returns true if b3 has at least one item not in b1 and not in b2
+func HasNewItemsBothHelper(b1, b2, b3 NewBitIDInterface) bool {
+	iter1, iter2, iter3 := b1.NewIterator(), b2.NewIterator(), b3.NewIterator()
+	defer func() { iter1.Done(); iter3.Done() }()
+
+	nxt1, err1 := iter1.NextID()
+	nxt2, err2 := iter2.NextID()
+	nxt3, err3 := iter3.NextID()
+	for (err1 == nil || err2 == nil) && err3 == nil {
+		switch {
+		case nxt1 > nxt3 && nxt2 > nxt3:
+			return true
+		case nxt1 < nxt3 && err1 == nil:
+			nxt1, err1 = iter1.NextID()
+		case nxt2 < nxt3 && err2 == nil:
+			nxt2, err2 = iter2.NextID()
+		default:
+			val := nxt1
+			for nxt1 == val && err1 == nil {
+				nxt1, err1 = iter1.NextID()
+			}
+			val = nxt2
+			for nxt2 == val && err2 == nil {
+				nxt2, err2 = iter2.NextID()
+			}
+			val = nxt3
+			for nxt3 == val && err3 == nil {
+				nxt3, err3 = iter3.NextID()
+			}
+		}
+	}
+	if err3 != nil {
 		return false
 	}
 	return true
