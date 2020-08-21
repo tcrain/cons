@@ -189,7 +189,7 @@ func (bid *UvarintBitID) SetInitialSize(v int) {
 	case true:
 		// Dont need to allocate
 	case false:
-		bid.arr = make([]byte, 0, size)
+		// bid.arr = make([]byte, 0, size)
 	}
 }
 
