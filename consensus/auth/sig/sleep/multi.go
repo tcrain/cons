@@ -15,6 +15,7 @@ type multiPub struct {
 	stats        *sig.SigStats
 	bitID        bitid.NewBitIDInterface
 	newBitIDFunc bitid.FromIntFunc
+	merges       int
 }
 
 func newMultiPub(p sig.Pub, newBitIDFunc bitid.FromIntFunc, stats *sig.SigStats) *multiPub {
@@ -123,7 +124,9 @@ func (pub *multiPub) SubMultiPub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 
 // MergePubPartial only merges the pub itself, does not create the new bitid
 func (pub *multiPub) MergePubPartial(pub2 sig.MultiPub) {
-	time.Sleep(pub.stats.MultiCombineTime)
+	// time.Sleep(pub.stats.MultiCombineTime)
+	// we perform the sleep at the end (done partial merge)
+	pub.merges++
 }
 
 // GetPubID returns the id of the public key (see type definition for PubKeyID).
@@ -140,6 +143,8 @@ func (pub *multiPub) GetPubID() (sig.PubKeyID, error) {
 // DonePartialMerge should be called after merging keys with MergePubPartial to set the bitid
 func (pub *multiPub) DonePartialMerge(bid bitid.NewBitIDInterface) {
 	pub.bitID = bid
+	time.Sleep(time.Duration(pub.merges) * pub.stats.MultiCombineTime)
+	pub.merges = 0
 }
 
 // GenerateSerializedSig serialized the public key and the signature and returns the bytes
