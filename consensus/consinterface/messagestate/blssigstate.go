@@ -779,11 +779,12 @@ func (ss *blsSigMsgState) createMergedSig(internalItemList []*blsSigItem, mc *co
 	_ = mc
 
 	// Create the merged sig from this group
+	bitids := make([]bitid.NewBitIDInterface, 0, len(internalItemList))
 	comSig := internalItemList[0].sig
 	comSigBuff := *internalItemList[0].sigBytes
-	comPub := internalItemList[0].pub
+	comPub := internalItemList[0].pub.Clone().(sig.AllMultiPub)
+	bitids = append(bitids, internalItemList[0].pub.GetBitID())
 	var err error
-
 	// TODO merge at once1!!!
 
 	for _, nxtSigItem := range internalItemList[1:] {
@@ -796,11 +797,14 @@ func (ss *blsSigMsgState) createMergedSig(internalItemList []*blsSigItem, mc *co
 
 		// newPub := smc.getPub(sig.PubKeyID(sig.MergeBitIDType(comPub.GetBitID(), nxtSigItem.pub.GetBitID(), true).GetStr()))
 		//if newPub == nil {
-		newComPub, err := comPub.MergePub(nxtSigItem.pub)
-		if err != nil {
-			panic(err)
-		}
-		comPub = newComPub.(sig.AllMultiPub)
+		comPub.MergePubPartial(nxtSigItem.pub)
+		bitids = append(bitids, nxtSigItem.pub.GetBitID())
+
+		//newComPub, err := comPub.MergePub(nxtSigItem.pub)
+		//if err != nil {
+		//	panic(err)
+		//}
+		//comPub = newComPub.(sig.AllMultiPub)
 		// So we generate the bitID
 		// _, err := newPub.InformState(nil)
 		// if err != nil {
@@ -810,6 +814,9 @@ func (ss *blsSigMsgState) createMergedSig(internalItemList []*blsSigItem, mc *co
 		//}
 		// comPub = newPub
 	}
+	bitSet, err := bitid.AddHelperSet(true, false, bitids[0].New, bitids...)
+	utils.PanicNonNil(err)
+	comPub.DonePartialMerge(bitSet)
 	// Create the sig bytes if needed
 	if len(internalItemList) > 1 {
 		comSigBuff, err = comPub.GenerateSerializedSig(comSig)

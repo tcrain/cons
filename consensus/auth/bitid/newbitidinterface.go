@@ -323,13 +323,7 @@ func AddHelper(b1, b2 NewBitIDInterface, allowDuplicates, errorOnDuplicate bool,
 	}()
 
 	_, _, b1Size, _ := b1.GetBasicInfo()
-	if b1Size == 0 {
-		return b2.DoMakeCopy(), nil
-	}
 	_, _, b2Size, _ := b2.GetBasicInfo()
-	if b2Size == 0 {
-		return b1.DoMakeCopy(), nil
-	}
 	lastAdded := -1
 
 	iter1, iter2 := b1.NewIterator(), b2.NewIterator()
@@ -381,6 +375,80 @@ func AddHelper(b1, b2 NewBitIDInterface, allowDuplicates, errorOnDuplicate bool,
 			lastAdded = nxt2
 		}
 		nxt2, err2 = iter2.NextID()
+	}
+	return ret, nil
+}
+
+type iterVal struct {
+	val  int
+	iter BIDIter
+}
+
+func remIter(idx int, iv []iterVal) []iterVal {
+	iv[idx] = iv[len(iv)-1]
+	return iv[:len(iv)-1]
+}
+
+func getMinIdx(iv []iterVal) int {
+	ret := iv[0]
+	idx := 0
+	for i, nxt := range iv {
+		if nxt.val < ret.val {
+			ret = nxt
+			idx = i
+		}
+	}
+	return idx
+}
+
+// AddHelper adds the items in the bitids together.
+// If allowsDuplicates is false then duplicates will only be counted once.
+// If errorOnDuplicate it true then an error will be returned if a duplicate is found.
+// If freeB1 is non-nil, then it will be called on b1.
+func AddHelperSet(allowDuplicates, errorOnDuplicate bool,
+	newFunc NewBitIDFunc, bids ...NewBitIDInterface) (NewBitIDInterface, error) {
+
+	iters := make([]BIDIter, len(bids))
+	for i, nxt := range bids {
+		iters[i] = nxt.NewIterator()
+	}
+	defer func() {
+		for _, nxt := range iters {
+			nxt.Done()
+		}
+	}()
+
+	idxs := make([]iterVal, 0, len(bids))
+	for _, nxt := range iters {
+		if v, err := nxt.NextID(); err == nil {
+			idxs = append(idxs, iterVal{
+				val:  v,
+				iter: nxt,
+			})
+		}
+	}
+
+	prev := -1
+	ret := newFunc()
+	for len(idxs) > 0 {
+		nxt := getMinIdx(idxs)
+		val := idxs[nxt].val
+		if val == prev {
+			if errorOnDuplicate {
+				return nil, types.ErrIntersectingBitIDs
+			}
+			if allowDuplicates {
+				ret.AppendItem(val)
+			}
+		} else {
+			ret.AppendItem(val)
+		}
+		if nxtV, err := idxs[nxt].iter.NextID(); err != nil {
+			idxs = remIter(nxt, idxs)
+		} else {
+			idxs[nxt].val = nxtV
+		}
+		prev = val
 	}
 	return ret, nil
 }

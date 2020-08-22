@@ -10,6 +10,45 @@ import (
 	"testing"
 )
 
+func TestAddSet(t *testing.T) {
+	testAddSet(NewSliceBitIDFromInts, t)
+	testAddSet(NewUvarintBitIDFromInts, t)
+	testAddSet(NewMultiBitIDFromInts, t)
+	testAddSet(NewBitIDFromInts, t)
+	testAddSet(NewUvarintBitIDFromInts, t)
+}
+
+func testAddSet(intFunc FromIntFunc, t *testing.T) {
+	count := 10
+
+	items := make([]NewBitIDInterface, count)
+	ints := make(sort.IntSlice, count)
+	for i := range items {
+		items[i] = intFunc(sort.IntSlice{i})
+		ints[i] = i
+	}
+	b1, err := AddHelperSet(true, true, intFunc(nil).New, items...)
+	assert.Nil(t, err)
+	assert.Equal(t, ints, b1.GetItemList())
+
+	items = make([]NewBitIDInterface, count)
+	intsDub := make(sort.IntSlice, 0, count)
+	for i := range items {
+		items[i] = intFunc(sort.IntSlice{i, i})
+		intsDub = append(intsDub, i, i)
+	}
+	if intFunc(nil).AllowsDuplicates() {
+		b1, err = AddHelperSet(true, false, intFunc(nil).New, items...)
+		assert.Nil(t, err)
+		assert.Equal(t, intsDub, b1.GetItemList())
+		b1, err = AddHelperSet(false, true, intFunc(nil).New, items...)
+		assert.NotNil(t, err)
+	}
+	b1, err = AddHelperSet(false, false, intFunc(nil).New, items...)
+	assert.Nil(t, err)
+	assert.Equal(t, ints, b1.GetItemList())
+}
+
 func TestAdd(t *testing.T) {
 	testAdd(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testAdd(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
@@ -28,6 +67,11 @@ func testAdd(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 	bid2 := intFunc2(s2)
 
 	bid3, err := AddHelper(bid1, bid2, true, true, bid1.New, nil)
+	assert.Equal(t, types.ErrIntersectingBitIDs, err)
+	bid3, err = AddHelper(bid1, bid2, true, true, bid1.New, nil)
+	assert.Equal(t, types.ErrIntersectingBitIDs, err)
+
+	bid3, err = AddHelperSet(true, true, bid1.New, bid1, bid2)
 	assert.Equal(t, types.ErrIntersectingBitIDs, err)
 	bid3, err = AddHelper(bid1, bid2, true, true, bid1.New, nil)
 	assert.Equal(t, types.ErrIntersectingBitIDs, err)

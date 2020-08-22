@@ -83,13 +83,6 @@ func (pub *Blspub) SubMultiPub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 		bitID:      nPbid}, nil
 }
 
-// MergePubPartial only merges the pub itself, does not create the new bitid
-func (pub *Blspub) MergePubPartial(pub2 sig.MultiPub) {
-	pb := pub.newPub.Add(pub2.(*Blspub).newPub, pub.newPub)
-	pub.pub = pb
-	pub.newPub = pb
-}
-
 // DonePartialMerge should be called after merging keys with MergePubPartial to set the bitid
 func (pub *Blspub) DonePartialMerge(bid bitid.NewBitIDInterface) {
 	pub.bitID = bid
@@ -103,6 +96,13 @@ func (pub *Blspub) GenerateSerializedSig(bsig sig.MultiSig) ([]byte, error) {
 		return nil, err
 	}
 	return si.SigBytes, nil
+}
+
+// MergePubPartial only merges the pub itself, does not create the new bitid
+func (pub *Blspub) MergePubPartial(pub2 sig.MultiPub) {
+	pb := pub.newPub.Add(pub2.(*Blspub).newPub, pub.newPub)
+	pub.pub = pb
+	pub.newPub = pb
 }
 
 // MergeBlsPub combines two BLS public key objects into a single one
