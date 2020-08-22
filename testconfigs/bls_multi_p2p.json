@@ -19,5 +19,7 @@
     "IncludeCurrentSigs": true,
     "SleepCrypto": true,
     "SharePubsRPC": true,
+    "MemCheckerBitIDType": 1,
+    "SigBitIDType": 0,
     "AdditionalP2PNetworks": 2
 }

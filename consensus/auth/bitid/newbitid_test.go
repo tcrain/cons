@@ -333,6 +333,7 @@ func checkSli(t *testing.T, sli sort.IntSlice, bid NewBitIDInterface) {
 }
 
 func TestPool(t *testing.T) {
+	checkPool(t, NewSliceBitIDFromInts)
 	checkPool(t, NewUvarintBitIDFromInts)
 }
 

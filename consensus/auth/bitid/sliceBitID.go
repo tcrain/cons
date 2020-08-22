@@ -12,6 +12,7 @@ import (
 type SliceBitID struct {
 	items             sort.IntSlice
 	nonDuplicateCount int
+	iter              sliceBitIDIter
 }
 
 type sliceBitIDIter struct {
@@ -23,6 +24,8 @@ type sliceBitIDIter struct {
 // Done is called when the iterator is no longer needed
 func (iter *sliceBitIDIter) Done() {
 	iter.started = false
+	iter.items = nil
+	iter.idx = 0
 }
 
 // NextID is for iterating through the bitid, an iterator is created using NewBitIDIterator(), returns an error if the iterator has traversed all items
@@ -50,7 +53,9 @@ func (bid *SliceBitID) New() NewBitIDInterface {
 
 // Done is called when this item is no longer needed
 func (bid *SliceBitID) Done() {
-	panic("TODO")
+	bid.items = bid.items[:0]
+	bid.iter.Done()
+	bid.nonDuplicateCount = 0
 }
 
 // DoMakeCopy returns a copy of the bit id.
@@ -84,9 +89,17 @@ func (bid *SliceBitID) GetStr() string {
 	return string(writer.Bytes())
 }
 func (bid *SliceBitID) NewIterator() BIDIter {
-	return &sliceBitIDIter{
-		items: bid.items,
+	var ret *sliceBitIDIter
+	if !bid.iter.started {
+		ret = &bid.iter
+	} else {
+		ret = &sliceBitIDIter{
+			items: bid.items,
+		}
 	}
+	ret.started = true
+	ret.items = bid.items
+	return ret
 }
 
 // AllowDuplicates returns true.
