@@ -20,6 +20,6 @@
     "SleepCrypto": true,
     "SharePubsRPC": true,
     "MemCheckerBitIDType": 1,
-    "SigBitIDType": 0,
+    "SigBitIDType": 2,
     "AdditionalP2PNetworks": 2
 }

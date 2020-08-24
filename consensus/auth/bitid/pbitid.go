@@ -20,32 +20,40 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package bitid
 
 import (
+	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
-	// "fmt"
-	"sort"
-
 	"github.com/tcrain/cons/consensus/utils"
+	"io"
+	"math/bits"
+	"sort"
 )
 
 type Pbitid struct {
-	buff     []byte // 1st bit is the encoding type
-	str      string // buff as a string
-	n        int
-	numItems int
+	buff                            []byte // 1st bit is the encoding type
+	str                             string // buff as a string
+	lastIdx                         int    // index in the last byte of the last 1
+	numItems, min, max, uniqueCount int
+	iter                            pbitidIter
 }
 
-func appendZero(buff []byte, currentIndex int) ([]byte, int) {
-	// pos is + 1 because the first byte describes the encoding type
-	if (currentIndex/8)+1 >= len(buff) {
+func (bid *Pbitid) New() NewBitIDInterface {
+	return &Pbitid{}
+}
+
+// append count 0s starting from currentIndex
+func appendZero(buff []byte, count, currentIndex int) ([]byte, int) {
+	// TODO multiple ZEROS
+	currentIndex += count
+	for currentIndex/8 >= len(buff) {
 		buff = append(buff, 0)
 	}
-	currentIndex++
 	return buff, currentIndex
 }
 
+// append 1 at current index
 func appendOne(buff []byte, currentIndex int) ([]byte, int) {
-	// pos is + 1 because the first byte describes the encoding type
-	pos := (currentIndex / 8) + 1
+	// TODO multiple ONES
+	pos := currentIndex / 8
 	if pos >= len(buff) {
 		buff = append(buff, 0)
 	}
@@ -54,129 +62,131 @@ func appendOne(buff []byte, currentIndex int) ([]byte, int) {
 	return buff, currentIndex
 }
 
-func DecodePbitid(buff []byte) (*Pbitid, error) {
-	if len(buff) < 1 {
-		return nil, types.ErrInvalidBitID
-	}
-	switch buff[0] {
-	case byte(types.BitIDP):
-		buff = utils.TrimZeros(buff, 1)
-		return &Pbitid{buff: buff, numItems: -1}, nil
-	default:
-		panic(1) // TODO
-	}
-}
-
-func CreatePbitIDFromBytes(arr []byte) (*Pbitid, error) {
-	if len(arr) >= (1<<15-1)/8 {
-		return nil, types.ErrTooLargeBitID
-	}
-
-	encodeBuff := make([]byte, len(arr)+1)
-	copy(encodeBuff[1:], arr)
-	encodeBuff = utils.TrimZeros(encodeBuff, 1)
-
-	return &Pbitid{buff: encodeBuff, numItems: -1}, nil
-}
-
-func CreatePbitidFromInts(items sort.IntSlice) (*Pbitid, error) {
+func NewPbitidFromInts(items sort.IntSlice) NewBitIDInterface {
 	if len(items) == 0 {
-		enc := make([]byte, 1)
-		enc[0] = byte(types.BitIDP)
-		return &Pbitid{buff: enc, numItems: -1}, nil
+		return &Pbitid{}
 	}
 	end := items[len(items)-1]
-	if end < 0 || end >= (1<<15-1) {
-		return nil, types.ErrUnsortedBitID
+	if end < 0 || end >= (1<<32-1) {
+		panic(types.ErrUnsortedBitID)
 	}
 
-	buff := make([]byte, 1, (end+8)/8+1)
-	var currentIndex int
+	buff := make([]byte, 0, (end+8)/8)
+	ret := &Pbitid{
+		buff: buff,
+		min:  items[0]}
 
-	var prev int
 	for _, nxt := range items {
-		for prev < nxt {
-			buff, currentIndex = appendZero(buff, currentIndex)
-			prev++
-		}
-		buff, currentIndex = appendOne(buff, currentIndex)
+		ret.AppendItem(nxt)
 	}
-	return &Pbitid{
-		buff:     buff,
-		numItems: len(items)}, nil
-}
-
-func (bid *Pbitid) MakeCopy() BitIDInterface {
-	buff := make([]byte, len(bid.buff))
-	copy(buff, bid.buff)
-	return &Pbitid{
-		buff:     buff,
-		str:      bid.str,
-		n:        bid.n,
-		numItems: bid.numItems}
-}
-func (bid *Pbitid) DoEncode() []byte {
-	bid.buff[0] = byte(types.BitIDP) // TODO
-	return bid.buff
-}
-func (bid *Pbitid) GetNumItems() int {
-	if bid.numItems == -1 {
-		bid.numItems = 0
-		iter := NewBitIDIterator()
-		_, err := bid.NextID(iter)
-		for ; err == nil; _, err = bid.NextID(iter) {
-			bid.numItems++
-		}
+	if ret.numItems != len(items) {
+		panic("invalid num items")
 	}
-	return bid.numItems
-}
-func (bid *Pbitid) GetNewItems(other BitIDInterface) BitIDInterface {
-	newItems := getNewItems(bid, other.(*Pbitid), false)
-	ret, err := CreatePbitidFromInts(newItems)
-	if err != nil {
-		panic(err)
+	if ret.max != items[len(items)-1] {
+		panic("invalid max")
 	}
 	return ret
 }
-func (bid *Pbitid) HasNewItems(other BitIDInterface) bool {
-	return len(getNewItems(bid, other.(*Pbitid), true)) > 0
-}
-func (bid *Pbitid) CheckIntersection(other BitIDInterface) sort.IntSlice {
-	otherIter := NewBitIDIterator()
-	bidIter := NewBitIDIterator()
-	var items sort.IntSlice
-	otherpbid := other.(*Pbitid)
-	v, err := nextIntersection(bid, otherpbid, bidIter, otherIter)
-	for ; err != nil; v, err = nextIntersection(bid, otherpbid, bidIter, otherIter) {
-		items = append(items, v)
+func (bid *Pbitid) AppendItem(nxt int) {
+	count := nxt - bid.max
+	if count < 0 {
+		panic("invalid order")
 	}
-	return items
+	if bid.numItems == 0 {
+		bid.min = nxt
+	}
+	bid.buff, bid.lastIdx = appendZero(bid.buff, count, bid.lastIdx)
+	bid.buff, bid.lastIdx = appendOne(bid.buff, bid.lastIdx)
+	if bid.max != nxt || bid.numItems == 0 {
+		bid.uniqueCount++
+	}
+	bid.numItems++
+	bid.max = nxt
 }
-func (bid *Pbitid) CheckBitID(val int) bool {
-	iter := NewBitIDIterator()
-	nxt, err := bid.NextID(iter)
-	for ; err == nil; nxt, err = bid.NextID(iter) {
-		if nxt == val {
-			return true
+
+// SetInitialSize is unused.
+func (bid *Pbitid) SetInitialSize(int) {
+	// TODO?
+}
+
+// DoMakeCopy returns a copy of the bit id.
+func (bid *Pbitid) DoMakeCopy() NewBitIDInterface {
+	buff := make([]byte, len(bid.buff))
+	copy(buff, bid.buff)
+	return &Pbitid{
+		buff:        buff,
+		str:         bid.str,
+		min:         bid.min,
+		max:         bid.max,
+		lastIdx:     bid.lastIdx,
+		uniqueCount: bid.uniqueCount,
+		numItems:    bid.numItems}
+}
+func (bid *Pbitid) Encode(writer io.Writer) (n int, err error) {
+	return utils.EncodeHelper(bid.DoEncode(), writer)
+}
+func (bid *Pbitid) Decode(reader io.Reader) (n int, err error) {
+	n, bid.buff, err = utils.DecodeHelper(reader)
+	if err != nil {
+		return
+	}
+	bid.construct()
+	return
+}
+func (bid *Pbitid) Deserialize(msg *messages.Message) (n int, err error) {
+	n, bid.buff, err = utils.DecodeHelper((*messages.MsgBuffer)(msg))
+	if err != nil {
+		return
+	}
+	bid.construct()
+	return
+}
+
+func (bid *Pbitid) DoEncode() []byte {
+	return bid.buff
+}
+func (bid *Pbitid) construct() {
+	if len(bid.buff) == 0 {
+		bid.numItems = 0
+		return
+	}
+	var gotMin bool
+	prev0 := true
+	bid.numItems = 0
+	var maxIdx int
+	for _, b := range bid.buff {
+		if !gotMin {
+			z := bits.TrailingZeros8(b) // TODO does endian matter here?
+			if z < 8 {
+				bid.min = maxIdx + z
+				gotMin = true
+			}
 		}
-		if nxt > val {
-			return false
+		for i := 0; i < 8; i++ {
+			switch b&(1<<i) != 0 {
+			case true:
+				bid.numItems++
+				if prev0 {
+					bid.uniqueCount++
+					bid.max = maxIdx
+				} else {
+					prev0 = false
+				}
+			case false:
+				maxIdx++
+				prev0 = true
+			}
 		}
 	}
-	return false
 }
-func (bid *Pbitid) AddBitID(id int, allowDup bool, iter *BitIDIterator) bool {
-	panic(1)
+
+// GetBasicInfo returns the smallest element, the largest element, and the total number of elements
+func (bid *Pbitid) GetBasicInfo() (min, max, count, uniqueCount int) {
+	return bid.min, bid.max, bid.numItems, bid.uniqueCount
 }
 
 func (bid *Pbitid) GetItemList() sort.IntSlice {
-	iter := NewBitIDIterator()
-	var items sort.IntSlice
-	nxt, err := bid.NextID(iter)
-	for ; err == nil; nxt, err = bid.NextID(iter) {
-		items = append(items, nxt)
-	}
-	return items
+	return toSliceHelper(bid)
 }
 func (bid *Pbitid) GetStr() string {
 	if bid.str == "" {
@@ -184,72 +194,59 @@ func (bid *Pbitid) GetStr() string {
 	}
 	return bid.str
 }
-func (bid *Pbitid) HasIntersection(other BitIDInterface) bool {
-	if _, err := nextIntersection(bid, other.(*Pbitid), NewBitIDIterator(), NewBitIDIterator()); err != nil {
-		return true
-	}
-	return false
+
+// CheckBitID returns true if the argument is in the bid
+func (bid *Pbitid) CheckBitID(int) bool {
+	panic("unused")
 }
 
-func getNewItems(bid *Pbitid, other *Pbitid, earlyStop bool) sort.IntSlice {
-	var items sort.IntSlice
-	otherIter := NewBitIDIterator()
-	bidIter := NewBitIDIterator()
-
-	nxtBid, errBid := bid.NextID(bidIter)
-	for {
-		nxtOther, errOther := other.NextID(otherIter)
-		if errOther != nil {
-			return items
-		}
-		for {
-			if errBid != nil || nxtBid > nxtOther {
-				if len(items) == 0 || items[len(items)-1] != nxtOther {
-					items = append(items, nxtOther)
-				}
-				if earlyStop {
-					return items
-				}
-				break
-			}
-			nxtBid, errBid = bid.NextID(bidIter)
-		}
-
-	}
+// Done is called when this item is no longer needed
+func (bid *Pbitid) Done() {
+	bid.buff = bid.buff[:0]
+	bid.uniqueCount = 0
+	bid.numItems = 0
+	bid.max = 0
+	bid.lastIdx = 0
+	bid.min = 0
+	bid.str = ""
 }
 
-func nextIntersection(small *Pbitid, big *Pbitid, smallIter *BitIDIterator, bigIter *BitIDIterator) (int, error) {
-	var bigVal, smallVal int
-	var err error
-	bigVal, err = big.NextID(bigIter)
-	if err != nil {
-		return 0, err
+// AllowDuplicates returns true.
+func (bid *Pbitid) AllowsDuplicates() bool {
+	return true
+}
+
+// NewIterator Returns a new iterator of the bit id.
+func (bid *Pbitid) NewIterator() BIDIter {
+	var ret *pbitidIter
+	if bid.iter.started {
+		ret = &pbitidIter{}
+	} else {
+		ret = &bid.iter
 	}
-	for {
-		smallVal, err = small.NextID(smallIter)
-		if err != nil {
-			return 0, err
-		}
-		if bigVal == smallVal {
-			return smallVal, nil
-		}
-		if smallVal > bigVal {
-			big, small = small, big
-			bigVal = smallVal
-		}
-	}
+	ret.started = true
+	ret.buff = bid.buff
+	return ret
+}
+
+type pbitidIter struct {
+	buff       []byte
+	iterIdx    int
+	currentVal int
+	prevVal    bool
+	started    bool
 }
 
 // stops at each index (whether it exists or not) (next ID stops at each value that exists in the bitid)
 // this should not be used in conjunction with NextID
 // iter.iterIdx will be 1 bit past the end of the current value
-func (bid *Pbitid) nextIndex(iter *BitIDIterator) (nxt int, err error) {
+func (iter *pbitidIter) nextIndex() (nxt int, err error) {
 	for true {
-		bytID := iter.iterIdx/8 + 1
-		if bytID >= len(bid.buff) {
+		bytID := iter.iterIdx / 8
+		if bytID >= len(iter.buff) {
 			return 0, types.ErrNoItems
 		}
-		v := (1 << uint(iter.iterIdx%8)) & bid.buff[bytID]
+		v := (1 << uint(iter.iterIdx%8)) & iter.buff[bytID]
 		switch v {
 		case 0:
 			nxt = iter.currentVal
@@ -267,14 +264,24 @@ func (bid *Pbitid) nextIndex(iter *BitIDIterator) (nxt int, err error) {
 	panic("should not reach")
 }
 
-// For iteration
-func (bid *Pbitid) NextID(iter *BitIDIterator) (nxt int, err error) {
+// Done is called when the iterator is no longer needed.
+func (iter *pbitidIter) Done() {
+	iter.buff = nil
+	iter.prevVal = false
+	iter.started = false
+	iter.currentVal = 0
+	iter.iterIdx = 0
+}
+
+// NextID is for iterating through the bitid, an iterator is created using NewBitIDIterator(),
+//returns an error if the iterator has traversed all items
+func (iter *pbitidIter) NextID() (nxt int, err error) {
 	for true {
-		bytID := iter.iterIdx/8 + 1
-		if bytID >= len(bid.buff) {
+		bytID := iter.iterIdx / 8
+		if bytID >= len(iter.buff) {
 			return 0, types.ErrNoItems
 		}
-		v := (1 << uint(iter.iterIdx%8)) & bid.buff[bytID]
+		v := (1 << uint(iter.iterIdx%8)) & iter.buff[bytID]
 		switch v {
 		case 0:
 			iter.currentVal++

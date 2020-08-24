@@ -1,6 +1,7 @@
 package bitid
 
 import (
+	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
 	"io"
 	"sort"
@@ -13,7 +14,7 @@ type BIDIter interface {
 
 type NewBitIDInterface interface {
 	New() NewBitIDInterface        // New allocates a new bit id.
-	DoMakeCopy() NewBitIDInterface // Do make copy returns a copy of the bit id.
+	DoMakeCopy() NewBitIDInterface // DoMakeCopy returns a copy of the bit id.
 	// GetNumItems() int                                         // Returns the number of items in the bitID
 	CheckBitID(int) bool                              // Returns true if the argument is in the bid
 	GetItemList() sort.IntSlice                       // Returns the list of items of the bitid
@@ -27,6 +28,7 @@ type NewBitIDInterface interface {
 
 	Encode(writer io.Writer) (n int, err error)
 	Decode(reader io.Reader) (n int, err error)
+	Deserialize(msg *messages.Message) (n int, err error)
 }
 
 var NewBitIDFuncs = []FromIntFunc{NewBitIDFromInts, NewMultiBitIDFromInts, NewSliceBitIDFromInts, NewUvarintBitIDFromInts}

@@ -21,6 +21,7 @@ package bitid
 
 import (
 	"encoding/binary"
+	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
 	"io"
 	"sort"
@@ -91,7 +92,15 @@ func (bid *MultiBitID) AppendItem(v int) {
 func (bid *MultiBitID) Encode(writer io.Writer) (n int, err error) {
 	return utils.EncodeHelper(bid.DoEncode(), writer)
 }
-
+func (bid *MultiBitID) Deserialize(msg *messages.Message) (n int, err error) {
+	var buff []byte
+	n, buff, err = utils.DecodeHelperMsg((*messages.MsgBuffer)(msg))
+	if err != nil {
+		return
+	}
+	err = bid.doDecode(buff)
+	return
+}
 func (bid *MultiBitID) Decode(reader io.Reader) (n int, err error) {
 	var buff []byte
 	n, buff, err = utils.DecodeHelper(reader)

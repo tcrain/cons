@@ -2,6 +2,7 @@ package bitid
 
 import (
 	"bytes"
+	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
 	"io"
@@ -130,6 +131,10 @@ func (bid *SliceBitID) AppendItem(v int) {
 
 func (bid *SliceBitID) Encode(writer io.Writer) (n int, err error) {
 	return uvarintEncode(bid.items, writer)
+}
+
+func (bid *SliceBitID) Deserialize(msg *messages.Message) (n int, err error) {
+	return bid.Decode((*messages.MsgBuffer)(msg))
 }
 
 func (bid *SliceBitID) Decode(reader io.Reader) (n int, err error) {

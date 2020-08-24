@@ -101,8 +101,6 @@ func DecodeBitIDType(buff []byte) (BitIDInterface, error) {
 		return DecodeBitID(buff)
 	case types.BitIDMulti:
 		return DecodeMultiBitID(buff)
-	case types.BitIDP:
-		return DecodePbitid(buff)
 	default:
 		return nil, types.ErrInvalidBitIDEncoding
 	}

@@ -168,9 +168,9 @@ type BitIDType int
 const (
 	BitIDUvarint BitIDType = iota
 	BitIDSlice
+	BitIDP
 	BitIDMulti
 	BitIDBasic
-	BitIDP
 	BitIDSingle
 )
 

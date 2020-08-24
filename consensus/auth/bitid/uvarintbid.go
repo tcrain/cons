@@ -2,6 +2,7 @@ package bitid
 
 import (
 	"bytes"
+	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
 	"io"
@@ -271,25 +272,16 @@ func (bid *UvarintBitID) construct() error {
 	return nil
 }
 func (bid *UvarintBitID) Decode(reader io.Reader) (n int, err error) {
-	var n1 int
-	var size uint64
-	size, n1, err = utils.ReadUvarint(reader)
-	n += n1
+	n, bid.arr, err = utils.DecodeHelper(reader)
 	if err != nil {
 		return
 	}
-	if size > math.MaxUint32 {
-		err = types.ErrTooLargeBitID
-		return
-	}
-	bid.arr = make([]byte, int(size))
-	n1, err = reader.Read(bid.arr)
-	n += n1
+	err = bid.construct()
+	return
+}
+func (bid *UvarintBitID) Deserialize(msg *messages.Message) (n int, err error) {
+	n, bid.arr, err = utils.DecodeHelperMsg((*messages.MsgBuffer)(msg))
 	if err != nil {
-		return
-	}
-	if n1 != int(size) {
-		err = types.ErrInvalidMsgSize
 		return
 	}
 	err = bid.construct()

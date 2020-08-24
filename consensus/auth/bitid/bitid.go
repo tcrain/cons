@@ -23,6 +23,7 @@ import (
 	// "fmt"
 	// "sync/atomic"
 	"encoding/binary"
+	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
 	"io"
 	"math/bits"
@@ -73,6 +74,15 @@ func (bid *BitID) AppendItem(v int) {
 
 func (bid *BitID) Encode(writer io.Writer) (n int, err error) {
 	return utils.EncodeHelper(bid.DoEncode(), writer)
+}
+func (bid *BitID) Deserialize(msg *messages.Message) (n int, err error) {
+	var buff []byte
+	n, buff, err = utils.DecodeHelperMsg((*messages.MsgBuffer)(msg))
+	if err != nil {
+		return
+	}
+	err = bid.doDecode(buff)
+	return
 }
 func (bid *BitID) Decode(reader io.Reader) (n int, err error) {
 	var buff []byte

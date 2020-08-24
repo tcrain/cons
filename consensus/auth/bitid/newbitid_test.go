@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
 	"sort"
@@ -11,6 +12,7 @@ import (
 )
 
 func TestAddSet(t *testing.T) {
+	testAddSet(NewPbitidFromInts, t)
 	testAddSet(NewSliceBitIDFromInts, t)
 	testAddSet(NewUvarintBitIDFromInts, t)
 	testAddSet(NewMultiBitIDFromInts, t)
@@ -50,6 +52,7 @@ func testAddSet(intFunc FromIntFunc, t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
+	testAdd(NewPbitidFromInts, NewPbitidFromInts, t)
 	testAdd(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testAdd(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
 	testAdd(NewMultiBitIDFromInts, NewMultiBitIDFromInts, t)
@@ -132,6 +135,7 @@ func testAdd(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 }
 
 func TestGetNewItems(t *testing.T) {
+	testGetNewItems(NewPbitidFromInts, NewPbitidFromInts, t)
 	testGetNewItems(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testGetNewItems(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
 	testGetNewItems(NewMultiBitIDFromInts, NewMultiBitIDFromInts, t)
@@ -161,6 +165,7 @@ func testGetNewItems(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 }
 
 func TestHasNewItems(t *testing.T) {
+	testHasNewItems(NewPbitidFromInts, NewPbitidFromInts, t)
 	testHasNewItems(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testHasNewItems(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
 	testHasNewItems(NewMultiBitIDFromInts, NewMultiBitIDFromInts, t)
@@ -187,6 +192,7 @@ func testHasNewItems(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 }
 
 func TestInterection(t *testing.T) {
+	testIntersection(NewPbitidFromInts, NewPbitidFromInts, t)
 	testIntersection(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testIntersection(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
 	testIntersection(NewMultiBitIDFromInts, NewMultiBitIDFromInts, t)
@@ -222,6 +228,7 @@ func testIntersection(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 }
 
 func TestSub(t *testing.T) {
+	testSub(NewPbitidFromInts, NewPbitidFromInts, t)
 	testSub(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testSub(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
 	testSub(NewMultiBitIDFromInts, NewMultiBitIDFromInts, t)
@@ -282,6 +289,7 @@ func testSub(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 }
 
 func TestEncode(t *testing.T) {
+	testEncode(NewPbitidFromInts, t)
 	testEncode(NewSliceBitIDFromInts, t)
 	testEncode(NewMultiBitIDFromInts, t)
 	testEncode(NewUvarintBitIDFromInts, t)
@@ -300,6 +308,7 @@ func testEncode(intFunc1 FromIntFunc, t *testing.T) {
 		assert.Nil(t, err)
 		byt := buff.Bytes()
 		buff2 := bytes.NewBuffer(byt[:len(byt)-1])
+		byt2 := buff2.Bytes()
 
 		bid2 := bid1.New()
 		n2, err := bid2.Decode(buff)
@@ -309,6 +318,16 @@ func testEncode(intFunc1 FromIntFunc, t *testing.T) {
 
 		bid3 := bid1.New()
 		_, err = bid3.Decode(buff2)
+		assert.NotNil(t, err)
+
+		bid2 = bid1.New()
+		n2, err = bid2.Deserialize(messages.NewMessage(byt))
+		assert.Nil(t, err)
+		assert.Equal(t, n1, n2)
+		checkSli(t, nxt, bid2)
+
+		bid3 = bid1.New()
+		_, err = bid3.Deserialize(messages.NewMessage(byt2))
 		assert.NotNil(t, err)
 	}
 }
@@ -333,6 +352,7 @@ func checkSli(t *testing.T, sli sort.IntSlice, bid NewBitIDInterface) {
 }
 
 func TestPool(t *testing.T) {
+	checkPool(t, NewPbitidFromInts)
 	checkPool(t, NewSliceBitIDFromInts)
 	checkPool(t, NewUvarintBitIDFromInts)
 }

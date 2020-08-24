@@ -58,40 +58,6 @@ func TestIterateBitID(t *testing.T) {
 	}
 }
 
-func TestPBitID(t *testing.T) {
-	t1 := sort.IntSlice{0, 1, 2, 3, 4, 5, 6, 7, 29, 29, 30, 32, 37, 100, 100, 100, 100, 200, 300, 5000}
-	byt1, err := CreatePbitidFromInts(t1)
-	assert.Nil(t, err)
-	assert.Equal(t, t1, byt1.GetItemList())
-	assert.Equal(t, len(t1), byt1.GetNumItems())
-
-	t1 = sort.IntSlice{6, 6, 6, 6, 7, 29, 29, 30, 32, 37, 100, 100, 100, 100, 200, 300, 5000}
-	byt1, err = CreatePbitidFromInts(t1)
-	assert.Nil(t, err)
-	assert.Equal(t, t1, byt1.GetItemList())
-	assert.Equal(t, len(t1), byt1.GetNumItems())
-
-	// Test create from bytes
-	byt2, err := CreatePbitIDFromBytes(byt1.buff[1:])
-	assert.Nil(t, err)
-	assert.Equal(t, byt1.GetItemList(), byt2.GetItemList())
-	assert.Equal(t, byt1.GetNumItems(), byt2.GetNumItems())
-
-	// Test copy from bytes
-	byt3 := byt1.MakeCopy()
-	assert.Nil(t, err)
-	assert.Equal(t, byt1.GetItemList(), byt3.GetItemList())
-	assert.Equal(t, byt1.GetNumItems(), byt3.GetNumItems())
-
-	// Test decode
-	// return
-	// TODO finish test
-	byt2, err = DecodePbitid(byt1.DoEncode())
-	assert.Nil(t, err)
-	assert.Equal(t, byt1.GetItemList(), byt2.GetItemList())
-	assert.Equal(t, byt1.GetNumItems(), byt2.GetNumItems())
-}
-
 func TestEncodeMultiBitID(t *testing.T) {
 	// test encoding
 	t1 := sort.IntSlice{0, 1, 2, 3, 4, 5, 6, 7, 5000}
