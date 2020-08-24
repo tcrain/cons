@@ -66,7 +66,7 @@ func TestBinCons1SleepMultiSig(t *testing.T) {
 	to := binTO
 	to.SleepCrypto = true
 	to.MemCheckerBitIDType = types.BitIDSlice
-	to.SigBitIDType = types.BitIDP
+	to.SigBitIDType = types.BitIDChoose
 	cons.RunMultiSigTests(to, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)
 }
 

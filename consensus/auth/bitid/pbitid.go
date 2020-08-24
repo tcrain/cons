@@ -169,9 +169,8 @@ func (bid *Pbitid) construct() {
 				if prev0 {
 					bid.uniqueCount++
 					bid.max = maxIdx
-				} else {
-					prev0 = false
 				}
+				prev0 = false
 			case false:
 				maxIdx++
 				prev0 = true
@@ -237,16 +236,18 @@ type pbitidIter struct {
 	started    bool
 }
 
+const mod8 = 0b111
+
 // stops at each index (whether it exists or not) (next ID stops at each value that exists in the bitid)
 // this should not be used in conjunction with NextID
 // iter.iterIdx will be 1 bit past the end of the current value
 func (iter *pbitidIter) nextIndex() (nxt int, err error) {
 	for true {
-		bytID := iter.iterIdx / 8
+		bytID := iter.iterIdx >> 3
 		if bytID >= len(iter.buff) {
 			return 0, types.ErrNoItems
 		}
-		v := (1 << uint(iter.iterIdx%8)) & iter.buff[bytID]
+		v := (1 << uint(iter.iterIdx&mod8)) & iter.buff[bytID]
 		switch v {
 		case 0:
 			nxt = iter.currentVal
@@ -277,11 +278,11 @@ func (iter *pbitidIter) Done() {
 //returns an error if the iterator has traversed all items
 func (iter *pbitidIter) NextID() (nxt int, err error) {
 	for true {
-		bytID := iter.iterIdx / 8
+		bytID := iter.iterIdx >> 3
 		if bytID >= len(iter.buff) {
 			return 0, types.ErrNoItems
 		}
-		v := (1 << uint(iter.iterIdx%8)) & iter.buff[bytID]
+		v := (1 << uint(iter.iterIdx&mod8)) & iter.buff[bytID]
 		switch v {
 		case 0:
 			iter.currentVal++

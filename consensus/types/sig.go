@@ -169,6 +169,7 @@ const (
 	BitIDUvarint BitIDType = iota
 	BitIDSlice
 	BitIDP
+	BitIDChoose
 	BitIDMulti
 	BitIDBasic
 	BitIDSingle
@@ -188,6 +189,8 @@ func (bt BitIDType) String() string {
 		return "BitIDP"
 	case BitIDSingle:
 		return "BitIDSingle"
+	case BitIDChoose:
+		return "BitIDChoose"
 	default:
 		panic(bt)
 	}

@@ -36,6 +36,8 @@ func GetBitIDFuncs(id types.BitIDType) (FromIntFunc, NewBitIDFunc) {
 		return NewUvarintBitIDFromInts, (&UvarintBitID{}).New
 	case types.BitIDP:
 		return NewPbitidFromInts, (&Pbitid{}).New
+	case types.BitIDChoose:
+		return NewChooseBIDFromInts, (&ChooseBid{}).New
 	default:
 		panic(id)
 	}

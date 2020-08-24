@@ -56,7 +56,7 @@ the following is the full list of ordered arguments
 - singleZoneRegion - (0) run nodes in the same region in the same zone
 - homezone - (us-central1-a) zone from where the benchmarks will be launched
 - homeinstancetype - (n1-standard-2) instance type that will launch the benchmarks
-- goversion - (1.14.2) version of go to use
+- goversion - (1.5) version of go to use
 - user - ($BENCHUSER) user name to log onto instances
 - key - ($KEYPATH) key to use to log onto instances
 - project - ($PROJECTID) google cloud project to use

@@ -16,7 +16,7 @@ type NewBitIDInterface interface {
 	New() NewBitIDInterface        // New allocates a new bit id.
 	DoMakeCopy() NewBitIDInterface // DoMakeCopy returns a copy of the bit id.
 	// GetNumItems() int                                         // Returns the number of items in the bitID
-	CheckBitID(int) bool                              // Returns true if the argument is in the bid
+	// CheckBitID(int) bool                              // Returns true if the argument is in the bid
 	GetItemList() sort.IntSlice                       // Returns the list of items of the bitid
 	GetStr() string                                   // Gets the string representation of the bitid
 	NewIterator() BIDIter                             // Returns a new iterator of the bit id

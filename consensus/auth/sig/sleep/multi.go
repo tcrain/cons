@@ -238,7 +238,7 @@ func (pub *multiPub) Deserialize(m *messages.Message, unmarFunc types.ConsensusI
 		}
 		// the bit id
 		pub.bitID = pub.newBitIDFunc(nil)
-		br, err := pub.bitID.Decode((*messages.MsgBuffer)(m))
+		br, err := pub.bitID.Deserialize(m)
 		l += br
 		if err != nil {
 			return l, err

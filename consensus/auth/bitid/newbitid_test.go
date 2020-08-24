@@ -12,6 +12,9 @@ import (
 )
 
 func TestAddSet(t *testing.T) {
+	testAddSet(NewChooseBIDFromInts, t)
+	testAddSet(NewChooseBIDFromInts, t)
+
 	testAddSet(NewPbitidFromInts, t)
 	testAddSet(NewSliceBitIDFromInts, t)
 	testAddSet(NewUvarintBitIDFromInts, t)
@@ -52,6 +55,9 @@ func testAddSet(intFunc FromIntFunc, t *testing.T) {
 }
 
 func TestAdd(t *testing.T) {
+	testAdd(NewChooseBIDFromInts, NewChooseBIDFromInts, t)
+	testAdd(NewChooseBIDFromInts, NewPbitidFromInts, t)
+
 	testAdd(NewPbitidFromInts, NewPbitidFromInts, t)
 	testAdd(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testAdd(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
@@ -135,6 +141,9 @@ func testAdd(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 }
 
 func TestGetNewItems(t *testing.T) {
+	testGetNewItems(NewChooseBIDFromInts, NewChooseBIDFromInts, t)
+	testGetNewItems(NewChooseBIDFromInts, NewPbitidFromInts, t)
+
 	testGetNewItems(NewPbitidFromInts, NewPbitidFromInts, t)
 	testGetNewItems(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testGetNewItems(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
@@ -165,6 +174,9 @@ func testGetNewItems(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 }
 
 func TestHasNewItems(t *testing.T) {
+	testHasNewItems(NewChooseBIDFromInts, NewChooseBIDFromInts, t)
+	testHasNewItems(NewChooseBIDFromInts, NewPbitidFromInts, t)
+
 	testHasNewItems(NewPbitidFromInts, NewPbitidFromInts, t)
 	testHasNewItems(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testHasNewItems(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
@@ -192,6 +204,9 @@ func testHasNewItems(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 }
 
 func TestInterection(t *testing.T) {
+	testIntersection(NewChooseBIDFromInts, NewChooseBIDFromInts, t)
+	testIntersection(NewChooseBIDFromInts, NewPbitidFromInts, t)
+
 	testIntersection(NewPbitidFromInts, NewPbitidFromInts, t)
 	testIntersection(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testIntersection(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
@@ -228,6 +243,8 @@ func testIntersection(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 }
 
 func TestSub(t *testing.T) {
+	testSub(NewChooseBIDFromInts, NewChooseBIDFromInts, t)
+	testSub(NewChooseBIDFromInts, NewPbitidFromInts, t)
 	testSub(NewPbitidFromInts, NewPbitidFromInts, t)
 	testSub(NewSliceBitIDFromInts, NewSliceBitIDFromInts, t)
 	testSub(NewUvarintBitIDFromInts, NewUvarintBitIDFromInts, t)
@@ -289,6 +306,7 @@ func testSub(intFunc1, intFunc2 FromIntFunc, t *testing.T) {
 }
 
 func TestEncode(t *testing.T) {
+	testEncode(NewChooseBIDFromInts, t)
 	testEncode(NewPbitidFromInts, t)
 	testEncode(NewSliceBitIDFromInts, t)
 	testEncode(NewMultiBitIDFromInts, t)
@@ -297,9 +315,13 @@ func TestEncode(t *testing.T) {
 }
 
 func testEncode(intFunc1 FromIntFunc, t *testing.T) {
-	sli := []sort.IntSlice{{}, {0}, {0, 100, 300}, {100, 122, 156, 199, 900}}
+	sli := []sort.IntSlice{{}, {0}, {0, 0, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9}, {0, 100, 300}, {100, 122, 156, 199, 900},
+		{10, 10, 20, 1028, 2048, 4096, 8213, 16123}}
 
 	for _, nxt := range sli {
+		if !intFunc1(nil).AllowsDuplicates() {
+			nxt = utils.SortSortedNoDuplicates(nxt, nil)
+		}
 		bid1 := intFunc1(nxt)
 		checkSli(t, nxt, bid1)
 		buff := bytes.NewBuffer(nil)
@@ -352,6 +374,7 @@ func checkSli(t *testing.T, sli sort.IntSlice, bid NewBitIDInterface) {
 }
 
 func TestPool(t *testing.T) {
+	checkPool(t, NewChooseBIDFromInts)
 	checkPool(t, NewPbitidFromInts)
 	checkPool(t, NewSliceBitIDFromInts)
 	checkPool(t, NewUvarintBitIDFromInts)
