@@ -26,7 +26,9 @@ import (
 	"flag"
 	"fmt"
 	"github.com/tcrain/cons/consensus/cons"
+	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/logging"
+	"github.com/tcrain/cons/consensus/network"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
 	"net"
@@ -63,8 +65,8 @@ type RunningCons struct {
 	myIP             string
 	setInitialConfig bool
 	setInitialHash   bool
-	shared           *rpcsetup.Shared
-	myParReg         rpcsetup.ParRegClientInterface
+	shared           *consinterface.Shared
+	myParReg         network.ParRegClientInterface
 }
 
 // Reset clears all running consensus object.
@@ -193,14 +195,14 @@ func (rc *RunningCons) NewConsRunning(nra rpcsetup.NewRunningArgs, _ *rpcsetup.N
 		return fmt.Errorf("already registered index %v", nra.I)
 	}
 
-	var shared *rpcsetup.Shared
+	var shared *consinterface.Shared
 	if nra.To.SharePubsRPC {
 		if rc.shared == nil {
-			rc.shared = &rpcsetup.Shared{}
+			rc.shared = &consinterface.Shared{}
 		}
 		shared = rc.shared
 	} else {
-		shared = &rpcsetup.Shared{}
+		shared = &consinterface.Shared{}
 	}
 
 	scs := &rpcsetup.SingleConsSetup{

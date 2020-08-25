@@ -1,6 +1,6 @@
 regions="us-central1-a"
 homezone="us-central1-a"
-genimage=0 # Generate the image for building the benchmark
+genimage=1 # Generate the image for building the benchmark
 deleteimage=0 # Delete the generated image at the end of the benchmark
 instancetype="n1-standard-2" # instance type of the nodes
 branch="$GITBRANCH"
@@ -11,8 +11,8 @@ toFolders="./testconfigs/simplebin/"
 # toFolders="./testconfigs/s-coinpresets/ ./testconfigs/ns-coinpresets/ ./testconfigs/s-coin/ ./testconfigs/ns-coin/ ./testconfigs/s-coin2/ ./testconfigs/ns-coin2/ ./testconfigs/s-coin2presets/ ./testconfigs/ns-coin2presets/ ./testconfigs/s-coin2echo/ ./testconfigs/ns-coin2echo/"
 # toFolders="./testconfigs/s-coin2echo/"
 # toFolders="./testconfigs/s-coin/ ./testconfigs/s-coinpresets/"
-nodesPerRegion=4
-nodesCount="4"
+nodesPerRegion=1
+nodesCount="1"
 
 launchNodes=1
 shutdownNodes=1

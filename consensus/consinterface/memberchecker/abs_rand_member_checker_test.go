@@ -22,6 +22,7 @@ package memberchecker
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/config"
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
@@ -43,8 +44,11 @@ func TestAbsRandMemberCheckerEC(t *testing.T) {
 }
 
 func TestAbsRandMemberCheckerBLS(t *testing.T) {
-	intTestAbsRandMemberChecker(bls.NewBlspriv, newAbsRnd, t)
-	intTestAbsRandMemberChecker(bls.NewBlspriv, newAbsRndByID, t)
+	blsFunc := func() (sig.Priv, error) {
+		return bls.NewBlspriv(bitid.NewMultiBitIDFromInts)
+	}
+	intTestAbsRandMemberChecker(blsFunc, newAbsRnd, t)
+	intTestAbsRandMemberChecker(blsFunc, newAbsRndByID, t)
 }
 
 func TestAbsRandKnownMemberChecker(t *testing.T) {

@@ -1,7 +1,6 @@
 package bitid
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -39,7 +38,6 @@ func (bp *BitIDPool) Get() NewBitIDInterface {
 	if len(bp.objs) == 0 {
 		bp.objs = append(bp.objs, bp.newFunc())
 		bp.allocated++
-		fmt.Print(bp.allocated, " ")
 	}
 	ret := bp.objs[0]
 	bp.objs[0] = bp.objs[len(bp.objs)-1]

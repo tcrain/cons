@@ -27,17 +27,6 @@ import (
 	"github.com/tcrain/cons/consensus/network"
 )
 
-type ParRegClientInterface interface {
-	GenBlsShared(id, idx, numThresh int) error
-	GetBlsShared(id, idx int) (*BlsSharedMarshalIndex, error)
-	GenDSSShared(id, numNonMembers, numThresh int) error
-	GetDSSShared(id int) (*ed.CoinSharedMarshaled, error)
-	RegisterParticipant(id int, parInfo *network.ParticipantInfo) error
-	GetParticipants(id int, pub sig.PubKeyStr) (pi [][]*network.ParticipantInfo, err error)
-	GetAllParticipants(id int) (pi []*network.ParticipantInfo, err error)
-	Close() (err error)
-}
-
 // ParRegClient acts as an interface to a ParticipantRegister through rpc.
 type ParRegClient struct {
 	cli *rpc.Client
@@ -70,8 +59,8 @@ func (pc *ParRegClient) GenBlsShared(id, idx, numThresh int) error {
 }
 
 // GetBlsShared calls ParticipantRegister.GetBlsShared on the server
-func (pc *ParRegClient) GetBlsShared(id, idx int) (*BlsSharedMarshalIndex, error) {
-	var reply *BlsSharedMarshalIndex
+func (pc *ParRegClient) GetBlsShared(id, idx int) (*network.BlsSharedMarshalIndex, error) {
+	var reply *network.BlsSharedMarshalIndex
 	err := pc.cli.Call("Preg.GetBlsShared", struct{ Id, Idx int }{id, idx}, &reply)
 	return reply, err
 }

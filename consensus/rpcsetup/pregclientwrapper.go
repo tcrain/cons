@@ -29,11 +29,11 @@ import (
 
 // PregClientWrapper wraps the ParRegClient object with the nework.PregInterface interface.
 type PregClientWrapper struct {
-	ParRegClientInterface
+	network.ParRegClientInterface
 	id int
 }
 
-func NewPregClientWrapper(cli ParRegClientInterface, id int) *PregClientWrapper {
+func NewPregClientWrapper(cli network.ParRegClientInterface, id int) *PregClientWrapper {
 	return &PregClientWrapper{
 		ParRegClientInterface: cli,
 		id:                    id,

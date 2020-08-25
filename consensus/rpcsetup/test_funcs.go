@@ -52,16 +52,16 @@ import (
 
 // SingleConsSetup contains all the details for a single node to start running a test.
 type SingleConsSetup struct {
-	I      int                   // The index of the node in the test (note this is not used in consensus, consensus uses the index of the sorted pub key list)
-	MyIP   string                // The ip address and port of the node
-	To     types.TestOptions     // The test setup
-	ParReg ParRegClientInterface // RPC connection to the participant register
-	SCS    *SingleConsState      // Pointer to the actual state
+	I      int                           // The index of the node in the test (note this is not used in consensus, consensus uses the index of the sorted pub key list)
+	MyIP   string                        // The ip address and port of the node
+	To     types.TestOptions             // The test setup
+	ParReg network.ParRegClientInterface // RPC connection to the participant register
+	SCS    *SingleConsState              // Pointer to the actual state
 	Mutex  *sync.RWMutex
 
 	SetInitialConfig *bool
 	SetInitialHash   *bool
-	Shared           *Shared
+	Shared           *consinterface.Shared
 }
 
 // SingleConsState tracks the state of a single node when running an experiment over a network.
@@ -88,33 +88,16 @@ type SingleConsState struct {
 	Ds    storage.StoreInterface // The interface to the disk storage
 	Stats stats.StatsInterface   // The statsistics tracking
 	// NwStats              stats.NwStatsInterface                // Network statistics tracking
-	ParReg     ParRegClientInterface        // RPC connection to the participant register
-	ParRegsInt []network.PregInterface      // Interface to ParReg for using functions from cons package
-	Gc         *generalconfig.GeneralConfig // the general config
+	ParReg     network.ParRegClientInterface // RPC connection to the participant register
+	ParRegsInt []network.PregInterface       // Interface to ParReg for using functions from cons package
+	Gc         *generalconfig.GeneralConfig  // the general config
 
-	*Shared
+	*consinterface.Shared
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-
-func getDssShared(preg ParRegClientInterface) (*ed.CoinShared, error) {
-	dssMarshaled, err := preg.GetDSSShared(0)
-	if err != nil || dssMarshaled == nil {
-		return nil, types.ErrInvalidSharedThresh
-	}
-	return dssMarshaled.PartialUnMartial()
-}
-
-func getBlsShared(idx int, preg ParRegClientInterface) (*bls.BlsShared, error) {
-	blssi, err := preg.GetBlsShared(0, idx)
-	if err != nil || blssi.BlsShared == nil {
-		return nil, types.ErrInvalidSharedThresh
-	}
-	ret, err := blssi.BlsShared.PartialUnmarshal()
-	return ret, err
-}
 
 func initialSetup(setup *SingleConsSetup) (err error) {
 	setup.SCS = &SingleConsState{
@@ -132,7 +115,7 @@ func initialSetup(setup *SingleConsSetup) (err error) {
 
 	scs.Stats = stats.GetStatsObject(scs.To.ConsType, scs.To.EncryptChannels)
 
-	if err = scs.initialKeySetup(scs.To, scs.ParReg); err != nil {
+	if err = scs.InitialKeySetup(scs.To, scs.ParReg); err != nil {
 		return err
 	}
 	// scs.NwStats = &stats.BasicNwStats{}
@@ -318,7 +301,7 @@ func runInitialSetup(setup *SingleConsSetup, t assert.TestingT) (err error) {
 
 	// get all the public keys
 	logging.Info("Getting participant public keys")
-	if err := scs.getAllPubKeys(scs.To, scs.PrivKey, scs.ParReg); err != nil {
+	if err := scs.GetAllPubKeys(scs.To, scs.PrivKey, scs.ParReg); err != nil {
 		logging.Error(err)
 		panic(err)
 	}
@@ -367,7 +350,7 @@ func runInitialSetup(setup *SingleConsSetup, t assert.TestingT) (err error) {
 	// Generate the cons state
 	scs.ConsState, scs.MemberCheckerState = cons.GenerateConsState(t, scs.To, scs.PrivKey, scs.RandKey, scs.PubKeys[0],
 		scs.PubKeys, scs.I, scs.Sc, scs.Ds, scs.Stats, scs.RetExtraParRegInfo, scs.TestProc, finishChan, scs.Gc,
-		scs.BcastFunc, scs.I < scs.To.NumFailProcs, scs.ParRegsInt...)
+		scs.BcastFunc, scs.Shared, scs.I < scs.To.NumFailProcs, scs.ParRegsInt...)
 
 	return nil
 }
@@ -442,7 +425,7 @@ func RunSingleConsType(setup *SingleConsSetup) {
 	// Generate the ConsState
 	scs.ConsState, scs.MemberCheckerState = cons.GenerateConsState(t, scs.To, scs.PrivKey, scs.RandKey, scs.PubKeys[0],
 		scs.PubKeys, scs.I, scs.Sc, scs.Ds, scs.Stats, scs.RetExtraParRegInfo, scs.TestProc, scs.FinishedChan, scs.Gc,
-		scs.BcastFunc, false, scs.ParRegsInt...)
+		scs.BcastFunc, scs.Shared, false, scs.ParRegsInt...)
 
 	// Make Connections
 	cons.MakeConnections(t, scs.To, scs.TestProc, scs.MemberCheckerState,

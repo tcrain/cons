@@ -297,13 +297,18 @@ func (sc *MvCons1) ProcessMessage(
 		}
 		sc.validatedInitHashes[hashStr] = deser
 		sc.sortedInitHashes = append(sc.sortedInitHashes, deser)
+		sort.Sort(sc.sortedInitHashes)
+		var shouldFoward bool
+		if sc.sortedInitHashes[0] == deser { // only forward if it is the most likely leader we have seen
+			shouldFoward = true
+		}
 		logging.Info("Got an mv init message of len", len(w.GetBaseMsgHeader().(*messagetypes.MvInitMessage).Proposal))
 
 		sc.checkSendEcho()
 		sc.checkEchoState(t, nmt, sc.MainChannel)
 		// send any recovers that migt have requested this init msg
 		sc.SendRecover(sc.validatedInitHashes, sc.InitHeaders, sc.ConsItems)
-		return true, true
+		return true, shouldFoward
 	case messages.HdrMvEcho:
 		// check if we have enough echos to decide
 		sc.checkEchoState(t, nmt, sc.MainChannel)

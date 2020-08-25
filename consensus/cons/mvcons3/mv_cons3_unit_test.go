@@ -72,7 +72,7 @@ func createMvConsTestItems(privKeys []sig.Priv, pubKeys []sig.Pub, privKeyIdx in
 		MC:  memberchecker.InitTrueMemberChecker(false, privKeys[privKeyIdx], gc).New(idx),
 		SMC: memberchecker.NewNoSpecialMembers().New(idx)}
 	forwardChecker := forwardchecker.NewAllToAllForwarder().New(idx, memberChecker.MC.GetParticipants(), memberChecker.MC.GetAllPubs())
-	memberChecker.MC.(*memberchecker.TrueMemberChecker).AddPubKeys(nil, pubKeys, nil, [32]byte{})
+	memberChecker.MC.(*memberchecker.TrueMemberChecker).AddPubKeys(nil, pubKeys, nil, [32]byte{}, nil)
 	mmc := &testobjects.MockMainChannel{}
 	consItems := &consinterface.ConsInterfaceItems{
 		MC:         memberChecker,

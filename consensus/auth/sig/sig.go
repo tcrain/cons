@@ -141,7 +141,8 @@ func (a PrivList) SetIndices() {
 
 // AfterSortPubs should be called after sorting has completed to let the keys know their indecies
 func AfterSortPubs(myPriv Priv, fixedCoord Pub, members PubList,
-	otherPubs PubList) (newMyPriv Priv, coord Pub, newMembers, newOtherPubs []Pub, memberMap map[PubKeyID]Pub) {
+	otherPubs PubList) (newMyPriv Priv, coord Pub, newMembers, newOtherPubs []Pub, memberMap map[PubKeyID]Pub,
+	allPubs []Pub) {
 
 	newMembers = make([]Pub, len(members), len(members)+1)
 	newOtherPubs = make([]Pub, 0, len(otherPubs))
@@ -290,6 +291,8 @@ func AfterSortPubs(myPriv Priv, fixedCoord Pub, members PubList,
 	if myIndex < 0 || !foundCord {
 		panic("missing pub keys")
 	}
+
+	allPubs = append(newMembers, newOtherPubs...)
 
 	return
 }

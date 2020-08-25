@@ -1,10 +1,12 @@
-package rpcsetup
+package consinterface
 
 import (
+	"bytes"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/dual"
 	"github.com/tcrain/cons/consensus/auth/sig/ed"
+	"github.com/tcrain/cons/consensus/network"
 	"github.com/tcrain/cons/consensus/types"
 	"sync"
 )
@@ -17,10 +19,15 @@ type Shared struct {
 
 	didInitSetup, didSetup bool
 
+	coord                    sig.Pub
+	newMembers, newOtherPubs []sig.Pub
+	memberMap                map[sig.PubKeyID]sig.Pub
+	allPubs                  []sig.Pub
+
 	initMutex, mutex sync.Mutex
 }
 
-func (sh *Shared) initialKeySetup(to types.TestOptions, parReg ParRegClientInterface) error {
+func (sh *Shared) InitialKeySetup(to types.TestOptions, parReg network.ParRegClientInterface) error {
 	sh.initMutex.Lock()
 	defer sh.initMutex.Unlock()
 
@@ -80,7 +87,72 @@ func (sh *Shared) initialKeySetup(to types.TestOptions, parReg ParRegClientInter
 	return nil
 }
 
-func (sh *Shared) getAllPubKeys(to types.TestOptions, privKey sig.Priv, parReg ParRegClientInterface,
+func (sh *Shared) AfterSortPubs(myPriv sig.Priv, fixedCoord sig.Pub, members sig.PubList,
+	otherPubs sig.PubList) (newMyPriv sig.Priv, coord sig.Pub, newMembers,
+	newOtherPubs []sig.Pub, memberMap map[sig.PubKeyID]sig.Pub, allPubs []sig.Pub) {
+
+	sh.mutex.Lock()
+	defer sh.mutex.Unlock()
+
+	if sh.newOtherPubs == nil {
+		_, sh.coord, sh.newMembers, sh.newOtherPubs, sh.memberMap, sh.allPubs = sig.AfterSortPubs(myPriv,
+			fixedCoord, members, otherPubs)
+	}
+	coord, newMembers, otherPubs, memberMap, allPubs = sh.coord, sh.newMembers, sh.newOtherPubs, sh.memberMap, sh.allPubs
+
+	myIndex := -1
+	var myPstr sig.PubKeyBytes
+	var err error
+	myPstr, err = myPriv.GetPub().GetRealPubBytes()
+	if err != nil {
+		panic(err)
+	}
+
+	// Go through the members and compute their new indices
+	for i, p := range sh.newMembers {
+		var otherPstr sig.PubKeyBytes
+		otherPstr, err = p.GetRealPubBytes()
+		if err != nil {
+			panic(err)
+		}
+
+		// Check my pub
+		if bytes.Equal(myPstr, otherPstr) {
+			if myIndex != -1 {
+				panic("duplicate keys")
+			}
+			myIndex = i
+		}
+	}
+	// Remaining nodes
+	index := len(members)
+	for _, p := range otherPubs {
+		var otherPstr sig.PubKeyBytes
+		otherPstr, err = p.GetRealPubBytes()
+		if err != nil {
+			panic(err)
+		}
+		// Check my pub
+		if bytes.Equal(myPstr, otherPstr) {
+			if myIndex != -1 {
+				panic("duplicate keys")
+			}
+			myIndex = index
+		}
+		index++
+	}
+	if myIndex == -1 {
+		panic("didnt find my pub")
+	}
+
+	// Set my new index
+	newMyPriv = myPriv.ShallowCopy()
+	newMyPriv.SetIndex(sig.PubKeyIndex(myIndex))
+
+	return
+}
+
+func (sh *Shared) GetAllPubKeys(to types.TestOptions, privKey sig.Priv, parReg network.ParRegClientInterface,
 ) error {
 
 	sh.mutex.Lock()
@@ -166,4 +238,21 @@ func (sh *Shared) getAllPubKeys(to types.TestOptions, privKey sig.Priv, parReg P
 		nxt.SetIndex(sig.PubKeyIndex(i))
 	}
 	return nil
+}
+
+func getDssShared(preg network.ParRegClientInterface) (*ed.CoinShared, error) {
+	dssMarshaled, err := preg.GetDSSShared(0)
+	if err != nil || dssMarshaled == nil {
+		return nil, types.ErrInvalidSharedThresh
+	}
+	return dssMarshaled.PartialUnMartial()
+}
+
+func getBlsShared(idx int, preg network.ParRegClientInterface) (*bls.BlsShared, error) {
+	blssi, err := preg.GetBlsShared(0, idx)
+	if err != nil || blssi.BlsShared == nil {
+		return nil, types.ErrInvalidSharedThresh
+	}
+	ret, err := blssi.BlsShared.PartialUnmarshal()
+	return ret, err
 }

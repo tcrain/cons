@@ -118,6 +118,7 @@ func (mc *CurrencyMemberChecker) UpdateState(fixedCoord sig.Pub, prevDec []byte,
 // AddPubKeys adds the pub keys as members to the consensus.
 // Note that for the first consensus we use the pubs directly as given.
 // In following rounds we take the top len(memberPubKeys) with the most currency as the members.
-func (mc *CurrencyMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, otherPubs sig.PubList, initRandBytes [32]byte) {
-	mc.CustomMemberChecker.AddPubKeys(fixedCoord, memberPubKeys, otherPubs, initRandBytes)
+func (mc *CurrencyMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, otherPubs sig.PubList, initRandBytes [32]byte,
+	sh *consinterface.Shared) {
+	mc.CustomMemberChecker.AddPubKeys(fixedCoord, memberPubKeys, otherPubs, initRandBytes, sh)
 }

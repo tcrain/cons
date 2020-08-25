@@ -378,6 +378,7 @@ func GenLocalRand(to types.TestOptions, key [32]byte) *rand.Rand {
 
 // MakeMemberChecker generates a member checker for the given configuration initialized with pubKeys.
 func MakeMemberChecker(to types.TestOptions, randKey [32]byte, priv sig.Priv, pubKeys []sig.Pub,
+	shared *consinterface.Shared,
 	gc *generalconfig.GeneralConfig) (memberChecker consinterface.MemberChecker) {
 
 	switch to.MCType {
@@ -401,7 +402,7 @@ func MakeMemberChecker(to types.TestOptions, randKey [32]byte, priv sig.Priv, pu
 	}
 	// The non-members are at the end of the list of pub keys
 	numParticipants := to.NumTotalProcs - to.NumNonMembers
-	memberChecker.AddPubKeys(fixedCoord, pubKeys[:numParticipants], pubKeys[numParticipants:], config.InitRandBytes)
+	memberChecker.AddPubKeys(fixedCoord, pubKeys[:numParticipants], pubKeys[numParticipants:], config.InitRandBytes, shared)
 	return
 }
 
@@ -754,7 +755,7 @@ func SetInitIndex(initSM consinterface.CausalStateMachineInterface) {
 func GenerateConsState(t assert.TestingT, to types.TestOptions, priv sig.Priv, randKey [32]byte, proposer sig.Pub,
 	pubKeys sig.PubList, i int, initItem consinterface.ConsItem, ds storage.StoreInterface, stats stats.StatsInterface,
 	retExtraParRegInfo [][]byte, testProc channelinterface.MainChannel, finishedChan chan channelinterface.ChannelCloseType,
-	generalConfig *generalconfig.GeneralConfig, broadcastFunc consinterface.ByzBroadcastFunc,
+	generalConfig *generalconfig.GeneralConfig, broadcastFunc consinterface.ByzBroadcastFunc, shared *consinterface.Shared,
 	isFailure bool, parRegs ...network.PregInterface) (ret ConsStateInterface, memberCheckerState consinterface.ConsStateInterface) {
 
 	// Let the stats know they can be used again
@@ -779,7 +780,7 @@ func GenerateConsState(t assert.TestingT, to types.TestOptions, priv sig.Priv, r
 	}
 
 	// Generate the member checker
-	memberChecker := MakeMemberChecker(to, randKey, priv, pubKeys, generalConfig)
+	memberChecker := MakeMemberChecker(to, randKey, priv, pubKeys, shared, generalConfig)
 	specialMemberChecker := CheckSpecialKeys(to, priv, pubKeys, memberChecker)
 	// Generate the message state
 	messageState := initItem.GenerateMessageState(generalConfig)
@@ -1201,7 +1202,7 @@ func RunConsType(initItem consinterface.ConsItem,
 	for i := 0; i < to.NumFailProcs; i++ {
 		consStates[i], memberCheckerStates[i] = GenerateConsState(t, to, privKeys[i], randKeys[i], pubKeys[0], pubKeys,
 			i, initItem, ds[i], statsList[i], retExtraParRegInfo, testProcs[i], finishedFailChan, generalConfigs[i],
-			broadcastFunc, true, parRegs...)
+			broadcastFunc, nil, true, parRegs...)
 	}
 
 	// Start the remaining processes that do not fail.
@@ -1209,7 +1210,7 @@ func RunConsType(initItem consinterface.ConsItem,
 	for i := to.NumFailProcs; i < to.NumTotalProcs; i++ {
 		consStates[i], memberCheckerStates[i] = GenerateConsState(t, to, privKeys[i], randKeys[i], pubKeys[0], pubKeys,
 			i, initItem, ds[i], statsList[i], retExtraParRegInfo, testProcs[i], finishedChan, generalConfigs[i],
-			broadcastFunc, false, parRegs...)
+			broadcastFunc, nil, false, parRegs...)
 	}
 
 	// Connect the nodes to eachother
@@ -1298,7 +1299,7 @@ func RunConsType(initItem consinterface.ConsItem,
 
 		consStates[i], memberCheckerStates[i] = GenerateConsState(t, to, privKeys[i], randKeys[i], pubKeys[0], pubKeys,
 			i, initItem, ds[i], statsList[i], retExtraParRegInfo, testProcs[i], finishedChan, generalConfigs[i],
-			broadcastFunc, false, parRegs...)
+			broadcastFunc, nil, false, parRegs...)
 
 		// make the connections to the other nodes
 		MakeConnections(t, to, testProcs[i], memberCheckerStates[i],

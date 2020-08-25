@@ -25,6 +25,8 @@ package network
 import (
 	"bytes"
 	"github.com/tcrain/cons/consensus/auth/sig"
+	"github.com/tcrain/cons/consensus/auth/sig/bls"
+	"github.com/tcrain/cons/consensus/auth/sig/ed"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/types"
 )
@@ -73,4 +75,22 @@ func GetPubFromList(pBytes sig.PubKeyBytes, pubs []sig.Pub) sig.Pub {
 		}
 	}
 	panic("could not find pub")
+}
+
+type ParRegClientInterface interface {
+	GenBlsShared(id, idx, numThresh int) error
+	GetBlsShared(id, idx int) (*BlsSharedMarshalIndex, error)
+	GenDSSShared(id, numNonMembers, numThresh int) error
+	GetDSSShared(id int) (*ed.CoinSharedMarshaled, error)
+	RegisterParticipant(id int, parInfo *ParticipantInfo) error
+	GetParticipants(id int, pub sig.PubKeyStr) (pi [][]*ParticipantInfo, err error)
+	GetAllParticipants(id int) (pi []*ParticipantInfo, err error)
+	Close() (err error)
+}
+
+// BlsSharedMarshalIndex is used as the reply to the rpc call to ParticipantRegister.GetBlsShared.
+type BlsSharedMarshalIndex struct {
+	KeyIndex  int
+	Idx       int
+	BlsShared *bls.BlsSharedMarshal
 }

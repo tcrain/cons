@@ -24,6 +24,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/ed"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
@@ -244,7 +245,7 @@ func (mc *absMemberChecker) AbsGotDecision(newFixedCoord sig.Pub, newMemberPubs,
 		}
 
 		// We have to recompute the ids for the pubs since we added new ones
-		mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs, mc.memberPubStrings = sig.AfterSortPubs(
+		mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs, mc.memberPubStrings, mc.allPubs = sig.AfterSortPubs(
 			mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs)
 
 		if mc.fixedCoord != nil {
@@ -253,7 +254,7 @@ func (mc *absMemberChecker) AbsGotDecision(newFixedCoord sig.Pub, newMemberPubs,
 				panic(err)
 			}
 		}
-		mc.allPubs = append(mc.sortedMemberPubs, mc.otherPubs...)
+		// mc.allPubs = append(mc.sortedMemberPubs, mc.otherPubs...)
 
 		// We are done choosing the static members, so set the return values
 		// (we change them here since if membership has not changed then we dont modify them)
@@ -330,16 +331,24 @@ func (mc *absMemberChecker) SetMainChannel(mainChannel channelinterface.MainChan
 // allPubs are the list of all pubs in the system.
 // memberPubs pubs are the public keys that will now participate in consensus.
 // memberPubs must be equal to or a subset of newAllPubs.
-func (mc *absMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, otherPubs sig.PubList, initRandBytes [32]byte) {
+// If shared is non-nil then the local nodes on the machine will share the same initial member objects
+// (to save memory for experiments that run many nodes on the same machine).
+func (mc *absMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, otherPubs sig.PubList, initRandBytes [32]byte,
+	shared *consinterface.Shared) {
 
-	mc.sortedMemberPubs = make(sig.PubList, len(memberPubKeys))
-	copy(mc.sortedMemberPubs, memberPubKeys)
-	mc.otherPubs = make(sig.PubList, len(otherPubs))
-	copy(mc.otherPubs, otherPubs)
-	mc.fixedCoord = fixedCoord
+	if shared == nil {
+		mc.sortedMemberPubs = make(sig.PubList, len(memberPubKeys))
+		copy(mc.sortedMemberPubs, memberPubKeys)
+		mc.otherPubs = make(sig.PubList, len(otherPubs))
+		copy(mc.otherPubs, otherPubs)
+		mc.fixedCoord = fixedCoord
 
-	mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs, mc.memberPubStrings = sig.AfterSortPubs(
-		mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs)
+		mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs, mc.memberPubStrings, mc.allPubs = sig.AfterSortPubs(
+			mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs)
+	} else {
+		mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs, mc.memberPubStrings, mc.allPubs = shared.AfterSortPubs(
+			mc.myPriv, fixedCoord, memberPubKeys, otherPubs)
+	}
 
 	if mc.fixedCoord != nil {
 		var err error
@@ -347,7 +356,7 @@ func (mc *absMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, otherP
 			panic(err)
 		}
 	}
-	mc.allPubs = append(mc.sortedMemberPubs, mc.otherPubs...)
+	// mc.allPubs = append(mc.sortedMemberPubs, mc.otherPubs...)
 
 	if mc.rndMemberCount > 0 {
 		mc.gotRand(initRandBytes, utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)),

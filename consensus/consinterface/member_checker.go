@@ -135,7 +135,9 @@ type MemberChecker interface {
 	// allPubs are the list of all pubs in the system.
 	// memberPubs pubs are the public keys that will now participate in consensus.
 	// memberPubs must be equal to or a subset of newAllPubs.
-	AddPubKeys(fixedCoord sig.Pub, memberPubKeys, allPubKeys sig.PubList, initRandBytes [32]byte)
+	// If shared is non-nil then the local nodes on the machine will share the same initial member objects
+	// (to save memory for experiments that run many nodes on the same machine).
+	AddPubKeys(fixedCoord sig.Pub, memberPubKeys, allPubKeys sig.PubList, initRandBytes [32]byte, shared *Shared)
 
 	// SetMainChannel is called on the initial member checker to inform it of the network channel object
 	SetMainChannel(mainChannel channelinterface.MainChannel)
