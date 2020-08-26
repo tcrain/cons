@@ -79,6 +79,8 @@ type StatsInterface interface {
 	DiskStore(bytes int)                                    // Called when storage to disk is done with the number of bytes stored.
 	Restart()                                               // Called on restart of failure so it knows to start recording again
 	IsRecordIndex() bool                                    // IsRecordIndex returns true if the consensus index of this stats is being recorded.
+	AddProgressTimeout()                                    // AddProgressTimeout is called when the consensus times out without making progress.
+	AddForwardState()                                       // AddForwardState is called when the node forwards state to a slow node.
 
 	MergeLocalStats(numCons int) (total MergedStats)
 	// Merge all stats is a static function that merges the list of stats, and returns the average stats per process, and the total summed stats.
@@ -135,6 +137,8 @@ type StatsObj struct {
 	RoundParticipation uint64    // Last round participated in
 	DiskStorage        uint64    // Number of bytes written to disk
 	DecidedNil         uint64    //  True if nil was decided
+	ProgressTimeout    uint64    // Number of times progress timeout happened.
+	ForwardState       uint64    // Number of times state was forwarded due to neighbor timeout.
 }
 
 type MergedStats struct {
@@ -148,6 +152,8 @@ type MergedStats struct {
 	ConsTime                                                                                                                                                                         time.Duration
 	MaxValidatedCoin, MaxCoinCreated, MaxDecidedNil, MaxDiskStorage, MaxSigned, MaxValidated, MaxVRFValidated, MaxVRFCreated, MaxRoundDecide, MaxRoundParticipation, MaxThrshCreated uint64
 	MinValidatedCoin, MinCoinCreated, MinDecidedNil, MinDiskStorage, MinSigned, MinValidated, MinVRFValidated, MinVRFCreated, MinRoundDecide, MinRoundParticipation, MinThrshCreated uint64
+	MaxProgressTimeout, MinProgressTimeout                                                                                                                                           uint64
+	MaxForwardState, MinForwardState                                                                                                                                                 uint64
 	RecordCount                                                                                                                                                                      int
 	CpuProfile                                                                                                                                                                       []byte
 	StartMemProfile                                                                                                                                                                  []byte
@@ -161,6 +167,16 @@ type BasicStats struct {
 	Decided     bool
 	RecordIndex bool // true if we are keeping stats for this index
 	Index       types.ConsensusID
+}
+
+// AddProgressTimeout is called when the consensus times out without making progress.
+func (bs *BasicStats) AddProgressTimeout() {
+	bs.ProgressTimeout++
+}
+
+// AddForwardState is called when the node forwards state to a slow node.
+func (bs *BasicStats) AddForwardState() {
+	bs.ForwardState++
 }
 
 // IsRecordIndex returns true if the consensus index of this stats is being recorded.
@@ -301,6 +317,7 @@ func (bs *BasicStats) AddFinishRound(r types.ConsensusRound, decidedNil bool) {
 func mergeInternal(items []StatsObj) (reTotal MergedStats) {
 	var setStart bool
 	var coinCreatedCounts, validateCoinCounts, decidedNil, diskStorage, roundDecides, roundParticipations, signedCounts, validatedCounts, VRFCreatedCounts, VRFValidatedCouts, thrshCreated []uint64
+	var progressTimeoutCounts, forwardStateCounts []uint64
 	var times []time.Duration
 
 	prevTime := items[0].StartTime
@@ -354,6 +371,12 @@ func mergeInternal(items []StatsObj) (reTotal MergedStats) {
 
 		reTotal.DiskStorage += item.DiskStorage
 		diskStorage = append(diskStorage, item.DiskStorage)
+
+		reTotal.ForwardState += item.ForwardState
+		forwardStateCounts = append(forwardStateCounts, item.ForwardState)
+
+		reTotal.ProgressTimeout += item.ProgressTimeout
+		progressTimeoutCounts = append(progressTimeoutCounts, item.ProgressTimeout)
 	}
 
 	reTotal.ConsTimes = times
@@ -381,6 +404,10 @@ func mergeInternal(items []StatsObj) (reTotal MergedStats) {
 	reTotal.MaxDiskStorage = utils.MaxU64Slice(diskStorage...)
 	reTotal.MinDecidedNil = utils.MinU64Slice(decidedNil...)
 	reTotal.MaxDecidedNil = utils.MaxU64Slice(decidedNil...)
+	reTotal.MinForwardState = utils.MinU64Slice(forwardStateCounts...)
+	reTotal.MaxForwardState = utils.MaxU64Slice(forwardStateCounts...)
+	reTotal.MinProgressTimeout = utils.MinU64Slice(progressTimeoutCounts...)
+	reTotal.MaxProgressTimeout = utils.MaxU64Slice(progressTimeoutCounts...)
 
 	return
 }
@@ -410,7 +437,9 @@ func mergeStatsObj(a, b StatsObj, includeTime bool) StatsObj {
 	a.Validated += b.Validated
 	a.Signed += b.Signed
 	a.CoinValidated += b.CoinValidated
-	a.CoinCreated += a.CoinCreated
+	a.CoinCreated += b.CoinCreated
+	a.ForwardState += b.ForwardState
+	a.ProgressTimeout += b.ProgressTimeout
 	return a
 }
 
@@ -536,6 +565,10 @@ func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals Merged
 		perProc.MaxDiskStorage = utils.MaxU64Slice(perProc.MaxDiskStorage, nxt.MaxDiskStorage)
 		perProc.MinDecidedNil = utils.MinU64Slice(perProc.MinDecidedNil, nxt.MinDecidedNil)
 		perProc.MaxDecidedNil = utils.MaxU64Slice(perProc.MaxDecidedNil, nxt.MaxDecidedNil)
+		perProc.MinProgressTimeout = utils.MinU64Slice(perProc.MinProgressTimeout, nxt.MinProgressTimeout)
+		perProc.MaxProgressTimeout = utils.MaxU64Slice(perProc.MaxProgressTimeout, nxt.MaxProgressTimeout)
+		perProc.MinForwardState = utils.MinU64Slice(perProc.MinForwardState, nxt.MinForwardState)
+		perProc.MaxForwardState = utils.MaxU64Slice(perProc.MaxForwardState, nxt.MaxForwardState)
 
 		summedTime += nxt.ConsTime
 	}
@@ -601,6 +634,8 @@ func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals Merged
 	perProc.ThrshCreated /= uint64(len(items))
 	perProc.DiskStorage /= uint64(len(items))
 	perProc.DecidedNil /= uint64(len(items))
+	perProc.ForwardState /= uint64(len(items))
+	perProc.ProgressTimeout /= uint64(len(items))
 
 	perProc.MergedNwStats, totals.MergedNwStats = (&BasicNwStats{}).MergeAllNWStats(perProc.RecordCount, nwItems)
 
@@ -814,7 +849,10 @@ func (bs *BasicStats) String() string {
 
 // String outputs the statistics in a human readable format.
 func (ms MergedStats) String() string {
-	return fmt.Sprintf("{#Cons: %v, AllTime: %v, TotalTimeDivNumCons: %v,\n\tTotalConsTime: %v, AvgConsTime: %v, MinTime: %v, MaxTime: %v, AvgRound: %v,\n\tMaxRound: %v, MinRound: %v, AvgStopRound: %v, MaxStopRound: %v, MinStopRound: %v, SigCount: %v, \n\tMinSigCount %v, MaxSigCount %v, ValidatedItem: %v, MinValidated %v, MaxValidated %v,\n\tVRFCreated: %v, MinVRFCreated %v, MaxVRFCreated %v, VRFValidated: %v, MinVRFValidated %v, \n\tMaxVRFValidated %v, ThrshSigs: %v, MinThrshSigs: %v, MaxThrshSigs %v, \n\tDiskStorage %v, MinDiskStorage %v, MaxDiskStorage %v, \n\tDecidedNil %v, MinDecidedNil %v, MaxDecidedNil %v, CoinCreated: %v, MinCoinCreated: %v, MaxCoinCreated: %v, \n\tCoinValidated: %v, MinCoinValidated: %v, MaxCoinValidated: %v}",
+	return fmt.Sprintf("{#Cons: %v, AllTime: %v, TotalTimeDivNumCons: %v,\n\tTotalConsTime: %v, AvgConsTime: %v, MinTime: %v, MaxTime: %v, AvgRound: %v,\n\tMaxRound: %v, MinRound: %v, AvgStopRound: %v, MaxStopRound: %v, MinStopRound: %v, SigCount: %v, \n\tMinSigCount %v, MaxSigCount %v, ValidatedItem: %v, MinValidated %v, MaxValidated %v,\n\tVRFCreated: %v, MinVRFCreated %v, MaxVRFCreated %v, VRFValidated: %v, MinVRFValidated %v, \n\tMaxVRFValidated %v, ThrshSigs: %v, MinThrshSigs: %v, MaxThrshSigs %v, \n\tDiskStorage %v, MinDiskStorage %v, MaxDiskStorage %v, \n\tDecidedNil %v, MinDecidedNil %v, MaxDecidedNil %v, CoinCreated: %v, MinCoinCreated: %v, MaxCoinCreated: %v, "+
+		"\n\tCoinValidated: %v, MinCoinValidated: %v, MaxCoinValidated: %v,"+
+		"\n\tProgressTO: %v, MinProgressTO: %v, MaxProgressTO: %v,"+
+		"\n\tForwardState: %v, MinForwardState: %v, MaxForwardState: %v}",
 		ms.RecordCount, float64(ms.FinishTime.Sub(ms.StartTime))/float64(time.Millisecond),
 		float64(ms.FinishTime.Sub(ms.StartTime))/float64(ms.RecordCount)/float64(time.Millisecond),
 		float64(ms.ConsTime)/float64(time.Millisecond), float64(ms.ConsTime)/float64(ms.RecordCount)/float64(time.Millisecond),
@@ -828,5 +866,7 @@ func (ms MergedStats) String() string {
 		ms.DiskStorage, ms.MinDiskStorage, ms.MaxDiskStorage,
 		ms.DecidedNil, ms.MinDecidedNil, ms.MaxDecidedNil,
 		ms.CoinCreated, ms.MinCoinCreated, ms.MaxCoinCreated,
-		ms.CoinValidated, ms.MinValidatedCoin, ms.MaxValidatedCoin)
+		ms.CoinValidated, ms.MinValidatedCoin, ms.MaxValidatedCoin,
+		ms.ProgressTimeout, ms.MinProgressTimeout, ms.MaxProgressTimeout,
+		ms.ForwardState, ms.MinForwardState, ms.MaxForwardState)
 }

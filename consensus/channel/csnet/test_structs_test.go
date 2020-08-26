@@ -246,7 +246,7 @@ func (mc *TestMemberChecker) CheckRoundCoord(msgID messages.MsgID, checkPub sig.
 func (mc *TestMemberChecker) GetIndex() types.ConsensusIndex {
 	return mc.index
 }
-func (mc *TestMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, allPubKeys sig.PubList, initRandBytes [32]byte) {
+func (mc *TestMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, allPubKeys sig.PubList, initRandBytes [32]byte, sh *consinterface.Shared) {
 }
 func (mc *TestMemberChecker) GetParticipantCount() int {
 	return 0

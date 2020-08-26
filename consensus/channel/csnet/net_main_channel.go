@@ -51,6 +51,7 @@ type NetMainChannel struct {
 	nodePubList    []sig.Pub // Same as connection list
 	mutex          sync.Mutex
 	processMsgLoop // for processing messages
+	staticNodeList map[sig.PubKeyStr]channelinterface.NetNodeInfo
 }
 
 // NewNetMainChannel creates a net NetMainChannel object.
@@ -145,8 +146,13 @@ func (tp *NetMainChannel) SendToPub(headers []messages.MsgHeader, pub sig.Pub, c
 	tp.mutex.Lock()
 	conItem, ok := tp.nodeMap[pStr]
 	if !ok {
-		tp.mutex.Unlock()
-		return types.ErrConnDoesntExist
+		if itm, ok := tp.staticNodeList[pStr]; ok {
+			tp.addExternalNode(itm)
+			conItem = tp.nodeMap[pStr]
+		} else {
+			tp.mutex.Unlock()
+			return types.ErrConnDoesntExist
+		}
 	}
 	if conItem.ConCount == 0 { // make the connection
 		tp.makeConnection(pStr, conItem)
@@ -241,6 +247,11 @@ func (tp *NetMainChannel) makeConnection(pStr sig.PubKeyStr, conItem *channelint
 	}
 }
 
+// SetStaticNodeList can optionally set an initial read only list of nodes in the network.
+func (tp *NetMainChannel) SetStaticNodeList(staticNodeList map[sig.PubKeyStr]channelinterface.NetNodeInfo) {
+	tp.staticNodeList = staticNodeList
+}
+
 // MakeConnections will connect to the nodes given by the pubs.
 // This should be called after AddExternalNodes with a subset of the nodes
 // added there.
@@ -259,6 +270,11 @@ func (tp *NetMainChannel) MakeConnections(pubs []sig.Pub) (errs []error) {
 
 		if item, ok := tp.nodeMap[pStr]; ok {
 			tp.makeConnection(pStr, item)
+			continue
+		} else if item, ok := tp.staticNodeList[pStr]; ok {
+			tp.addExternalNode(item)
+			tp.makeConnection(pStr, tp.nodeMap[pStr])
+			continue
 		} else {
 			logging.Error("unknown pub to connect to")
 
@@ -438,6 +454,12 @@ func (tp *NetMainChannel) AddExternalNode(nodeInfo channelinterface.NetNodeInfo)
 
 	tp.mutex.Lock()
 	defer tp.mutex.Unlock()
+
+	tp.addExternalNode(nodeInfo)
+}
+
+func (tp *NetMainChannel) addExternalNode(nodeInfo channelinterface.NetNodeInfo) {
+	tp.netPortListener.addExternalNode(nodeInfo) // Add it to the port listener (so it knows those connections are valid)
 
 	ps, err := nodeInfo.Pub.GetPubString()
 	if err != nil {

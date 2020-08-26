@@ -2,10 +2,13 @@ package consinterface
 
 import (
 	"bytes"
+	"fmt"
+	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/dual"
 	"github.com/tcrain/cons/consensus/auth/sig/ed"
+	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/network"
 	"github.com/tcrain/cons/consensus/types"
 	"sync"
@@ -23,8 +26,43 @@ type Shared struct {
 	newMembers, newOtherPubs []sig.Pub
 	memberMap                map[sig.PubKeyID]sig.Pub
 	allPubs                  []sig.Pub
+	staticNodeMaps           []map[sig.PubKeyStr]channelinterface.NetNodeInfo
 
 	initMutex, mutex sync.Mutex
+}
+
+func (sh *Shared) GetStaticNodeMaps(t assert.TestingT, to types.TestOptions, allPubs []sig.Pub,
+	parRegs ...network.PregInterface) []map[sig.PubKeyStr]channelinterface.NetNodeInfo {
+
+	sh.mutex.Lock()
+	defer sh.mutex.Unlock()
+
+	if sh.staticNodeMaps == nil {
+		genPub := func(pb sig.PubKeyBytes) sig.Pub {
+			return network.GetPubFromList(pb, allPubs)
+		}
+		for _, parReg := range parRegs {
+			allParticipants, err := parReg.GetAllParticipants()
+			if len(allParticipants) != to.NumTotalProcs {
+				panic(fmt.Sprint(allParticipants, to.NumTotalProcs))
+			}
+			assert.Nil(t, err)
+			nxt := make(map[sig.PubKeyStr]channelinterface.NetNodeInfo)
+			sh.staticNodeMaps = append(sh.staticNodeMaps, nxt)
+			for _, parInfo := range allParticipants {
+				nodeInfo := channelinterface.NetNodeInfo{
+					AddrList: parInfo.ConInfo,
+					Pub:      genPub(sig.PubKeyBytes(parInfo.Pub))}
+				ps, err := nodeInfo.Pub.GetPubString()
+				if err != nil {
+					panic(err)
+				}
+				nxt[ps] = nodeInfo
+			}
+		}
+	}
+
+	return sh.staticNodeMaps
 }
 
 func (sh *Shared) InitialKeySetup(to types.TestOptions, parReg network.ParRegClientInterface) error {

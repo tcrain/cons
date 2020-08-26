@@ -150,6 +150,8 @@ type MainChannel interface {
 	// StartMsgProcessThreads starts the threads that will process the messages.
 	StartMsgProcessThreads()
 
+	// SetStaticNodeList can optionally set an initial read only list of nodes in the network.
+	SetStaticNodeList(staticNodeList map[sig.PubKeyStr]NetNodeInfo)
 	// AddExternalNode should be called with the list of addresses that a single external node will have.
 	// In UDP a node might split packets over multiple connections, so this lets us know this list for each node.
 	// In TCP this does nothing. // TODO should do something?

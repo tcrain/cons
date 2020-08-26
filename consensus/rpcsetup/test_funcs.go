@@ -31,6 +31,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
 	"github.com/tcrain/cons/consensus/auth/sig/ed"
 	"github.com/tcrain/cons/consensus/auth/sig/sleep"
+	"github.com/tcrain/cons/consensus/channel/csnet"
 	"github.com/tcrain/cons/consensus/consgen"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"math/rand"
@@ -309,11 +310,19 @@ func runInitialSetup(setup *SingleConsSetup, t assert.TestingT) (err error) {
 
 	logging.Info("Adding connections")
 
-	genPubFunc := func(pb sig.PubKeyBytes) sig.Pub {
-		return network.GetPubFromList(pb, scs.PubKeys)
+	if !scs.To.SharePubsRPC {
+		genPubFunc := func(pb sig.PubKeyBytes) sig.Pub {
+			return network.GetPubFromList(pb, scs.PubKeys)
+		}
+		cons.RegisterOtherNodes(t, scs.To, scs.TestProc, genPubFunc, scs.ParRegsInt...)
+	} else { // Each node starts with a static map of other node's connection information
+		staticMaps := scs.GetStaticNodeMaps(t, scs.To, scs.PubKeys, scs.ParRegsInt...)
+		scs.TestProc.SetStaticNodeList(staticMaps[0])
+		switch scs.To.NetworkType {
+		case types.RequestForwarder:
+			scs.TestProc.(*csnet.DualNetMainChannel).Secondary.SetStaticNodeList(staticMaps[1])
+		}
 	}
-	cons.RegisterOtherNodes(t, scs.To, scs.TestProc, genPubFunc, scs.ParRegsInt...)
-
 	// Get extra participant info
 	allParticipants, err := scs.ParRegsInt[0].GetAllParticipants()
 	if len(allParticipants) != scs.To.NumTotalProcs {
@@ -416,11 +425,11 @@ func RunSingleConsType(setup *SingleConsSetup) {
 
 	scs.TestProc = cons.MakeMainChannel(scs.To, scs.PrivKey, scs.Sc, scs.Stats, scs.Gc, scs.NetNodeInfo)
 
-	genPubFunc := func(pb sig.PubKeyBytes) sig.Pub {
-		return network.GetPubFromList(pb, scs.PubKeys)
-	}
+	// genPubFunc := func(pb sig.PubKeyBytes) sig.Pub {
+	//	return network.GetPubFromList(pb, scs.PubKeys)
+	// }
 	// Register the addresses of the other nodes
-	cons.RegisterOtherNodes(t, scs.To, scs.TestProc, genPubFunc, scs.ParRegsInt...)
+	// cons.RegisterOtherNodes(t, scs.To, scs.TestProc, genPubFunc, scs.ParRegsInt...)
 
 	// Generate the ConsState
 	scs.ConsState, scs.MemberCheckerState = cons.GenerateConsState(t, scs.To, scs.PrivKey, scs.RandKey, scs.PubKeys[0],

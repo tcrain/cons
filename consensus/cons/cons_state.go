@@ -231,10 +231,11 @@ func (cs *ConsState) sendNoProgressMsg() {
 	hdr = messagetypes.NewNoProgressMessage(idx, false, cs.generalConfig.TestIndex)
 
 	cs.localIndexTime = time.Now()
-	_, _, forwardChecker, err := cs.memberCheckerState.GetMemberChecker(idx)
+	mcs, _, forwardChecker, err := cs.memberCheckerState.GetMemberChecker(idx)
 	if err != nil {
 		panic("local index error")
 	}
+	mcs.MC.GetStats().AddProgressTimeout()
 	mm, err := messages.CreateMsgSingle(hdr)
 	if err != nil {
 		panic(err)
@@ -318,11 +319,15 @@ func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg 
 			// conv, _ := consinterface.ConvertIndex(cs.localIndex, cs.localIndex, cs.itemsIndex)
 			// cs.items[conv].PrintState()
 
+			mcs, _, _, err := cs.memberCheckerState.GetMemberChecker(types.SingleComputeConsensusIDShort(myIndex))
+			utils.PanicNonNil(err)
+			stats := mcs.MC.GetStats()
 			for i := endidx; i < stopAt; i++ {
 				// First cons starts at 1, so can skip 0
 				if i == 0 {
 					continue
 				}
+				stats.AddForwardState()
 				if i < myIndex {
 					// Recover from disk
 					binstate, _, err := cs.store.Read(i)

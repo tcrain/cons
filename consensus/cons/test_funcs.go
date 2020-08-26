@@ -851,14 +851,45 @@ func GenerateParticipantRegisters(to types.TestOptions) (ret []network.PregInter
 	return ret
 }
 
-func RegisterOtherNodes(t assert.TestingT, to types.TestOptions, testProc channelinterface.MainChannel,
-	genPub func(sig.PubKeyBytes) sig.Pub, parRegs ...network.PregInterface) {
+func GetParticipants(t assert.TestingT, to types.TestOptions, parReg network.PregInterface) (
+	allParticipants []*network.ParticipantInfo) {
 
-	allParticipants, err := parRegs[0].GetAllParticipants()
+	var err error
+	allParticipants, err = parReg.GetAllParticipants()
 	if len(allParticipants) != to.NumTotalProcs {
 		panic(fmt.Sprint(allParticipants, to.NumTotalProcs))
 	}
 	assert.Nil(t, err)
+
+	return allParticipants
+}
+
+func GetStaticNodeMaps(t assert.TestingT, to types.TestOptions, genPub func(sig.PubKeyBytes) sig.Pub,
+	parRegs ...network.PregInterface) []map[sig.PubKeyStr]channelinterface.NetNodeInfo {
+
+	var ret []map[sig.PubKeyStr]channelinterface.NetNodeInfo
+	for _, parReg := range parRegs {
+		nxt := make(map[sig.PubKeyStr]channelinterface.NetNodeInfo)
+		ret = append(ret, nxt)
+		allParticipants := GetParticipants(t, to, parReg)
+		for _, parInfo := range allParticipants {
+			nodeInfo := channelinterface.NetNodeInfo{
+				AddrList: parInfo.ConInfo,
+				Pub:      genPub(sig.PubKeyBytes(parInfo.Pub))}
+			ps, err := nodeInfo.Pub.GetPubString()
+			if err != nil {
+				panic(err)
+			}
+			nxt[ps] = nodeInfo
+		}
+	}
+	return ret
+}
+
+func RegisterOtherNodes(t assert.TestingT, to types.TestOptions, testProc channelinterface.MainChannel,
+	genPub func(sig.PubKeyBytes) sig.Pub, parRegs ...network.PregInterface) {
+
+	allParticipants := GetParticipants(t, to, parRegs[0])
 	for _, parInfo := range allParticipants {
 		nodeInfo := channelinterface.NetNodeInfo{
 			AddrList: parInfo.ConInfo,
@@ -868,11 +899,7 @@ func RegisterOtherNodes(t assert.TestingT, to types.TestOptions, testProc channe
 
 	switch to.NetworkType {
 	case types.RequestForwarder:
-		allParticipants, err := parRegs[1].GetAllParticipants()
-		if len(allParticipants) != to.NumTotalProcs {
-			panic(fmt.Sprint(allParticipants, to.NumTotalProcs))
-		}
-		assert.Nil(t, err)
+		allParticipants := GetParticipants(t, to, parRegs[1])
 		for _, parInfo := range allParticipants {
 			nodeInfo := channelinterface.NetNodeInfo{
 				AddrList: parInfo.ConInfo,
@@ -888,22 +915,17 @@ func MakeConnections(t assert.TestingT, to types.TestOptions, testProc channelin
 
 	testProc.StartMsgProcessThreads()
 	pstr, err := gc.Priv.GetPub().GetRealPubBytes()
+	assert.Nil(t, err)
 
 	// main network
-	parInfoList, err := parRegs[0].GetParticipants(sig.PubKeyStr(pstr))
-	assert.Nil(t, err)
-	var connectionPubs []sig.Pub
-	for _, parInfo := range parInfoList {
-		connectionPubs = append(connectionPubs, network.ParInfoListToPubList(parInfo, pubKeys)...)
-	}
-	connectionPubs = sig.RemoveDuplicatePubs(connectionPubs)
+	connectionPubs := GetConnectionPubs(t, sig.PubKeyStr(pstr), pubKeys, parRegs[0])
 
 	switch to.NetworkType {
 	case types.RequestForwarder:
 		numCons[0] = to.RndMemberCount - 1 // -1 for yourself
-		if len(parInfoList) != 0 {
-			panic("connections should be made through the absRandLocal member checker")
-		}
+		//if len(parInfoList) != 0 {
+		//	panic("connections should be made through the absRandLocal member checker")
+		//}
 	default:
 		numCons[0] = len(connectionPubs)
 	}
@@ -916,13 +938,7 @@ func MakeConnections(t assert.TestingT, to types.TestOptions, testProc channelin
 	// secondary network
 	switch to.NetworkType {
 	case types.RequestForwarder:
-		parInfoList, err := parRegs[1].GetParticipants(sig.PubKeyStr(pstr))
-		assert.Nil(t, err)
-		var connectionPubs []sig.Pub
-		for _, parInfo := range parInfoList {
-			connectionPubs = append(connectionPubs, network.ParInfoListToPubList(parInfo, pubKeys)...)
-		}
-		connectionPubs = sig.RemoveDuplicatePubs(connectionPubs)
+		connectionPubs := GetConnectionPubs(t, sig.PubKeyStr(pstr), pubKeys, parRegs[1])
 
 		numCons[1] = len(connectionPubs)
 		errs := testProc.(*csnet.DualNetMainChannel).Secondary.MakeConnections(connectionPubs)
@@ -930,6 +946,17 @@ func MakeConnections(t assert.TestingT, to types.TestOptions, testProc channelin
 			panic(errs)
 		}
 	}
+}
+
+func GetConnectionPubs(t assert.TestingT, pstr sig.PubKeyStr, pubKeys []sig.Pub, parReg network.PregInterface) []sig.Pub {
+	parInfoList, err := parReg.GetParticipants(pstr)
+	assert.Nil(t, err)
+	var connectionPubs []sig.Pub
+	for _, parInfo := range parInfoList {
+		connectionPubs = append(connectionPubs, network.ParInfoListToPubList(parInfo, pubKeys)...)
+	}
+	connectionPubs = sig.RemoveDuplicatePubs(connectionPubs)
+	return connectionPubs
 }
 
 func MakeMainChannel(to types.TestOptions, priv sig.Priv, initItem consinterface.ConsItem, stats stats.NwStatsInterface,
