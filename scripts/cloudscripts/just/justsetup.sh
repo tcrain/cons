@@ -86,7 +86,7 @@ cd ~/go/src/github.com/tcrain/cons/;
 git pull;
 git checkout ${branch};
 git pull;
-echo Running: bash ./scripts/cloudscripts/just/justcloudsetup.sh ${inip} ${singleZoneCmd} ${regions} ${nodesperregion} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json;
-bash ./scripts/cloudscripts/just/justcloudsetup.sh ${inip} ${singleZoneCmd} ${regions} ${nodesperregion} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json\""
+echo Running: bash ./scripts/cloudscripts/just/justcloudsetup.sh ${inip} ${singleZoneCmd} ${regions} ${nodesperregion} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes};
+bash ./scripts/cloudscripts/just/justcloudsetup.sh ${inip} ${singleZoneCmd} ${regions} ${nodesperregion} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes}\""
 
 

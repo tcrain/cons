@@ -28,4 +28,4 @@ echo
 echo "Running: ./rpcbench -o $config -f benchIPfile -p $pregip:4534" | tee -a "$logname"
 tee -a "$logname" < "$config"
 sleep 2
-./rpcbench -o "$config" -f benchIPfile -p "$pregip" 2>&1 | tee -a "$logname"
+./rpcbench -o "$config" -f benchIPfile -p "$pregip:4534" 2>&1 | tee -a "$logname"
