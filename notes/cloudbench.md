@@ -108,3 +108,39 @@ in [buildgo.sh](../scripts/buildgo.sh), commit and push on git.
 3. While a benchmark is running, run script
 ``bash ./scripts/cloudscripts/attachdebug.sh {ip}`` where {ip}
 is the IP address of the node to attach to.
+
+# Running tests one at a time on Google Cloud Compute
+
+Tests can be run on Google Cloud Compute one by one.
+
+First launch the nodes with the command:
+
+``
+bash scripts/cloudscripts/just/justsetup.sh "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$genimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
+``
+
+This will launch the set of nodes, update the files from git, and copy the binaries.
+The input options are similar to the ones described above.
+Note that the command stores the configuration for the test in the local file `.lastjustsetup`,
+so you can only run one configuration at a time.
+
+Running the same command again with ``$launchNodes"`` set to `0` will update the files from git
+and rebuild the binaries. Do this for example to update the code without having to shutdown and
+relaunch the nodes.
+
+Then to run a single benchmark run:
+
+``
+bash scripts/cloudscripts/just/justbench.sh "$config" "$doInitialSetup"
+``
+
+Where `$config` is the name of a json test configuration file on the local machine.
+If `$doInitialSetup` is `1` then the benchmark nodes and binarys will be started/restarted.
+This must be `1` the first time a test is run, afterwards it can be set to `0` allowing
+the config to be run without restarting the nodes/binaries.
+
+Finally, to shut down the nodes run:
+
+``
+bash scripts/cloudscripts/just/justshutdown.sh 
+``
