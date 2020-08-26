@@ -20,7 +20,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package generalconfig
 
 import (
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
@@ -46,21 +45,27 @@ type GeneralConfig struct {
 	TestID             uint64         // Unique test ID
 	// UseFullBinaryState will (if true) keep the consensus state as the list of all valid messages received appended together,
 	// if false stores only different messages with all the signatures at the end
-	UseFullBinaryState  bool
-	IncludeCurrentSigs  bool                       // When forwarding a message (for non all-to-all networks) will incude all sigs received so far
-	CollectBroadcast    types.CollectBroadcastType // If true, when sending the commit message, will send it to the leader
-	IncludeProofs       bool                       // Include signatures as part of messages that prove you are sending a valid message (see protocol description)
-	StopOnCommit        types.StopOnCommitType     // If true then the consensus will not execute rounds after deciding (the eventual message propagation will ensure termination)
-	ByzStartIndex       uint64                     // Index to start faulty behaviour
-	IsByz               bool                       // True if the node is faulty
-	NoSignatures        bool                       // Use encrypted channels instead of signatures
-	EncryptChannels     bool                       // If the channels are encrypted
-	CoinType            types.CoinType             // The type of coin being used
-	UseTp1CoinThresh    bool                       // if true need t+1 signatures for a threshold signature, false otherwise
-	UseFixedCoinPresets bool                       // If true then will use predefined coins for the initial rounds of randomized consensus
-	UseMultiSig         bool                       // True if multisignatures are enabled.
-	MemCheckerBitIDType types.BitIDType            // If using multi-sigs the type of bit ID to use in the member checker
-	SigBitIDType        types.BitIDType            // If using multi-sigs the type of bit ID to use with the signatures
+	UseFullBinaryState          bool
+	IncludeCurrentSigs          bool                       // When forwarding a message (for non all-to-all networks) will incude all sigs received so far
+	CollectBroadcast            types.CollectBroadcastType // If true, when sending the commit message, will send it to the leader
+	IncludeProofs               bool                       // Include signatures as part of messages that prove you are sending a valid message (see protocol description)
+	StopOnCommit                types.StopOnCommitType     // If true then the consensus will not execute rounds after deciding (the eventual message propagation will ensure termination)
+	ByzStartIndex               uint64                     // Index to start faulty behaviour
+	IsByz                       bool                       // True if the node is faulty
+	NoSignatures                bool                       // Use encrypted channels instead of signatures
+	EncryptChannels             bool                       // If the channels are encrypted
+	CoinType                    types.CoinType             // The type of coin being used
+	UseTp1CoinThresh            bool                       // if true need t+1 signatures for a threshold signature, false otherwise
+	UseFixedCoinPresets         bool                       // If true then will use predefined coins for the initial rounds of randomized consensus
+	UseMultiSig                 bool                       // True if multisignatures are enabled.
+	MemCheckerBitIDType         types.BitIDType            // If using multi-sigs the type of bit ID to use in the member checker
+	SigBitIDType                types.BitIDType            // If using multi-sigs the type of bit ID to use with the signatures
+	WarmUpInstances             int                        // Number of consensus instances to run before recording results
+	KeepPast                    int                        // Number of previously decided consensus instances to keep in memory
+	ForwardTimeout              int                        // milliseconds 	// for msg forwarder when you dont receive enough messages to foward a buffer automatically
+	ProgressTimeout             int                        // milliseconds, if no progress in this time, let neighbors know
+	MvConsTimeout               int                        // millseconds timeout when taking an action in the 3 step mv to bin reduction
+	MvConsRequestRecoverTimeout int                        // millseconds timeout before requesting the full proposal after delivering the hash
 }
 
 type ExtraInitState interface {
@@ -73,7 +78,7 @@ func CheckFaulty(idx types.ConsensusIndex, gc *GeneralConfig) bool {
 	}
 	switch idx := idx.Index.(type) {
 	case types.ConsensusInt:
-		if idx >= types.ConsensusInt(gc.ByzStartIndex+config.WarmUpInstances) {
+		if idx >= types.ConsensusInt(gc.ByzStartIndex)+types.ConsensusInt(gc.WarmUpInstances) {
 			return true
 		}
 		return false

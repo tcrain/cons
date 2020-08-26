@@ -197,6 +197,13 @@ func CreateGeneralConfig(testId int, eis generalconfig.ExtraInitState,
 	gc.UseFixedCoinPresets = to.UseFixedCoinPresets
 	gc.MemCheckerBitIDType = to.MemCheckerBitIDType
 	gc.SigBitIDType = to.SigBitIDType
+	gc.WarmUpInstances = to.WarmUpInstances
+	gc.KeepPast = to.KeepPast
+	gc.ForwardTimeout = to.ForwardTimeout
+	gc.ProgressTimeout = to.ProgressTimeout
+	gc.MvConsTimeout = to.MvConsTimeout
+	gc.MvConsRequestRecoverTimeout = to.MvConsRequestRecoverTimeout
+
 	return gc
 }
 

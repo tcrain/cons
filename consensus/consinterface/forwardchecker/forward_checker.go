@@ -25,6 +25,7 @@ package forwardchecker
 import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/stats"
 	"github.com/tcrain/cons/consensus/types"
 	"math/rand"
@@ -32,7 +33,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/messages"
@@ -74,8 +74,9 @@ type buffMsg struct {
 }
 
 // newBufferForwarder creates a new absBufferForwarder using the internalForwardChecker
-func newBufferForwarder(internal internalForwardChecker) *absBufferForwarder {
+func newBufferForwarder(internal internalForwardChecker, gc *generalconfig.GeneralConfig) *absBufferForwarder {
 	return &absBufferForwarder{
+		gc:                     gc,
 		internalForwardChecker: internal,
 		buffMsgMap:             make(map[messages.MsgID]*buffMsg)}
 }
@@ -87,12 +88,14 @@ type absBufferForwarder struct {
 	internalForwardChecker
 	buffMsgMap  map[messages.MsgID]*buffMsg
 	buffMsgList []*buffMsg
+	gc          *generalconfig.GeneralConfig
 }
 
 // New creates a new buffer ForwardChecker for the consensus index. It will be always be called on an "initialForwardChecker" that is given as input to
 // MemberCheckerState.Init. A buffer forwarder forwards a message once it has recieved a threshold of messages with the same MsgID.
 func (fwd *absBufferForwarder) New(idx types.ConsensusIndex, participants, allPubs sig.PubList) consinterface.ForwardChecker {
-	f := newBufferForwarder(fwd.internalForwardChecker.newInternal(idx, participants))
+	_ = allPubs
+	f := newBufferForwarder(fwd.internalForwardChecker.newInternal(idx, participants), fwd.gc)
 	f.idx = idx
 	return f
 }
@@ -109,6 +112,7 @@ func (fwd *absBufferForwarder) CheckForward(
 	msgID messages.MsgID,
 	memberChecker *consinterface.MemCheckers) {
 
+	_, _, _, _ = sndRcvChan, shouldForward, isProposalMessage, memberChecker
 	if msg.IsLocal == types.LocalMessage {
 		panic(msg.Header)
 	}
@@ -173,11 +177,11 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 			// this means that message with endthreshold = 1 should be globally broadcast at the beginning
 			// TODO maybe do this differently
 			panic(1)
-			continue
+			// continue
 		}
 
 		// We only forward the message if we have reached a threshold, or if a timeout has passed without reaching the threshold
-		passedTimeout := time.Since(nxt.sendTime) > config.ForwardTimeout*time.Millisecond
+		passedTimeout := time.Since(nxt.sendTime) > time.Duration(fwd.gc.ForwardTimeout)*time.Millisecond
 		if passedTimeout {
 			stats.BufferForwardTimeout()
 		}
@@ -264,6 +268,8 @@ func newDirectForwarder(internal internalForwardChecker) *absDirectForwarder {
 // New creates a new forwarder for consensus index that forwards a message directly once
 // it is processed.
 func (fwd *absDirectForwarder) New(idx types.ConsensusIndex, participants, allPubs sig.PubList) consinterface.ForwardChecker {
+
+	_ = allPubs
 	return newDirectForwarder(fwd.internalForwardChecker.newInternal(idx, participants))
 }
 
@@ -279,6 +285,8 @@ func (fwd *absDirectForwarder) CheckForward(
 	msgID messages.MsgID,
 	memberChecker *consinterface.MemCheckers) {
 
+	_, _, _, _, _ = endThreshold, maxPossible, sigCount, msgID, memberChecker
+
 	if fwd.msg != nil || fwd.sndRcvChan != nil {
 		panic("should have forwarded")
 	}
@@ -293,7 +301,7 @@ func (fwd *absDirectForwarder) CheckForward(
 
 // GetNextFowardItem returns the last message that was called with CheckForward
 // if forwarding is enabled.
-func (fwd *absDirectForwarder) GetNextForwardItem(stats stats.NwStatsInterface) (
+func (fwd *absDirectForwarder) GetNextForwardItem(_ stats.NwStatsInterface) (
 	msg []*channelinterface.DeserializedItem,
 	forwardFunc channelinterface.NewForwardFuncFilter) {
 
@@ -327,6 +335,7 @@ type AllToAllForwarder struct {
 // New creates a new AllToAllForwarder for the consensus index. It will be always be called on an "initialForwardChecker" that is given as input to
 // MemberCheckerState.Init.
 func (fwd *AllToAllForwarder) New(idx types.ConsensusIndex, participants, allPubs sig.PubList) consinterface.ForwardChecker {
+	_, _ = allPubs, idx
 	ret := NewAllToAllForwarder().(*AllToAllForwarder)
 	ret.pubs = participants
 	return ret
@@ -336,7 +345,7 @@ func (fwd *AllToAllForwarder) NewForwardFunc() sig.PubList {
 	return fwd.pubs
 }
 
-func (fwd *AllToAllForwarder) newInternal(idx types.ConsensusID) internalForwardChecker {
+func (fwd *AllToAllForwarder) newInternal() internalForwardChecker {
 	panic("not used")
 }
 
@@ -351,10 +360,12 @@ func (fwd *AllToAllForwarder) CheckForward(
 	memberChecker *consinterface.MemCheckers) {
 
 	// no forwarding in all to all
+	_, _, _, _, _, _, _ = sndRcvChan, msg, shouldForward, isProposalMessage, endThreshold, maxPossible, sigCount
+	_, _ = msgID, memberChecker
 }
 
 // GetNextForwardItem always returns a nil result for the AllToAllForwarder.
-func (fwd *AllToAllForwarder) GetNextForwardItem(stats stats.NwStatsInterface) (
+func (fwd *AllToAllForwarder) GetNextForwardItem(_ stats.NwStatsInterface) (
 	msg []*channelinterface.DeserializedItem,
 	forwardFunc channelinterface.NewForwardFuncFilter) {
 
@@ -365,6 +376,7 @@ func (fwd *AllToAllForwarder) GetNextForwardItem(stats stats.NwStatsInterface) (
 // ShouldForward always returns false for the AllToAll forwarder.
 func (fwd *AllToAllForwarder) ShouldForward(progress bool, isProposalMessage bool) bool {
 	// no forwarding in all to all
+	_, _ = progress, isProposalMessage
 	return false
 }
 
@@ -374,6 +386,7 @@ func (fwd *AllToAllForwarder) GetFanOut() int {
 }
 
 func (fwd *AllToAllForwarder) getSpecificForwardListFunc(count int) channelinterface.NewForwardFuncFilter {
+	_ = count
 	return channelinterface.ForwardAllPub
 }
 
@@ -402,14 +415,15 @@ func (fwd *AllToAllForwarder) GetNoProgressForwardFunc() channelinterface.NewFor
 // If bufferForwarder is true, then it buffers messages before forwarding them as described in
 // the buffer forwarder functions.
 // If requestForwarder is true then this is being used for a local random member checker.
-func NewP2PForwarder(requestForwarder bool, fanOut int, bufferForwarder bool, forwardPubs []sig.PubList) consinterface.ForwardChecker {
+func NewP2PForwarder(requestForwarder bool, fanOut int, bufferForwarder bool, forwardPubs []sig.PubList,
+	gc *generalconfig.GeneralConfig) consinterface.ForwardChecker {
 	if requestForwarder && bufferForwarder {
 		panic("can't have both requestForwarder and bufferForwarder")
 	}
 	p2p := newP2PForwarder(requestForwarder, fanOut, bufferForwarder, forwardPubs)
 	switch bufferForwarder {
 	case true:
-		return newBufferForwarder(p2p)
+		return newBufferForwarder(p2p, gc)
 	default:
 		return newDirectForwarder(p2p)
 	}
@@ -451,7 +465,7 @@ func newP2PForwarder(requestForwarder bool, fanOut int, bufferForwarder bool, fo
 		forwardPubs: forwardPubs, fwdFuncs: forwardFuncs}
 }
 
-func (fwd *P2PForwarder) newInternal(idx types.ConsensusIndex, participants sig.PubList) internalForwardChecker {
+func (fwd *P2PForwarder) newInternal(_ types.ConsensusIndex, _ sig.PubList) internalForwardChecker {
 	return &P2PForwarder{requestForwarder: fwd.requestForwarder, fanOut: fwd.fanOut, forwardPubs: fwd.forwardPubs,
 		bufferFowarder: fwd.bufferFowarder, fwdFuncs: fwd.fwdFuncs} //, participants: participants}
 }
@@ -521,13 +535,13 @@ type RandomForwarder struct {
 // NewRandomForwarder creates a new random forwarder.
 // If bufferForwarder is true, then it buffers messages before forwarding them as described in
 // the buffer forwarder functions.
-func NewRandomForwarder(bufferForwarder bool, fanOut int) consinterface.ForwardChecker {
+func NewRandomForwarder(bufferForwarder bool, fanOut int, gc *generalconfig.GeneralConfig) consinterface.ForwardChecker {
 	randlocal := rand.New(rand.NewSource(atomic.AddInt64(&rndFwdSeed, 1)))
 	switch bufferForwarder {
 	case true:
 		return newBufferForwarder(&RandomForwarder{
 			fanOut: fanOut,
-			rand:   randlocal})
+			rand:   randlocal}, gc)
 	default:
 		return &absDirectForwarder{
 			internalForwardChecker: &RandomForwarder{
@@ -536,7 +550,7 @@ func NewRandomForwarder(bufferForwarder bool, fanOut int) consinterface.ForwardC
 	}
 }
 
-func (fwd *RandomForwarder) newInternal(idx types.ConsensusIndex, participants sig.PubList) internalForwardChecker {
+func (fwd *RandomForwarder) newInternal(_ types.ConsensusIndex, participants sig.PubList) internalForwardChecker {
 	return &RandomForwarder{
 		participants: participants,
 		fanOut:       fwd.fanOut,
@@ -582,6 +596,7 @@ func (fwd *RandomForwarder) GetHalfHalfForwardListFunc() (firstHalf, secondHalf 
 
 // ShouldForward returns the same value as progress (i.e. only forward a message if it made progress towards a consensus decision.
 func (fwd *RandomForwarder) ShouldForward(progress bool, isProposalMessage bool) bool {
+	_ = isProposalMessage
 	return progress
 }
 
@@ -592,6 +607,7 @@ func (fwd *RandomForwarder) GetNoProgressForwardFunc() channelinterface.NewForwa
 
 // TODO use semi-random here based on a configuration
 func (fwd *RandomForwarder) getSpecificForwardListFunc(count int) channelinterface.NewForwardFuncFilter {
+	_ = count
 	return fwd.GetNewForwardListFunc()
 	/*	if fwd.fwdFunc == nil {
 			// Here the forward function returns a random permutation of the channels of lenght count

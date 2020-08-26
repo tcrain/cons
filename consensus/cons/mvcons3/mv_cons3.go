@@ -303,7 +303,7 @@ func (*MvCons3) GenerateNewItem(index types.ConsensusIndex, items *consinterface
 	newItem.zeroHash = types.GetZeroBytesHashLength()
 
 	newItem.validatedInitHashes = make(map[types.HashStr]*channelinterface.DeserializedItem)
-	newItem.InitAbsMVRecover(index)
+	newItem.InitAbsMVRecover(index, gc)
 
 	return newItem
 }

@@ -127,7 +127,7 @@ func (*MvCons2) GenerateNewItem(index types.ConsensusIndex,
 	newItem.roundState = make(map[types.ConsensusRound]roundMvState)
 	newItem.validatedInitHashes = make(map[types.HashStr]*channelinterface.DeserializedItem)
 	newItem.initMessageByRound = make(map[types.ConsensusRound]cons.DeserSortVRF)
-	newItem.InitAbsMVRecover(index)
+	newItem.InitAbsMVRecover(index, gc)
 
 	return newItem
 }
@@ -780,7 +780,7 @@ func (sc *MvCons2) startCommitTimeout(round types.ConsensusRound, t int, roundSt
 				Header:         (messagetypes.MvCommitMessageTimeout)(round),
 				IsDeserialized: true,
 				IsLocal:        types.LocalMessage}}
-		sc.commitTimer = mainChannel.SendToSelf(deser, cons.GetMvTimeout(round, t))
+		sc.commitTimer = mainChannel.SendToSelf(deser, cons.GetMvTimeout(round, t, sc.GeneralConfig))
 	}
 	return roundState
 }

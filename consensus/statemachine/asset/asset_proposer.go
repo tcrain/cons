@@ -221,7 +221,7 @@ func (da *AssetProposer) GenerateNewSM(consumedIndices []types.ConsensusID,
 		var txCount uint64
 		for _, nxt := range ret.trafserCount {
 			txCount += nxt
-			if txCount > (config.WarmUpInstances-1)*uint64(ret.numMembers) {
+			if txCount > uint64(da.GeneralConfig.WarmUpInstances-1)*uint64(ret.numMembers) {
 				startRecordingStats = true
 				ret.startedRecordingStats = true
 				break

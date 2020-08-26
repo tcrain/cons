@@ -21,7 +21,6 @@ package consinterface
 
 import (
 	"fmt"
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/generalconfig"
@@ -335,31 +334,31 @@ func (mcs *CausalConsInterfaceState) CheckValidateProposal(item *channelinterfac
 // CheckSendEcho should be called when an echo is sent.
 // If none of the indices have sent an echo before then nil is returned.
 // Otherwise an error is returned.
-func (mcs *CausalConsInterfaceState) CheckSendEcho(msm *sig.MultipleSignedMessage) error {
+func (mcs *CausalConsInterfaceState) CheckSendEcho(*sig.MultipleSignedMessage) error {
 
 	panic("depricated")
-	mcs.mutex.Lock()
-	defer mcs.mutex.Unlock()
+	/*	mcs.mutex.Lock()
+		defer mcs.mutex.Unlock()
 
-	// check if we already consumed
-	nxtIdx := msm.Index.FirstIndex
-	for i := -1; i < len(msm.Index.AdditionalIndices); i++ {
-		if mcs.consumedEcho[nxtIdx.(types.ConsensusHash)] {
-			return types.ErrAlreadyConsumedEcho
+		// check if we already consumed
+		nxtIdx := msm.Index.FirstIndex
+		for i := -1; i < len(msm.Index.AdditionalIndices); i++ {
+			if mcs.consumedEcho[nxtIdx.(types.ConsensusHash)] {
+				return types.ErrAlreadyConsumedEcho
+			}
+			if i+1 < len(msm.Index.AdditionalIndices) {
+				nxtIdx = msm.Index.AdditionalIndices[i+1]
+			}
 		}
-		if i+1 < len(msm.Index.AdditionalIndices) {
-			nxtIdx = msm.Index.AdditionalIndices[i+1]
+		// consume
+		nxtIdx = msm.Index.FirstIndex
+		for i := -1; i < len(msm.Index.AdditionalIndices); i++ {
+			mcs.consumedEcho[nxtIdx.(types.ConsensusHash)] = true
+			if i+1 < len(msm.Index.AdditionalIndices) {
+				nxtIdx = msm.Index.AdditionalIndices[i+1]
+			}
 		}
-	}
-	// consume
-	nxtIdx = msm.Index.FirstIndex
-	for i := -1; i < len(msm.Index.AdditionalIndices); i++ {
-		mcs.consumedEcho[nxtIdx.(types.ConsensusHash)] = true
-		if i+1 < len(msm.Index.AdditionalIndices) {
-			nxtIdx = msm.Index.AdditionalIndices[i+1]
-		}
-	}
-	return nil
+		return nil*/
 }
 
 // SetMainChannel must be called before the object is used.
@@ -971,7 +970,7 @@ func (mcs *CausalConsInterfaceState) GetTimeoutItems() (decidedTimeoutItems,
 		if nxt.ConsItem == nil { // this is the init item, it does not run a cons item, it only has outputs
 			continue
 		}
-		if now.Sub(nxt.LastProgress) >= config.ProgressTimeout*time.Millisecond {
+		if now.Sub(nxt.LastProgress) >= time.Duration(mcs.gc.ProgressTimeout)*time.Millisecond {
 			endTimeoutIndex++
 			if nxt.ConsItem.HasDecided() {
 				decidedTimeoutItems = append(decidedTimeoutItems, nxt)

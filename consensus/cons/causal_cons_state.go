@@ -49,7 +49,7 @@ type CausalConsState struct {
 	store           storage.StoreInterface       // Interface to the storage
 	mainChannel     channelinterface.MainChannel // Interface to the network.
 	isInStorageInit bool                         // Used during initialization, when recovering from disk this is set to true so we don't store messages we already have on disk.
-
+	timeoutTime     time.Duration                // The timeout used after no proogress to start recovery.
 }
 
 // var timeoutTime = time.Millisecond * time.Duration(config.ProgressTimeout) // The timeout used after no proogress to start recovery.
@@ -66,6 +66,7 @@ func NewCausalConsState(initIitem consinterface.ConsItem,
 	cs.mainChannel = mainChannel
 	cs.localIndexTime = time.Now()
 	cs.memberCheckerState = memberCheckerState
+	cs.timeoutTime = time.Millisecond * time.Duration(generalConfig.ProgressTimeout)
 
 	if initIitem.NeedsConcurrent() > 1 {
 		panic("cannot have needs concurrent for causal")
@@ -251,7 +252,7 @@ func (cs *CausalConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (retu
 	defer func() {
 
 		// After processing the message, if the timeout has passed do some actions
-		if time.Since(cs.localIndexTime) > timeoutTime && !cs.isInStorageInit {
+		if time.Since(cs.localIndexTime) > cs.timeoutTime && !cs.isInStorageInit {
 			// -- on send no progress
 			// we have a set of non-gc'd items
 			// (non-gc'd means they have non-consumed children)

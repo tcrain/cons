@@ -63,7 +63,7 @@ func (*RbBcast1) GenerateNewItem(index types.ConsensusIndex, items *consinterfac
 	// newItem.priv = gc.Priv
 	items.ConsItem = newItem
 	newItem.validatedInitHashes = make(map[types.HashStr]*channelinterface.DeserializedItem)
-	newItem.InitAbsMVRecover(index)
+	newItem.InitAbsMVRecover(index, gc)
 
 	return newItem
 }

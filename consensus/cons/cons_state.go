@@ -54,9 +54,8 @@ type ConsState struct {
 	allowConcurrent        types.ConsensusInt                                // Number of concurrent consensus instances allowed to be run
 	maxInstances           types.ConsensusInt                                // Maximum number of consensus instances to run
 	decidedLastIndex       bool                                              // set to true when decided up to maxInstances
+	timeoutTime            time.Duration                                     // The timeout used after no proogress to start recovery.
 }
-
-var timeoutTime = time.Millisecond * time.Duration(config.ProgressTimeout) // The timeout used after no proogress to start recovery.
 
 // NetConsState initializes and returns a new consensus state object.
 func NewConsState(initIitem consinterface.ConsItem,
@@ -73,6 +72,7 @@ func NewConsState(initIitem consinterface.ConsItem,
 	cs.mainChannel = mainChannel
 	cs.localIndexTime = time.Now()
 	cs.memberCheckerState = memberCheckerState
+	cs.timeoutTime = time.Millisecond * time.Duration(generalConfig.ProgressTimeout)
 
 	if initIitem.NeedsConcurrent() > 1 && allowConcurrent > 0 {
 		panic("cannot have both needs concurrent and allow concurrent")
@@ -280,7 +280,7 @@ func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg 
 			}
 		}
 		// If we haven't made progress after a timeout, inform our neighbors
-		if time.Since(cs.localIndexTime) > timeoutTime && !cs.isInStorageInit { //&& cs.memberCheckerState.LocalIndex <= cs.maxInstances {
+		if time.Since(cs.localIndexTime) > cs.timeoutTime && !cs.isInStorageInit { //&& cs.memberCheckerState.LocalIndex <= cs.maxInstances {
 			cs.sendNoProgressMsg()
 		}
 	}()
@@ -365,7 +365,7 @@ func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg 
 		}
 
 		// Process the message
-		if endidx < types.ConsensusInt(utils.SubOrZero(uint64(myIndex), config.KeepPast)) { // An old message
+		if endidx < types.ConsensusInt(utils.SubOrZero(uint64(myIndex), uint64(cs.generalConfig.KeepPast))) { // An old message
 			// The message was too old to be processed, so we just drop it
 			returnErrs = append(returnErrs, types.ErrIndexTooOld)
 			continue

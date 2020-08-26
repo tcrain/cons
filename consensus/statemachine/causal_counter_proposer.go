@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
@@ -275,7 +274,7 @@ func (spi *CausalCounterProposerInfo) ValidateProposal(proposer sig.Pub, dec []b
 // GenerateNewSM is called on this init SM to generate a new SM given the items to be consumed.
 // It should just generate the item, it should not change the state of any of the parentSMs.
 // This will be called on the initial CausalStateMachineInterface passed to the system
-func (*CausalCounterProposerInfo) GenerateNewSM(consumedIndices []types.ConsensusID,
+func (spi *CausalCounterProposerInfo) GenerateNewSM(consumedIndices []types.ConsensusID,
 	parentSMs []consinterface.CausalStateMachineInterface) consinterface.CausalStateMachineInterface {
 	if len(parentSMs) != 1 {
 		panic("should only have 1 parent state machine")
@@ -296,7 +295,7 @@ func (*CausalCounterProposerInfo) GenerateNewSM(consumedIndices []types.Consensu
 	}
 	ret := &CausalCounterProposerInfo{}
 	*ret = *parent
-	startRecordingStats := parent.proposalIndex == config.WarmUpInstances
+	startRecordingStats := parent.proposalIndex == uint64(spi.GeneralConfig.WarmUpInstances)
 	ret.AbsStartIndex(consumedIndices, parentSMs, startRecordingStats)
 	logging.Infof("generating new causal counter sm from counter %v", parent.proposalIndex)
 	return ret

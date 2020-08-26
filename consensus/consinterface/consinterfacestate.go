@@ -293,7 +293,7 @@ func (mcs *ConsInterfaceState) GetConsItem(idIdx types.ConsensusIndex) (ConsItem
 	}
 	idx := idIdx.Index.(types.ConsensusInt)
 
-	if idx < types.ConsensusInt(utils.SubOrZero(uint64(mcs.LocalIndex), config.KeepPast)) {
+	if idx < types.ConsensusInt(utils.SubOrZero(uint64(mcs.LocalIndex), uint64(mcs.gc.KeepPast))) {
 		return nil, types.ErrIndexTooOld
 	}
 
@@ -326,7 +326,7 @@ func (mcs *ConsInterfaceState) GetMemberChecker(cid types.ConsensusIndex) (*MemC
 	mcs.mutex.Lock()
 	defer mcs.mutex.Unlock()
 
-	if idx < types.ConsensusInt(utils.SubOrZero(uint64(mcs.LocalIndex), config.KeepPast)) {
+	if idx < types.ConsensusInt(utils.SubOrZero(uint64(mcs.LocalIndex), uint64(mcs.gc.KeepPast))) {
 		return nil, nil, nil, types.ErrIndexTooOld
 	}
 	if idx > mcs.StartedIndex+config.DropFuture {
@@ -446,7 +446,7 @@ func (mcs *ConsInterfaceState) DoneIndex(nextIdxID, supportIndex types.Consensus
 
 		var gcUntil types.ConsensusInt
 		mcs.lastNonNilDecs = append(mcs.lastNonNilDecs, nextIdx)
-		if len(mcs.lastNonNilDecs) > config.KeepPast {
+		if len(mcs.lastNonNilDecs) > mcs.gc.KeepPast {
 			mcs.lastNonNilDecs = mcs.lastNonNilDecs[1:]
 			gcUntil = types.ConsensusInt(utils.SubOrZero(uint64(mcs.lastNonNilDecs[0]), 1))
 		}
@@ -533,8 +533,8 @@ func (mcs *ConsInterfaceState) getIndex(endidx types.ConsensusInt, alreadyWriteL
 			panic(1)
 			//mcs.mutex.RUnlock()
 			//defer mcs.mutex.RLock()
-			mcs.mutex.Lock()
-			defer mcs.mutex.Unlock()
+			//mcs.mutex.Lock()
+			//defer mcs.mutex.Unlock()
 		}
 
 		item = mcs.consItemsMap[endidx]

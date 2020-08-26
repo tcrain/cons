@@ -75,6 +75,24 @@ func SetTestConfigOptions(to *types.TestOptions, fistCall bool) {
 	if to.NumMsgProcessThreads == 0 {
 		to.NumMsgProcessThreads = config.DefaultMsgProcesThreads
 	}
+	if to.WarmUpInstances == 0 {
+		to.WarmUpInstances = config.WarmUpInstances
+	}
+	if to.KeepPast == 0 {
+		to.KeepPast = config.KeepPast
+	}
+	if to.ForwardTimeout == 0 {
+		to.ForwardTimeout = config.ForwardTimeout
+	}
+	if to.ProgressTimeout == 0 {
+		to.ProgressTimeout = config.ProgressTimeout
+	}
+	if to.MvConsTimeout == 0 {
+		to.MvConsTimeout = config.MvConsTimeout
+	}
+	if to.MvConsRequestRecoverTimeout == 0 {
+		to.MvConsRequestRecoverTimeout = config.MvConsRequestRecoverTimeout
+	}
 
 	if fistCall {
 		SetConfigOptions(*to)
@@ -286,7 +304,7 @@ func GenerateStateMachine(to types.TestOptions, priv sig.Priv,
 
 // GenerateForwardChecker creates a forward checker object given by the test configuration.
 func GenerateForwardChecker(t assert.TestingT, pub sig.Pub, pubKeys sig.PubList, to types.TestOptions,
-	parRegs ...network.PregInterface) consinterface.ForwardChecker {
+	generalConfig *generalconfig.GeneralConfig, parRegs ...network.PregInterface) consinterface.ForwardChecker {
 
 	switch to.NetworkType {
 	case types.P2p, types.RequestForwarder:
@@ -304,11 +322,11 @@ func GenerateForwardChecker(t assert.TestingT, pub sig.Pub, pubKeys sig.PubList,
 			}
 		}
 		return forwardchecker.NewP2PForwarder(to.NetworkType == types.RequestForwarder,
-			to.FanOut, to.BufferForwarder, pubCons)
+			to.FanOut, to.BufferForwarder, pubCons, generalConfig)
 	case types.AllToAll:
 		return forwardchecker.NewAllToAllForwarder()
 	case types.Random:
-		return forwardchecker.NewRandomForwarder(to.BufferForwarder, to.FanOut)
+		return forwardchecker.NewRandomForwarder(to.BufferForwarder, to.FanOut, generalConfig)
 	default:
 		panic("invalid nw type")
 	}
@@ -731,17 +749,17 @@ func GenTBLSDualDSSThresh(to types.TestOptions) (blsSharedPrimary, blsSharedSeco
 
 // computeLastIndex returns the largest consensus instance a process should participate in.
 func computeLasIndex(to types.TestOptions, initItem consinterface.ConsItem) types.ConsensusInt {
-	return types.ConsensusInt(to.MaxRounds) + initItem.NeedsConcurrent() - 1 + config.WarmUpInstances
+	return types.ConsensusInt(to.MaxRounds) + initItem.NeedsConcurrent() - 1 + types.ConsensusInt(to.WarmUpInstances)
 }
 
 // computeSMFinish returns the index a normal state machine should send on the done channel.
 func computeSMFinish(to types.TestOptions) types.ConsensusInt {
-	return types.ConsensusInt(to.MaxRounds) + config.WarmUpInstances
+	return types.ConsensusInt(to.MaxRounds) + types.ConsensusInt(to.WarmUpInstances)
 }
 
 // computeFailRound returns the index a fail process should send on the done channel.
 func computeFailRound(to types.TestOptions) types.ConsensusInt {
-	return types.ConsensusInt(to.FailRounds) + config.WarmUpInstances - 1
+	return types.ConsensusInt(to.FailRounds) + types.ConsensusInt(to.WarmUpInstances-1)
 }
 
 func SetInitIndex(initSM consinterface.CausalStateMachineInterface) {
@@ -785,7 +803,7 @@ func GenerateConsState(t assert.TestingT, to types.TestOptions, priv sig.Priv, r
 	// Generate the message state
 	messageState := initItem.GenerateMessageState(generalConfig)
 	// Generate the cons state
-	forwardChecker := GenerateForwardChecker(t, priv.GetPub(), pubKeys, to, parRegs...)
+	forwardChecker := GenerateForwardChecker(t, priv.GetPub(), pubKeys, to, generalConfig, parRegs...)
 	memberCheckerState = GenerateConsStateInterface(to, initItem, memberChecker, specialMemberChecker,
 		messageState, forwardChecker, ds, broadcastFunc, generalConfig)
 
@@ -862,28 +880,6 @@ func GetParticipants(t assert.TestingT, to types.TestOptions, parReg network.Pre
 	assert.Nil(t, err)
 
 	return allParticipants
-}
-
-func GetStaticNodeMaps(t assert.TestingT, to types.TestOptions, genPub func(sig.PubKeyBytes) sig.Pub,
-	parRegs ...network.PregInterface) []map[sig.PubKeyStr]channelinterface.NetNodeInfo {
-
-	var ret []map[sig.PubKeyStr]channelinterface.NetNodeInfo
-	for _, parReg := range parRegs {
-		nxt := make(map[sig.PubKeyStr]channelinterface.NetNodeInfo)
-		ret = append(ret, nxt)
-		allParticipants := GetParticipants(t, to, parReg)
-		for _, parInfo := range allParticipants {
-			nodeInfo := channelinterface.NetNodeInfo{
-				AddrList: parInfo.ConInfo,
-				Pub:      genPub(sig.PubKeyBytes(parInfo.Pub))}
-			ps, err := nodeInfo.Pub.GetPubString()
-			if err != nil {
-				panic(err)
-			}
-			nxt[ps] = nodeInfo
-		}
-	}
-	return ret
 }
 
 func RegisterOtherNodes(t assert.TestingT, to types.TestOptions, testProc channelinterface.MainChannel,
@@ -1451,7 +1447,7 @@ func UpdateStorageAfterFail(to types.TestOptions, ds storage.StoreInterface) {
 
 // GetDecisions returns the list of decided values for a given consensus item and storage.
 func GetDecisions(to types.TestOptions, consItem consinterface.ConsItem, ds storage.StoreInterface) (res [][]byte) {
-	for j := types.ConsensusInt(1); j <= types.ConsensusInt(to.MaxRounds)+config.WarmUpInstances; j++ {
+	for j := types.ConsensusInt(1); j <= types.ConsensusInt(to.MaxRounds)+types.ConsensusInt(to.WarmUpInstances); j++ {
 		st, dec, err := ds.Read(j)
 		if err != nil {
 			panic(err)
@@ -1548,7 +1544,7 @@ func CheckDecisions(decidedValues [][][]byte, pi consinterface.StateMachineInter
 		panic("not enough processes")
 	}
 	var decs [][]byte
-	for j := types.ConsensusInt(0); j < types.ConsensusInt(to.MaxRounds)+config.WarmUpInstances; j++ {
+	for j := types.ConsensusInt(0); j < types.ConsensusInt(to.MaxRounds)+types.ConsensusInt(to.WarmUpInstances); j++ {
 		initial := decidedValues[0][j]
 		decs = append(decs, initial)
 		logging.Infof("Decided cons %v, %v", j, initial)

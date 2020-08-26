@@ -119,7 +119,7 @@ func (*MvCons1) GenerateNewItem(index types.ConsensusIndex, items *consinterface
 		prevItem, broadcastFunc, gc).(cons.BinConsInterface)
 
 	newItem.validatedInitHashes = make(map[types.HashStr]*channelinterface.DeserializedItem)
-	newItem.InitAbsMVRecover(index)
+	newItem.InitAbsMVRecover(index, gc)
 	items.ConsItem = newItem
 
 	return newItem
@@ -299,7 +299,7 @@ func (sc *MvCons1) ProcessMessage(
 		sc.sortedInitHashes = append(sc.sortedInitHashes, deser)
 		sort.Sort(sc.sortedInitHashes)
 		var shouldFoward bool
-		if sc.sortedInitHashes[0] == deser { // only forward if it is the most likely leader we have seen
+		if hashStr == sc.decisionHash || sc.sortedInitHashes[0] == deser { // only forward if it is the most likely leader we have seen
 			shouldFoward = true
 		}
 		logging.Info("Got an mv init message of len", len(w.GetBaseMsgHeader().(*messagetypes.MvInitMessage).Proposal))

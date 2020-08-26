@@ -91,6 +91,13 @@ type TestOptions struct {
 	CoinType              CoinType             // The type of coin being used
 	UseFixedCoinPresets   bool                 // If true then will use predefined coins for the initial rounds of randomized consensus
 	SharePubsRPC          bool                 // If true then during RPC tests nodes on the same machine will share public key objects for external nodes
+
+	WarmUpInstances             int // Number of consensus instances to run before recording results
+	KeepPast                    int // Number of previously decided consensus instances to keep in memory
+	ForwardTimeout              int // milliseconds 	// for msg forwarder when you dont receive enough messages to foward a buffer automatically
+	ProgressTimeout             int // milliseconds, if no progress in this time, let neighbors know
+	MvConsTimeout               int // millseconds timeout when taking an action in the 3 step mv to bin reduction
+	MvConsRequestRecoverTimeout int // millseconds timeout before requesting the full proposal after delivering the hash
 }
 
 // UsesVRFs returns true if this test configuration uses VRFs.

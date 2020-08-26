@@ -20,9 +20,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package cons
 
 import (
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
@@ -35,11 +35,13 @@ type AbsMVRecover struct {
 	requestedRecover    map[types.HashStr][]*channelinterface.SendRecvChannel // external nodes that have asked for the leader's init message
 	requestRecoverTimer channelinterface.TimerInterface                       // timer for requesting the leader's init message from other nodes
 	index               types.ConsensusIndex
+	gc                  *generalconfig.GeneralConfig
 }
 
-func (abs *AbsMVRecover) InitAbsMVRecover(index types.ConsensusIndex) {
+func (abs *AbsMVRecover) InitAbsMVRecover(index types.ConsensusIndex, gc *generalconfig.GeneralConfig) {
 	abs.requestedRecover = make(map[types.HashStr][]*channelinterface.SendRecvChannel)
 	abs.index = index
+	abs.gc = gc
 }
 
 func (sc *AbsMVRecover) GotRequestRecover(validatedInitHashes map[types.HashStr]*channelinterface.DeserializedItem,
@@ -71,7 +73,7 @@ func (sc *AbsMVRecover) StartRecoverTimeout(index types.ConsensusIndex, channel 
 				HeaderType:     messages.HdrMvRecoverTimeout,
 				IsDeserialized: true,
 				IsLocal:        types.LocalMessage}}
-		sc.requestRecoverTimer = channel.SendToSelf(deser, config.MvConsRequestRecoverTimeout*time.Millisecond)
+		sc.requestRecoverTimer = channel.SendToSelf(deser, time.Duration(sc.gc.MvConsRequestRecoverTimeout)*time.Millisecond)
 	}
 }
 

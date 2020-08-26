@@ -78,7 +78,7 @@ func (*MvBinConsRnd2) GenerateNewItem(index types.ConsensusIndex, items *consint
 	items.ConsItem = newItem
 	newItem.includeProofs = gc.Eis.(cons.ConsInitState).IncludeProofs
 	newItem.validatedInitHashes = make(map[types.HashStr]*channelinterface.DeserializedItem)
-	newItem.InitAbsMVRecover(index)
+	newItem.InitAbsMVRecover(index, gc)
 
 	binConsItem := &binconsrnd2.BinConsRnd2{}
 	newItem.binCons = binConsItem.GenerateNewItem(index, items, mainChannel,

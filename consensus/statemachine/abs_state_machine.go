@@ -21,7 +21,6 @@ package statemachine
 
 import (
 	"fmt"
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
@@ -163,7 +162,7 @@ func (spi *AbsStateMachine) Collect() {
 
 // CheckStartStatsRecording is called before allocating an index to check if stats recording should start.
 func (spi *AbsStateMachine) CheckStartStatsRecording(index types.ConsensusInt) {
-	if index >= config.WarmUpInstances {
+	if index >= types.ConsensusInt(spi.GeneralConfig.WarmUpInstances) {
 		spi.GeneralConfig.Stats.StartRecording(spi.GeneralConfig.CPUProfile, spi.GeneralConfig.MemProfile,
 			spi.GeneralConfig.TestIndex, spi.GeneralConfig.TestID)
 	}
