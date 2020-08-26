@@ -2,6 +2,7 @@ set -e
 set -o pipefail
 
 config=${1}
+doInitialSetup=${2:-1}
 
 vars=()
 
@@ -11,21 +12,21 @@ do
 done < .lastjustsetup
 
 inip=${vars[0]}
-regions=${vars[2]}
-nodesperregion=${vars[3]}
-nodecounts=${vars[4]}
-launchNodes=${vars[5]}
-genimage=${vars[7]}
-instancetype=${vars[10]}
-branch=${vars[11]}
-homezone=${vars[12]}
-homeinstancetype=${vars[13]}
-goversion=${vars[14]}
-user=${vars[15]}
-key=${vars[16]}
-project=${vars[17]}
-credentialfile=${vars[18]}
-singleZoneCmd=${vars[19]}
+regions=${vars[1]}
+nodesperregion=${vars[2]}
+nodecounts=${vars[3]}
+launchNodes=${vars[4]}
+genimage=${vars[5]}
+instancetype=${vars[6]}
+branch=${vars[7]}
+homezone=${vars[8]}
+homeinstancetype=${vars[9]}
+goversion=${vars[10]}
+user=${vars[11]}
+key=${vars[12]}
+project=${vars[13]}
+credentialfile=${vars[14]}
+singleZoneCmd=${vars[15]}
 
 # Format input
 printf -v inip %q "$inip"
@@ -47,6 +48,6 @@ scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$user"@"$inip" "
 bash --login -c \"
 cd ~/go/src/github.com/tcrain/cons/;
-echo Running: bash ./scripts/cloudscripts/justcloudbench.sh tmptofile.json ${inip} ${user} ~/.ssh/id_rsa ${project} cloud.json ${singleZoneCmd} ${regions};
-bash ./scripts/cloudscripts/justcloudbench.sh tmptofile.json ${inip} ${user} ~/.ssh/id_rsa ${project} cloud.json ${singleZoneCmd} ${regions}\""
+echo Running: bash ./scripts/cloudscripts/just/justcloudbench.sh tmptofile.json ${inip} ${user} ~/.ssh/id_rsa ${project} cloud.json ${singleZoneCmd} ${regions} ${doInitialSetup};
+bash ./scripts/cloudscripts/just/justcloudbench.sh tmptofile.json ${inip} ${user} ~/.ssh/id_rsa ${project} cloud.json ${singleZoneCmd} ${regions} ${doInitialSetup}\""
 
