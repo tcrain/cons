@@ -1,6 +1,3 @@
-set -e
-set -o pipefail
-
 vars=()
 
 while read -r line
@@ -9,21 +6,21 @@ do
 done < .lastjustsetup
 
 inip=${vars[0]}
-regions=${vars[2]}
-nodesperregion=${vars[3]}
-nodecounts=${vars[4]}
-launchNodes=${vars[5]}
-genimage=${vars[7]}
-instancetype=${vars[10]}
-branch=${vars[11]}
-homezone=${vars[12]}
-homeinstancetype=${vars[13]}
-goversion=${vars[14]}
-user=${vars[15]}
-key=${vars[16]}
-project=${vars[17]}
-credentialfile=${vars[18]}
-singleZoneCmd=${vars[19]}
+regions=${vars[1]}
+nodesperregion=${vars[2]}
+nodecounts=${vars[3]}
+launchNodes=${vars[4]}
+genimage=${vars[5]}
+instancetype=${vars[6]}
+branch=${vars[7]}
+homezone=${vars[8]}
+homeinstancetype=${vars[9]}
+goversion=${vars[10]}
+user=${vars[11]}
+key=${vars[12]}
+project=${vars[13]}
+credentialfile=${vars[14]}
+singleZoneCmd=${vars[15]}
 
 # Format input
 printf -v inip %q "$inip"
@@ -41,3 +38,6 @@ printf -v credentialfile %q "${credentialfile}"
 
 # Shut down the bench nodes
 bash ./scripts/cloudscripts/afterbench.sh "$singleZoneCmd" "$regions" "$project" "$credentialfile"
+
+echo Shutting down launch node
+go run ./cmd/instancesetup/instancesetup.go $singleZoneCmd -p "$project" -c "$credentialfile" -z "$homezone" -sd -dd
