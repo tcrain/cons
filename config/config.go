@@ -52,6 +52,8 @@ const (
 	LOGINFO
 )
 
+//panic("add random forward timeout")
+
 const (
 	// for logging
 	LoggingType     = GOLOG

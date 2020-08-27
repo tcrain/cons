@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/types"
+	"strconv"
 
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
@@ -95,7 +96,7 @@ func (*SimpleCons) GenerateNewItem(index types.ConsensusIndex, items *consinterf
 	newItem := &SimpleCons{AbsConsItem: newAbsItem}
 
 	is := gc.Eis.(ConsInitState)
-	newItem.id = messagetypes.ScMsgID(is.Id)
+	newItem.id = messagetypes.ScMsgID(strconv.Itoa(int(is.Id)))
 	newItem.n = is.N
 	newItem.idset = make(map[sig.PubKeyStr]bool)
 	newItem.gotProposal = false

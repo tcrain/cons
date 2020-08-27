@@ -21,17 +21,17 @@ root hard nofile 1000000
 # check the open file limit was increased
 ulimit -n
 
-echo Increasing network buffer sizes
-echo "net.core.rmem_max=8388608
-net.core.wmem_max=8388608
-net.core.rmem_default=65536
-net.core.wmem_default=65536
-net.ipv4.tcp_rmem=4096 87380 8388608
-net.ipv4.tcp_wmem=4096 65536 8388608
-net.ipv4.tcp_mem=8388608 8388608 8388608
-net.core.netdev_max_backlog=5000
-" | sudo tee -a /etc/sysctl.conf
-
-sudo sysctl -w net.ipv4.route.flush=1
-sudo sysctl -p
-cat /proc/sys/net/ipv4/tcp_*mem
+#echo Increasing network buffer sizes
+#echo "net.core.rmem_max=8388608
+#net.core.wmem_max=8388608
+#net.core.rmem_default=65536
+#net.core.wmem_default=65536
+#net.ipv4.tcp_rmem=4096 87380 8388608
+#net.ipv4.tcp_wmem=4096 65536 8388608
+#net.ipv4.tcp_mem=8388608 8388608 8388608
+#net.core.netdev_max_backlog=5000
+#" | sudo tee -a /etc/sysctl.conf
+#
+#sudo sysctl -w net.ipv4.route.flush=1
+#sudo sysctl -p
+#cat /proc/sys/net/ipv4/tcp_*mem
