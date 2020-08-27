@@ -22,6 +22,7 @@ package currency
 import (
 	"bytes"
 	"github.com/stretchr/testify/assert"
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
@@ -34,7 +35,10 @@ func TestTx(t *testing.T) {
 }
 
 func TestTxBLS(t *testing.T) {
-	txTest(bls.NewBlspriv, (&bls.Blssig{}).New, t)
+	blsFunc := func() (sig.Priv, error) {
+		return bls.NewBlspriv(bitid.NewMultiBitIDFromInts)
+	}
+	txTest(blsFunc, (&bls.Blssig{}).New, t)
 }
 
 func generateAccountTable(newPrivFunc func() (sig.Priv, error), numAccounts int,

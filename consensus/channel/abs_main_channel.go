@@ -263,7 +263,11 @@ func (tp *AbsMainChannel) afterMessageProcess(items []*channelinterface.Deserial
 
 // Reprocess is called on messages that were unable to be deserialized upon first reception, it is safe to be called by many threads
 func (tp *AbsMainChannel) ReprocessMessage(rcvMsg *channelinterface.RcvMsg) {
-	atomic.AddInt32(&tp.ReprocessCount, 1)
+	val := atomic.AddInt32(&tp.ReprocessCount, 1)
+	if val > config.MaxMsgReprocessCount { // Too many messages
+		atomic.AddInt32(&tp.ReprocessCount, -1)
+		return
+	}
 	go func() {
 		for _, deser := range rcvMsg.Msg {
 			var items []*channelinterface.DeserializedItem

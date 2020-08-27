@@ -291,6 +291,14 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		}
 	}
 
+	if to.RndMemberType != NonRandom {
+		if to.RndMemberCount > to.NumTotalProcs-to.NumNonMembers {
+			err = fmt.Errorf("must have at least as many members as rand members, rnd members: %v, non members: %v, total mem: %v",
+				to.RndMemberCount, to.NumTotalProcs, to.NumNonMembers)
+			return
+		}
+	}
+
 	if to.NoSignatures {
 		switch to.RndMemberType {
 		case VRFPerCons, VRFPerMessage, KnownPerCons:

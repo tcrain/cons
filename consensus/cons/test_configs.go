@@ -239,7 +239,7 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 
 	// to.StorageType = types.Memstorage
 	to.NumTotalProcs = 30
-	to.RndMemberCount = 20
+	to.RndMemberCount = 28
 	to.FanOut = 6
 	to.NumNonMembers = config.NonMembers
 

@@ -37,7 +37,7 @@ type toProcessInfo struct {
 }
 
 type processMsgLoop struct {
-	wgProcessMsgLoop sync.WaitGroup     // wait for the process message threads to finish
+	wgProcessMsgLoop *sync.WaitGroup    // wait for the process message threads to finish
 	pendingToProcess chan toProcessInfo // messages that are ready to be processed for consensus
 	netMainChannel   *NetMainChannel    // the main channel
 	closeProcessChan chan bool
@@ -47,6 +47,7 @@ func (nrc *processMsgLoop) initProcessMsgLoop(netMainChannel *NetMainChannel) {
 	nrc.pendingToProcess = make(chan toProcessInfo, config.InternalBuffSize)
 	nrc.netMainChannel = netMainChannel
 	nrc.closeProcessChan = make(chan bool, 1)
+	nrc.wgProcessMsgLoop = &sync.WaitGroup{}
 }
 
 func (nrc *processMsgLoop) stopProcessThreads() {

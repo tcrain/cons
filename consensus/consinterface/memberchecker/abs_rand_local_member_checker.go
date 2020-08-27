@@ -36,8 +36,8 @@ type AbsRandLocalKnownMemberChecker struct {
 	myRand           *rand.Rand
 	rndStats         stats.StatsInterface
 	sortedMemberPubs sig.PubList
-	randMemberCount  int
-	pubMap           map[sig.PubKeyID]sig.Pub
+	// randMemberCount  int
+	pubMap map[sig.PubKeyID]sig.Pub
 
 	pubList []sig.Pub // randomly chosen members
 
@@ -84,7 +84,7 @@ func (arm *AbsRandLocalKnownMemberChecker) rndDoneNextUpdateState() error {
 	return nil
 }
 
-func (arm *AbsRandLocalKnownMemberChecker) gotRand(rnd [32]byte, participantNodeCount int, newPriv sig.Priv,
+func (arm *AbsRandLocalKnownMemberChecker) gotRand(_ [32]byte, participantNodeCount int, newPriv sig.Priv,
 	sortedMemberPubs sig.PubList, prvMC absRandMemberInterface) {
 
 	arm.myPriv = newPriv
@@ -145,6 +145,8 @@ func (arm *AbsRandLocalKnownMemberChecker) gotRand(rnd [32]byte, participantNode
 
 func (arm *AbsRandLocalKnownMemberChecker) checkRandMember(msgID messages.MsgID, isProposalMsg bool, participantNodeCount,
 	totalNodeCount int, pub sig.Pub) error {
+
+	_, _, _ = msgID, participantNodeCount, totalNodeCount
 	pid, err := pub.GetPubID()
 	if err != nil {
 		panic(err)
@@ -161,15 +163,15 @@ func (arm *AbsRandLocalKnownMemberChecker) checkRandMember(msgID messages.MsgID,
 
 	return types.ErrNotMember
 }
-func (arm *AbsRandLocalKnownMemberChecker) checkRandCoord(participantNodeCount, totalNodeCount int,
-	msgID messages.MsgID, round types.ConsensusRound, pub sig.Pub) (rndVal uint64, coord sig.Pub, err error) {
+func (arm *AbsRandLocalKnownMemberChecker) checkRandCoord(_, _ int,
+	_ messages.MsgID, _ types.ConsensusRound, _ sig.Pub) (rndVal uint64, coord sig.Pub, err error) {
 
 	panic("unused, the normal coordinator should be chosen")
 }
-func (arm *AbsRandLocalKnownMemberChecker) GotVrf(pub sig.Pub, msgID messages.MsgID, proof sig.VRFProof) error {
+func (arm *AbsRandLocalKnownMemberChecker) GotVrf(sig.Pub, messages.MsgID, sig.VRFProof) error {
 	return nil
 }
-func (arm *AbsRandLocalKnownMemberChecker) getMyVRF(id messages.MsgID) sig.VRFProof {
+func (arm *AbsRandLocalKnownMemberChecker) getMyVRF(messages.MsgID) sig.VRFProof {
 	return nil
 }
 func (arm *AbsRandLocalKnownMemberChecker) getRnd() (ret [32]byte) {

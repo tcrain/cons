@@ -123,20 +123,19 @@ func (tp *DualNetMainChannel) Close() {
 	_, ok := <-tp.DoneLoop // wait for the main recv loop to exit
 	if ok {
 		panic("should only exit on close")
-
-		go func() {
-			// Do this to ensure msgs dont block on internalChan if the send loop has already exited
-			// TODO better way to do this
-			for {
-				select {
-				case _, ok := <-tp.InternalChan:
-					if !ok {
-						return
-					}
+	}
+	go func() {
+		// Do this to ensure msgs dont block on internalChan if the send loop has already exited
+		// TODO better way to do this
+		for {
+			select {
+			case _, ok := <-tp.InternalChan:
+				if !ok {
+					return
 				}
 			}
-		}()
-	}
+		}
+	}()
 
 	// stop the process message threads
 	tp.stopProcessThreads()

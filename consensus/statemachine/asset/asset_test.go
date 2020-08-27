@@ -25,13 +25,14 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/utils"
 	"math"
+	"strconv"
 	"testing"
 )
 
 func TestDirectAsset(t *testing.T) {
 	initAssets := make([]AssetInterface, 10)
 	for i := 0; i < 10; i++ {
-		initAssets[i] = CreateInitialDirectAsset([]byte(string(i)), []byte(config.CsID))
+		initAssets[i] = CreateInitialDirectAsset([]byte(strconv.Itoa(i)), []byte(config.CsID))
 	}
 
 	inputs, outputs := GenDirectAssetOutput(nil, initAssets)

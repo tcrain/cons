@@ -35,7 +35,7 @@ type AbsConsItem struct {
 	*generalconfig.GeneralConfig
 	Index         types.ConsensusIndex // The index of this consensus
 	PreHeaders    []messages.MsgHeader // Headers to be appended to the beginning of all consensus messages for this specific consensus instance.
-	isMember      int                  // 0 if it is not yet known if this node is a member of this consensus, 1 if this node is not a member, 0 if this node is a member
+	isMember      int                  // 0 if it is not yet known if this node is a member of this consensus, 1 if this node is not a member, 2 if this node is a member
 	CommitProof   []messages.MsgHeader // Proof of committal from last consensus round
 	ConsItems     *consinterface.ConsInterfaceItems
 	PrevItem      consinterface.ConsItem

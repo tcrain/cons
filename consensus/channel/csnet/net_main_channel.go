@@ -124,9 +124,9 @@ func (tp *NetMainChannel) SendToPub(headers []messages.MsgHeader, pub sig.Pub, c
 		return nil
 	}
 
-	var stats stats.NwStatsInterface
+	var nwStats stats.NwStatsInterface
 	if countStats {
-		stats = tp.Stats
+		nwStats = tp.Stats
 	}
 	sndMsg, err := messages.CreateMsg(headers)
 	if err != nil {
@@ -160,7 +160,7 @@ func (tp *NetMainChannel) SendToPub(headers []messages.MsgHeader, pub sig.Pub, c
 	}
 	tp.mutex.Unlock()
 
-	return tp.connStatus.SendToPub(buff, pub, stats)
+	return tp.connStatus.SendToPub(buff, pub, nwStats)
 }
 
 func (tp *NetMainChannel) RemoveConnections(pubs []sig.Pub) (errs []error) {
@@ -301,11 +301,11 @@ func (tp *NetMainChannel) SendTo(buff []byte, dest channelinterface.SendChannel,
 		return
 	}
 
-	var stats stats.NwStatsInterface
+	var nwStats stats.NwStatsInterface
 	if countStats {
-		stats = tp.Stats
+		nwStats = tp.Stats
 	}
-	tp.connStatus.SendTo(buff, dest, stats)
+	tp.connStatus.SendTo(buff, dest, nwStats)
 }
 
 // ComputeDestinations returns the list of destinations given the forward filter function.
@@ -342,6 +342,7 @@ func (tp *NetMainChannel) Send(buff []byte,
 	isProposal, toSelf bool,
 	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool) {
 
+	_ = isProposal
 	if tp.IsInInit {
 		return
 	}
@@ -367,12 +368,12 @@ func (tp *NetMainChannel) sendInternal(buff []byte,
 		// }
 		tp.SendToSelfInternal(buff)
 	}
-	var stats stats.NwStatsInterface
+	var nwStats stats.NwStatsInterface
 	if countStats {
-		stats = tp.Stats
+		nwStats = tp.Stats
 	}
 	tp.mutex.Lock()
-	unknownPubs := tp.connStatus.Send(buff, forwardChecker, tp.nodePubList, stats)
+	unknownPubs := tp.connStatus.Send(buff, forwardChecker, tp.nodePubList, nwStats)
 	tp.mutex.Unlock()
 	if len(unknownPubs) > 0 {
 		tp.MakeConnections(unknownPubs) // TODO how to remove connections added here

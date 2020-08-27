@@ -442,7 +442,7 @@ func (mcs *ConsInterfaceState) DoneIndex(nextIdxID, supportIndex types.Consensus
 	mcs.LocalIndex++
 
 	// garbage collection
-	if len(dec) > 0 { // non nil decision
+	if len(dec) > 0 { // non nil decision // TODO should do this differently for memory managment?
 
 		var gcUntil types.ConsensusInt
 		mcs.lastNonNilDecs = append(mcs.lastNonNilDecs, nextIdx)

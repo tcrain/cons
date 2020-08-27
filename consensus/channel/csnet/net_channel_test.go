@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/stats"
 	"testing"
 
@@ -65,7 +66,7 @@ func testNetChannelNetwork(network types.NetworkProtocolType, encryptChannels bo
 			&TestMessageState{},
 			forwardchecker.NewAllToAllForwarder(),
 			0, false, priv.GetPub().New(),
-			consinterface.NormalBroadcast, nil)
+			consinterface.NormalBroadcast, &generalconfig.GeneralConfig{})
 		memberCheckerState[i].SetInitSM(TestSM{})
 	}
 
