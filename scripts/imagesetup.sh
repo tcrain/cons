@@ -2,6 +2,14 @@ user=$1
 
 # sudo yum -y update
 
+echo Checking ulimit
+if [ "$(ulimit -n)" -ne 1000000 ]
+then
+    echo "Already set ulimit"
+    exit
+fi
+
+echo Updating ulimit
 echo "
 $user soft nofile 1000000
 $user hard nofile 1000000

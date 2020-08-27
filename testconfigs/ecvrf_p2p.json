@@ -19,5 +19,10 @@
     "BinConsPercentOnes": 100,
     "SleepCrypto": true,
     "SharePubsRPC": true,
-    "RndMemberType": 2
+    "RndMemberType": 2,
+    "WarmUpInstances": 1,
+    "KeepPast": 1,
+    "ProgressTimeout": 15000,
+    "MvConsTimeout": 15000,
+    "MvConsRequestRecoverTimeout": 15000
 }

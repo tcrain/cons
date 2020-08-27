@@ -6,7 +6,7 @@ branch="$GITBRANCH"
 singleZoneRegion="1"
 nodesPerRegion=4
 nodesCount="4"
-launchNodes=0
+launchNodes=1
 
 echo Running: bash scripts/cloudscripts/just/justsetup.sh "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$genimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
 bash scripts/cloudscripts/just/justsetup.sh "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$genimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"

@@ -21,5 +21,11 @@
     "SharePubsRPC": true,
     "MemCheckerBitIDType": 1,
     "SigBitIDType": 3,
-    "AdditionalP2PNetworks": 2
+    "AdditionalP2PNetworks": 2,
+    "WarmUpInstances": 1,
+    "KeepPast": 1,
+    "ForwardTimeout": 4000,
+    "ProgressTimeout": 15000,
+    "MvConsTimeout": 15000,
+    "MvConsRequestRecoverTimeout": 15000
 }

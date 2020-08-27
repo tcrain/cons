@@ -23,6 +23,9 @@ echo "Calling rsync"
 ./runcmd -f "$ipfile" -k "$key" -u "$user" -r ~/go/src/github.com/tcrain/cons/scripts/ "~/go/src/github.com/tcrain/cons/scripts/"
 echo "Done rsync"
 
+echo "Updating ulimit"
+./runcmd -k "${key}" -u "${user}" -f "${ipfile}" bash ~/go/src/github.com/tcrain/cons/scripts/imagesetup.sh $user
+
 echo "Copying over participant register"
 # be sure the process isnt running
 ssh -i "${key}" -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" "$user"@"$pregip" "cd ~/go/src/github.com/tcrain/cons/; bash ./scripts/killgo.sh"

@@ -21,5 +21,10 @@
     "SleepCrypto": true,
     "EncryptChannels": true,
     "SharePubsRPC": true,
-    "RndMemberType": 4
+    "RndMemberType": 4,
+    "WarmUpInstances": 1,
+    "KeepPast": 1,
+    "ProgressTimeout": 15000,
+    "MvConsTimeout": 15000,
+    "MvConsRequestRecoverTimeout": 15000
 }
