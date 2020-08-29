@@ -34,6 +34,13 @@ func (ScMsgID) IsMsgID() bool {
 	return true
 }
 
+// ToMsgIDInfo converts the MsgID to a MsgIDInfo
+func (sc ScMsgID) ToMsgIDInfo() messages.MsgIDInfo {
+	return messages.MsgIDInfo{
+		HeaderID: uint32(messages.HdrSimpleCons),
+	}
+}
+
 func (sc ScMsgID) ToBytes(index types.ConsensusIndex) []byte {
 	m := messages.NewMsgBuffer()
 	m.AddConsensusID(index.Index)

@@ -35,7 +35,7 @@ type AbsConsItem struct {
 	*generalconfig.GeneralConfig
 	Index         types.ConsensusIndex // The index of this consensus
 	PreHeaders    []messages.MsgHeader // Headers to be appended to the beginning of all consensus messages for this specific consensus instance.
-	isMember      int                  // 0 if it is not yet known if this node is a member of this consensus, 1 if this node is not a member, 2 if this node is a member
+	isMember      types.IsMember       // 0 if it is not yet known if this node is a member of this consensus, 1 if this node is not a member, 2 if this node is a member
 	CommitProof   []messages.MsgHeader // Proof of committal from last consensus round
 	ConsItems     *consinterface.ConsInterfaceItems
 	PrevItem      consinterface.ConsItem
@@ -142,7 +142,7 @@ func GenerateAbsState(index types.ConsensusIndex, items *consinterface.ConsInter
 	aci.BroadcastFunc = broadcastFunc
 	aci.PreHeaders = make([]messages.MsgHeader, len(aci.InitHeaders))
 	copy(aci.PreHeaders, aci.InitHeaders)
-	aci.isMember = 0
+	aci.isMember = types.PossibleMember
 	aci.ConsItems = items
 	aci.PrevItem = prevItem
 	// _, ok := aci.Index.Index.(types.ConsensusHash)
@@ -162,18 +162,19 @@ func (sc *AbsConsItem) ComputeDecidedValue(state []byte, decision []byte) []byte
 // CheckMemberLocal checks if the node is a member of the consensus.
 func (sc *AbsConsItem) CheckMemberLocal() bool {
 	switch sc.isMember {
-	case 0: // 0 means we need to check the member checker for membership
+	case types.PossibleMember: // 0 means we need to check the member checker for membership
 		if consinterface.CheckMemberLocal(sc.ConsItems.MC) {
 			logging.Info("I AM a member", sc.GeneralConfig.TestIndex, sc.Index)
-			sc.isMember = 2
+			sc.isMember = types.MemberNode
+			sc.ConsItems.MC.MC.GetStats().IsMember()
 		} else {
 			logging.Info("I am NOT a member", sc.GeneralConfig.TestIndex, sc.Index)
-			sc.isMember = 1
+			sc.isMember = types.NonMemberNode
 		}
 		return sc.CheckMemberLocal()
-	case 1: // is not a member
+	case types.NonMemberNode: // is not a member
 		return false
-	case 2: // is a member
+	case types.MemberNode: // is a member
 		return true
 	default:
 		panic("invalid member check")
@@ -184,9 +185,12 @@ func (sc *AbsConsItem) CheckMemberLocal() bool {
 func (sc *AbsConsItem) CheckMemberLocalMsg(msgID messages.MsgID) bool {
 	if sc.CheckMemberLocal() {
 		// is proposal message is true since we always send the message when creating it locally
-		return consinterface.CheckRandMember(sc.ConsItems.MC, sc.ConsItems.MC.MC.GetMyPriv().GetPub(),
-			true, msgID) == nil
-		// return aci.ConsItems.MC.MC.CheckRandMember(aci.Priv.GetPub(), msgID, true) == nil
+		if consinterface.CheckRandMember(sc.ConsItems.MC, sc.ConsItems.MC.MC.GetMyPriv().GetPub(),
+			true, msgID) == nil { // I am a random member
+
+			sc.ConsItems.MC.MC.GetStats().MemberMsgID(msgID)
+			return true
+		}
 	}
 	return false
 }

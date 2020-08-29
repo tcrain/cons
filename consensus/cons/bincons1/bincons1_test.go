@@ -77,7 +77,7 @@ func TestBinCons1P2p(t *testing.T) {
 func TestBinCons1SleepP2p(t *testing.T) {
 	to := binTO
 	to.SleepCrypto = true
-	cons.RunP2pNwTests(to, types.BinCons1Type, &BinCons1{}, Config{}, []int{13}, t)
+	cons.RunP2pNwTests(to, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)
 }
 
 func TestBinCons1FailDisk(t *testing.T) {

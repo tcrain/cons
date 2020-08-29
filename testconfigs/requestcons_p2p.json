@@ -24,7 +24,7 @@
     "RndMemberType": 4,
     "WarmUpInstances": 1,
     "KeepPast": 1,
-    "ProgressTimeout": 15000,
-    "MvConsTimeout": 15000,
-    "MvConsRequestRecoverTimeout": 15000
+    "ProgressTimeout": 1000,
+    "MvConsTimeout": 1500,
+    "MvConsRequestRecoverTimeout": 2000
 }

@@ -30,6 +30,7 @@ import (
 	"math/rand"
 )
 
+// absRoundKnowMemberChecker uses a single VRF (from the previous consensus) to determine the set of all members for the consensus.
 type absRoundKnownMemberChecker struct {
 	pubMap           map[sig.PubKeyID]sig.Pub
 	sortedMemberPubs sig.PubList
@@ -49,11 +50,12 @@ func (arm *absRoundKnownMemberChecker) rndDoneNextUpdateState() error {
 	return nil
 }
 
-func (arm *absRoundKnownMemberChecker) setMainChannel(mainChannel channelinterface.MainChannel) {}
+func (arm *absRoundKnownMemberChecker) setMainChannel(channelinterface.MainChannel) {}
 
 func (arm *absRoundKnownMemberChecker) gotRand(rnd [32]byte, participantNodeCount int, newPriv sig.Priv,
 	sortedMemberPubs sig.PubList, prvMC absRandMemberInterface) {
 
+	_ = newPriv
 	arm.rnd = rnd
 	rndGen := rand.New(rand.NewSource(int64(config.Encoding.Uint64(rnd[:]))))
 	if len(sortedMemberPubs) == 0 {
@@ -74,6 +76,8 @@ func (arm *absRoundKnownMemberChecker) gotRand(rnd [32]byte, participantNodeCoun
 
 func (arm *absRoundKnownMemberChecker) checkRandMember(msgID messages.MsgID, isProposalMsg bool,
 	participantNodeCount, totalNodeCount int, pub sig.Pub) error {
+
+	_, _, _, _ = msgID, isProposalMsg, participantNodeCount, totalNodeCount
 	pid, err := pub.GetPubID()
 	if err != nil {
 		panic(err)
@@ -86,6 +90,7 @@ func (arm *absRoundKnownMemberChecker) checkRandMember(msgID messages.MsgID, isP
 func (arm *absRoundKnownMemberChecker) checkRandCoord(participantNodeCount, totalNodeCount int, msgID messages.MsgID,
 	round types.ConsensusRound, pub sig.Pub) (rndVal uint64, coord sig.Pub, err error) {
 
+	_, _, _ = participantNodeCount, totalNodeCount, msgID
 	rndIdx := utils.Abs(int(round)) % len(arm.perm)
 	coord = arm.sortedMemberPubs[arm.perm[rndIdx]]
 	if pub == nil {
@@ -104,19 +109,16 @@ func (arm *absRoundKnownMemberChecker) checkRandCoord(participantNodeCount, tota
 	}
 	return 0, nil, types.ErrNotMember
 }
-func (arm *absRoundKnownMemberChecker) GotVrf(pub sig.Pub, msgID messages.MsgID, proof sig.VRFProof) error {
+func (arm *absRoundKnownMemberChecker) GotVrf(sig.Pub, messages.MsgID, sig.VRFProof) error {
 	return nil
 }
-func (arm *absRoundKnownMemberChecker) getMyVRF(id messages.MsgID) sig.VRFProof {
+func (arm *absRoundKnownMemberChecker) getMyVRF(messages.MsgID) sig.VRFProof {
 	return nil
 }
 func (arm *absRoundKnownMemberChecker) getRnd() [32]byte {
 	return arm.rnd
 }
-func (arm *absRoundKnownMemberChecker) setRndStats(stats.StatsInterface) {
-
-}
-func (arm *absRoundKnownMemberChecker) newRndMC(index types.ConsensusIndex,
+func (arm *absRoundKnownMemberChecker) newRndMC(_ types.ConsensusIndex,
 	stats stats.StatsInterface) absRandMemberInterface {
 
 	ret := &absRoundKnownMemberChecker{rndStats: stats}

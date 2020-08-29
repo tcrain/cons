@@ -93,6 +93,12 @@ func SetTestConfigOptions(to *types.TestOptions, fistCall bool) {
 	if to.MvConsRequestRecoverTimeout == 0 {
 		to.MvConsRequestRecoverTimeout = config.MvConsRequestRecoverTimeout
 	}
+	if to.NodeChoiceVRFRelaxation == 0 {
+		to.NodeChoiceVRFRelaxation = config.DefaultNodeRelaxation
+	}
+	if to.CoordChoiceVRF == 0 {
+		to.CoordChoiceVRF = config.DefaultCoordinatorRelaxtion
+	}
 
 	if fistCall {
 		SetConfigOptions(*to)

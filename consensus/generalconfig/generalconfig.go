@@ -63,9 +63,12 @@ type GeneralConfig struct {
 	WarmUpInstances             int                        // Number of consensus instances to run before recording results
 	KeepPast                    int                        // Number of previously decided consensus instances to keep in memory
 	ForwardTimeout              int                        // milliseconds 	// for msg forwarder when you dont receive enough messages to foward a buffer automatically
+	RandForwardTimeout          int                        // amount of time to randomly add to Forward timeout
 	ProgressTimeout             int                        // milliseconds, if no progress in this time, let neighbors know
 	MvConsTimeout               int                        // millseconds timeout when taking an action in the 3 step mv to bin reduction
 	MvConsRequestRecoverTimeout int                        // millseconds timeout before requesting the full proposal after delivering the hash
+	NodeChoiceVRFRelaxation     int                        // Additional chance to chose a node as a member when using VRF.
+	CoordChoiceVRF              int                        // Chance of each node being chosen as a coordinator when using VRF.
 }
 
 type ExtraInitState interface {

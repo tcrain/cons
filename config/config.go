@@ -141,7 +141,7 @@ const (
 	SignCausalAssets = false // We don't need to sign assets since the outter message must be signed by the proposer.
 
 	// TODO this is here because small number of nodes we might not get enough randoms, should not use normally though, howto fix this?
-	DefaultCoordinatorRelaxtion = 30 // The percentage chance of each node announcing itself as a coordinator (the lowest wins) for when using VRF.
+	DefaultCoordinatorRelaxtion = 10 // The percentage chance of each node announcing itself as a coordinator (the lowest wins) for when using VRF.
 	DefaultNodeRelaxation       = 10 // Additional percentage chance a node will be chosen as a member for when using VRF.
 
 	Thrshn, Thrsht   = 10, 7 // For threshold signature tests

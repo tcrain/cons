@@ -20,11 +20,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package mvcons1
 
 import (
-	"testing"
-
 	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/types"
+	"testing"
 )
 
 // getBinConsStateMachineTypes returns a list of the valid state machine types for multi-value consensus given the configuration.

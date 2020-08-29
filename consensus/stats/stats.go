@@ -25,11 +25,13 @@ package stats
 import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/logging"
+	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,7 +39,7 @@ import (
 	"github.com/tcrain/cons/consensus/utils"
 )
 
-func GetStatsObject(ct types.ConsType, encryptChannels bool) StatsInterface {
+func GetStatsObject(_ types.ConsType, encryptChannels bool) StatsInterface {
 	return &BasicStats{globalStats: &globalStats{BasicNwStats: BasicNwStats{EncryptChannels: encryptChannels}}}
 }
 
@@ -81,7 +83,9 @@ type StatsInterface interface {
 	IsRecordIndex() bool                                    // IsRecordIndex returns true if the consensus index of this stats is being recorded.
 	AddProgressTimeout()                                    // AddProgressTimeout is called when the consensus times out without making progress.
 	AddForwardState()                                       // AddForwardState is called when the node forwards state to a slow node.
-
+	BroadcastProposal()                                     // BroadcastProposal is called when the node makes a proposal.
+	IsMember()                                              // Is member is called when the node finds out it is the member of the consensus.
+	MemberMsgID(id messages.MsgID)                          // MemberMsgID is called when the node is a member for the message ID.
 	MergeLocalStats(numCons int) (total MergedStats)
 	// Merge all stats is a static function that merges the list of stats, and returns the average stats per process, and the total summed stats.
 	MergeAllStats(items []MergedStats) (perProc, merge MergedStats)
@@ -124,21 +128,29 @@ var DivStats = map[string]bool{"RoundParticipation": true, "RoundDecide": true, 
 	"MsgsSent": true, "BytesSent": true, "MaxMsgsSent": true, "MaxBytesSent": true, "MinMsgsSent": true, "MinBytesSent": true}
 
 type StatsObj struct {
-	StartTime          time.Time // List of the times when consensus instances were started.
-	FinishTime         time.Time // List of the times where consensus instances finished.
-	Signed             uint64    // Number of signatures this node has made.
-	Validated          uint64    // Number of signature validations this node has performed.
-	CoinValidated      uint64    // Number of coin validations
-	CoinCreated        uint64    // Number of coins created
-	VRFCreated         uint64    // Number of VRFs created
-	VRFValidated       uint64    // Number of VRFs validated
-	ThrshCreated       uint64    // Number of threshold signatures created
-	RoundDecide        uint64    // Round where decision took place
-	RoundParticipation uint64    // Last round participated in
-	DiskStorage        uint64    // Number of bytes written to disk
-	DecidedNil         uint64    //  True if nil was decided
-	ProgressTimeout    uint64    // Number of times progress timeout happened.
-	ForwardState       uint64    // Number of times state was forwarded due to neighbor timeout.
+	StartTime          time.Time            // List of the times when consensus instances were started.
+	FinishTime         time.Time            // List of the times where consensus instances finished.
+	Signed             uint64               // Number of signatures this node has made.
+	Validated          uint64               // Number of signature validations this node has performed.
+	CoinValidated      uint64               // Number of coin validations
+	CoinCreated        uint64               // Number of coins created
+	VRFCreated         uint64               // Number of VRFs created
+	VRFValidated       uint64               // Number of VRFs validated
+	ThrshCreated       uint64               // Number of threshold signatures created
+	RoundDecide        uint64               // Round where decision took place
+	RoundParticipation uint64               // Last round participated in
+	DiskStorage        uint64               // Number of bytes written to disk
+	DecidedNil         uint64               //  True if nil was decided
+	ProgressTimeout    uint64               // Number of times progress timeout happened.
+	ForwardState       uint64               // Number of times state was forwarded due to neighbor timeout.
+	Proposal           bool                 // Made a proposal
+	Member             bool                 // Is a member
+	MsgIDMember        []messages.MsgIDInfo // Member for the message ids
+
+	// The following are created from local merging
+	ProposalIdxs    []int                  // indices where proposals were made
+	MemberIdxs      []int                  // indices where the nodes was a member
+	MsgIDMemberIdxs [][]messages.MsgIDInfo // indices per messageid
 }
 
 type MergedStats struct {
@@ -153,11 +165,54 @@ type MergedStats struct {
 	MaxValidatedCoin, MaxCoinCreated, MaxDecidedNil, MaxDiskStorage, MaxSigned, MaxValidated, MaxVRFValidated, MaxVRFCreated, MaxRoundDecide, MaxRoundParticipation, MaxThrshCreated uint64
 	MinValidatedCoin, MinCoinCreated, MinDecidedNil, MinDiskStorage, MinSigned, MinValidated, MinVRFValidated, MinVRFCreated, MinRoundDecide, MinRoundParticipation, MinThrshCreated uint64
 	MaxProgressTimeout, MinProgressTimeout                                                                                                                                           uint64
-	MaxForwardState, MinForwardState                                                                                                                                                 uint64
-	RecordCount                                                                                                                                                                      int
-	CpuProfile                                                                                                                                                                       []byte
-	StartMemProfile                                                                                                                                                                  []byte
-	EndMemProfile                                                                                                                                                                    []byte
+	MaxMember, MinMember                                                                                                                                                             uint64
+	MaxProposal, MinProposal                                                                                                                                                         uint64
+	ProposalCount, MemberCount                                                                                                                                                       uint64
+	ProposalCounts                                                                                                                                                                   []uint64
+	MemberCounts                                                                                                                                                                     []uint64
+
+	MsgIDCount, MinMsgID, MaxMsgID   []MsgIDInfoCount
+	MaxForwardState, MinForwardState uint64
+	RecordCount                      int
+	CpuProfile                       []byte
+	StartMemProfile                  []byte
+	EndMemProfile                    []byte
+}
+
+type MsgIDInfoCount struct {
+	ID    messages.MsgIDInfo
+	Count uint64
+}
+
+func MsgIDCountString(msgIDCount, minMsgID, maxMsgID []MsgIDInfoCount) string {
+	str := strings.Builder{}
+
+	items := make(map[messages.MsgIDInfo][4]uint64)
+	for i, nxt := range [][]MsgIDInfoCount{msgIDCount, minMsgID, maxMsgID} {
+		for _, nxt := range nxt {
+			val := items[nxt.ID]
+			switch i {
+			case 0:
+				val[i] += nxt.Count
+			case 1:
+				if val[3] > 0 { // the value in index 3 is just used to track if we have set the initial minimum yet
+					val[i] = utils.MinU64Slice(val[i], nxt.Count)
+				} else {
+					val[i] = nxt.Count
+					val[3]++
+				}
+			case 2:
+				val[i] = utils.MaxU64Slice(val[i], nxt.Count)
+			}
+			items[nxt.ID] = val
+		}
+	}
+	str.WriteString("MsgID Counts: [")
+	for k, val := range items {
+		str.WriteString(fmt.Sprintf("{%v%v:%v, Count: %v, Min: %v, Max: %v}, ", messages.HeaderID(k.HeaderID), k.Round, k.Extra, val[0], val[1], val[2]))
+	}
+	str.WriteString("]")
+	return str.String()
 }
 
 // BasicStats track basic statistics about the consensus.
@@ -179,6 +234,16 @@ func (bs *BasicStats) AddForwardState() {
 	bs.ForwardState++
 }
 
+// Is member is called when the node finds out it is the member of the consensus.
+func (bs *BasicStats) IsMember() {
+	bs.Member = true
+}
+
+// BroadcastProposal is called when the node makes a proposal.
+func (bs *BasicStats) BroadcastProposal() {
+	bs.Proposal = true
+}
+
 // IsRecordIndex returns true if the consensus index of this stats is being recorded.
 func (bs *BasicStats) IsRecordIndex() bool {
 	return bs.RecordIndex
@@ -187,6 +252,17 @@ func (bs *BasicStats) IsRecordIndex() bool {
 // CombinedThresholdSig is called when a threshold signature is combined.
 func (bs *BasicStats) CombinedThresholdSig() {
 	bs.ThrshCreated++
+}
+
+// MemberMsgID is called when the node is a member for the message ID.
+func (bs *BasicStats) MemberMsgID(msgId messages.MsgID) {
+	id := msgId.ToMsgIDInfo()
+	for _, nxt := range bs.MsgIDMember {
+		if nxt == id {
+			return
+		}
+	}
+	bs.MsgIDMember = append(bs.MsgIDMember, id)
 }
 
 // Restart is called on restart of failure so it knows to start recording again
@@ -314,6 +390,41 @@ func (bs *BasicStats) AddFinishRound(r types.ConsensusRound, decidedNil bool) {
 	bs.AddParticipationRound(r)
 }
 
+func mergeInternalLocal(items []StatsObj, reTotal MergedStats) MergedStats {
+	for i, nxt := range items {
+		if nxt.Proposal {
+			reTotal.ProposalIdxs = append(reTotal.ProposalIdxs, i)
+		}
+		if nxt.Member {
+			reTotal.MemberIdxs = append(reTotal.MemberIdxs, i)
+		}
+		reTotal.MsgIDMemberIdxs = append(reTotal.MsgIDMemberIdxs, nxt.MsgIDMember)
+	}
+	// fmt.Println(reTotal.ProposalIdxs, reTotal.MemberIdxs, reTotal.MsgIDMemberIdxs)
+	return reTotal
+}
+
+func mergeInternalAll(items []StatsObj, reTotal MergedStats) MergedStats {
+	if len(items) == 0 {
+		return reTotal
+	}
+	reTotal.MinMember = uint64(len(items[0].MemberIdxs))
+	reTotal.MinProposal = uint64(len(items[0].ProposalIdxs))
+	for _, nxt := range items {
+		reTotal.ProposalCount += uint64(len(nxt.ProposalIdxs))
+		reTotal.MemberCount += uint64(len(nxt.MemberIdxs))
+		reTotal.MaxMember = utils.MaxU64Slice(reTotal.MaxMember, uint64(len(nxt.MemberIdxs)))
+		reTotal.MaxProposal = utils.MaxU64Slice(reTotal.MaxProposal, uint64(len(nxt.ProposalIdxs)))
+		reTotal.MinMember = utils.MinU64Slice(reTotal.MinMember, uint64(len(nxt.MemberIdxs)))
+		reTotal.MinProposal = utils.MinU64Slice(reTotal.MinProposal, uint64(len(nxt.ProposalIdxs)))
+
+		// TODO
+		// reTotal.MsgIDMemberIdxs = append(reTotal.MsgIDMemberIdxs, nxt.MsgIDMember)
+	}
+	// fmt.Println(reTotal.ProposalIdxs, reTotal.MemberIdxs, reTotal.MsgIDMemberIdxs)
+	return reTotal
+}
+
 func mergeInternal(items []StatsObj) (reTotal MergedStats) {
 	var setStart bool
 	var coinCreatedCounts, validateCoinCounts, decidedNil, diskStorage, roundDecides, roundParticipations, signedCounts, validatedCounts, VRFCreatedCounts, VRFValidatedCouts, thrshCreated []uint64
@@ -377,6 +488,7 @@ func mergeInternal(items []StatsObj) (reTotal MergedStats) {
 
 		reTotal.ProgressTimeout += item.ProgressTimeout
 		progressTimeoutCounts = append(progressTimeoutCounts, item.ProgressTimeout)
+
 	}
 
 	reTotal.ConsTimes = times
@@ -443,6 +555,8 @@ func mergeStatsObj(a, b StatsObj, includeTime bool) StatsObj {
 	return a
 }
 
+// Merge local stats merges the list of stats objects from a single node.
+// There is one stats object for each consensus instance.
 func (bs *BasicStats) MergeLocalStats(numCons int) (total MergedStats) {
 
 	// Remove duplicates (can happen on fail and restart)
@@ -494,6 +608,7 @@ func (bs *BasicStats) MergeLocalStats(numCons int) (total MergedStats) {
 		panic("should have stats for each cons")
 	}
 	total = mergeInternal(items)
+	total = mergeInternalLocal(items, total)
 	total.RecordCount = numCons
 	total.BasicNwStats = bs.BasicNwStats
 
@@ -519,6 +634,18 @@ func (bs *BasicStats) MergeLocalStats(numCons int) (total MergedStats) {
 	return
 }
 
+func mapToSlice(m map[messages.MsgIDInfo]uint64) (ret []MsgIDInfoCount) {
+	for k, v := range m {
+		ret = append(ret, MsgIDInfoCount{
+			ID:    k,
+			Count: v,
+		})
+	}
+	return
+}
+
+// MergeAllStats takes as input an item for each node that contains its set of merged stats which was the output
+// of MergeLocalStats called on the list of stats for each proc.
 func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals MergedStats) {
 	if len(sList) == 0 {
 		return
@@ -529,10 +656,28 @@ func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals Merged
 	var nwItems []BasicNwStats
 	var summedTime time.Duration
 
+	memberCounts := make([]uint64, sList[0].RecordCount)
+	proposalCounts := make([]uint64, sList[0].RecordCount)
+	memberMsgIds := make([]map[messages.MsgIDInfo]uint64, sList[0].RecordCount)
+	for i := range memberMsgIds {
+		memberMsgIds[i] = make(map[messages.MsgIDInfo]uint64)
+	}
 	// slice is [#cons][#participants]
 	startTimes := make([][]time.Time, sList[0].RecordCount)
 	endTimes := make([][]time.Time, sList[0].RecordCount)
 	for _, nxt := range sList {
+
+		for i, msgIDs := range nxt.MsgIDMemberIdxs {
+			for _, msgID := range msgIDs {
+				memberMsgIds[i][msgID]++
+			}
+		}
+		for _, idx := range nxt.MemberIdxs {
+			memberCounts[idx]++
+		}
+		for _, idx := range nxt.ProposalIdxs {
+			proposalCounts[idx]++
+		}
 
 		for i := range nxt.StartTimes {
 			startTimes[i] = append(startTimes[i], nxt.StartTimes[i])
@@ -572,7 +717,35 @@ func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals Merged
 
 		summedTime += nxt.ConsTime
 	}
+	perProc.MaxMember = utils.MaxU64Slice(memberCounts...)
+	perProc.MinMember = utils.MinU64Slice(memberCounts...)
+	perProc.MaxProposal = utils.MaxU64Slice(proposalCounts...)
+	perProc.MinProposal = utils.MinU64Slice(proposalCounts...)
+	perProc.ProposalCounts = proposalCounts
+	perProc.MemberCounts = memberCounts
+	perProc.MemberCount = utils.SumUint64(memberCounts...)
+	perProc.ProposalCount = utils.SumUint64(proposalCounts...)
+	msgIDCount := make(map[messages.MsgIDInfo]uint64)
+	maxMsgID := make(map[messages.MsgIDInfo]uint64)
+	minMsgID := make(map[messages.MsgIDInfo]uint64)
+
+	for _, nxt := range memberMsgIds {
+		for id, val := range nxt {
+			if maxMsgID[id] < val {
+				maxMsgID[id] = val
+			}
+			if min, ok := minMsgID[id]; !ok || min > val {
+				minMsgID[id] = val
+			}
+			msgIDCount[id] += val
+		}
+	}
+	perProc.MsgIDCount = mapToSlice(msgIDCount)
+	perProc.MaxMsgID = mapToSlice(maxMsgID)
+	perProc.MinMsgID = mapToSlice(minMsgID)
+
 	totals = mergeInternal(items)
+	totals = mergeInternalAll(items, totals)
 	totals.ConsTime = summedTime
 	totals.RecordCount = perProc.RecordCount
 	perProc.StatsObj = totals.StatsObj
@@ -637,6 +810,15 @@ func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals Merged
 	perProc.ForwardState /= uint64(len(items))
 	perProc.ProgressTimeout /= uint64(len(items))
 
+	// Calculate as the value per consensus, instead of per node
+	perProc.MemberCount /= uint64(sList[0].RecordCount)
+	perProc.ProposalCount /= uint64(sList[0].RecordCount)
+
+	for _, nxt := range perProc.MsgIDCount {
+		nxt.Count /= uint64(len(items))
+		// perProc.MsgIDCount[i]
+	}
+
 	perProc.MergedNwStats, totals.MergedNwStats = (&BasicNwStats{}).MergeAllNWStats(perProc.RecordCount, nwItems)
 
 	return
@@ -648,16 +830,16 @@ func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals Merged
 	for i := 0; hasMore; i++ {
 		hasMore = false
 		var summed int64
-		var count int64
+		var Count int64
 		for j := 0; j < len(allTimes); j++ {
 			if i < len(allTimes[j]) {
 				hasMore = true
-				count++
+				Count++
 				summed += allTimes[j][i].UnixNano()
 			}
 		}
 		if hasMore {
-			mergedTimes = append(mergedTimes, time.Unix(0, summed/count))
+			mergedTimes = append(mergedTimes, time.Unix(0, summed/Count))
 		}
 	}
 	return mergedTimes
@@ -851,8 +1033,10 @@ func (bs *BasicStats) String() string {
 func (ms MergedStats) String() string {
 	return fmt.Sprintf("{#Cons: %v, AllTime: %v, TotalTimeDivNumCons: %v,\n\tTotalConsTime: %v, AvgConsTime: %v, MinTime: %v, MaxTime: %v, AvgRound: %v,\n\tMaxRound: %v, MinRound: %v, AvgStopRound: %v, MaxStopRound: %v, MinStopRound: %v, SigCount: %v, \n\tMinSigCount %v, MaxSigCount %v, ValidatedItem: %v, MinValidated %v, MaxValidated %v,\n\tVRFCreated: %v, MinVRFCreated %v, MaxVRFCreated %v, VRFValidated: %v, MinVRFValidated %v, \n\tMaxVRFValidated %v, ThrshSigs: %v, MinThrshSigs: %v, MaxThrshSigs %v, \n\tDiskStorage %v, MinDiskStorage %v, MaxDiskStorage %v, \n\tDecidedNil %v, MinDecidedNil %v, MaxDecidedNil %v, CoinCreated: %v, MinCoinCreated: %v, MaxCoinCreated: %v, "+
 		"\n\tCoinValidated: %v, MinCoinValidated: %v, MaxCoinValidated: %v,"+
-		"\n\tProgressTO: %v, MinProgressTO: %v, MaxProgressTO: %v,"+
-		"\n\tForwardState: %v, MinForwardState: %v, MaxForwardState: %v}",
+		"\n\tProgressTO: %v, MinProgressTO: %v, MaxProgressTO: %v, Proposals %v, MaxProposals %v, MinProposals %v,"+
+		"\n\tMembers: %v, MaxMembers: %v, MinMembers: %v"+
+		"\n\tForwardState: %v, MinForwardState: %v, MaxForwardState: %v"+
+		"\n\t%v}",
 		ms.RecordCount, float64(ms.FinishTime.Sub(ms.StartTime))/float64(time.Millisecond),
 		float64(ms.FinishTime.Sub(ms.StartTime))/float64(ms.RecordCount)/float64(time.Millisecond),
 		float64(ms.ConsTime)/float64(time.Millisecond), float64(ms.ConsTime)/float64(ms.RecordCount)/float64(time.Millisecond),
@@ -867,6 +1051,7 @@ func (ms MergedStats) String() string {
 		ms.DecidedNil, ms.MinDecidedNil, ms.MaxDecidedNil,
 		ms.CoinCreated, ms.MinCoinCreated, ms.MaxCoinCreated,
 		ms.CoinValidated, ms.MinValidatedCoin, ms.MaxValidatedCoin,
-		ms.ProgressTimeout, ms.MinProgressTimeout, ms.MaxProgressTimeout,
-		ms.ForwardState, ms.MinForwardState, ms.MaxForwardState)
+		ms.ProgressTimeout, ms.MinProgressTimeout, ms.MaxProgressTimeout, ms.ProposalCount, ms.MaxProposal, ms.MinProposal,
+		ms.MemberCount, ms.MaxMember, ms.MinMember,
+		ms.ForwardState, ms.MinForwardState, ms.MaxForwardState, MsgIDCountString(ms.MsgIDCount, ms.MinMsgID, ms.MaxMsgID))
 }

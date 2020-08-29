@@ -26,16 +26,20 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/types"
 	"testing"
 )
 
+var testConfig = &generalconfig.GeneralConfig{NodeChoiceVRFRelaxation: config.DefaultNodeRelaxation,
+	CoordChoiceVRF: config.DefaultCoordinatorRelaxtion}
+
 func newAbsRnd(priv sig.Priv) absRandMemberInterface {
-	return initAbsRandMemberChecker(priv, nil)
+	return initAbsRandMemberChecker(priv, nil, testConfig)
 }
 func newAbsRndByID(priv sig.Priv) absRandMemberInterface {
-	return initAbsRandMemberCheckerByID(priv, nil)
+	return initAbsRandMemberCheckerByID(priv, nil, testConfig)
 }
 
 func TestAbsRandMemberCheckerEC(t *testing.T) {
@@ -171,5 +175,5 @@ func intTestAbsRandMemberChecker(newPrivFunc func() (sig.Priv, error), newMCFunc
 	assert.True(t, coordCount > 0)
 	// be sure we didnt get too many coordinators
 	fifteenPc := int(float64(count) * .15)
-	assert.True(t, coordCount < config.DefaultCoordinatorRelaxtion*fifteenPc)
+	assert.True(t, coordCount < testConfig.CoordChoiceVRF*fifteenPc)
 }

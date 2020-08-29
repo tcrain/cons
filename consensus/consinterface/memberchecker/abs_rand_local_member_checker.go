@@ -31,6 +31,7 @@ import (
 	"math/rand"
 )
 
+// AbsRandLocalKnownMemberChecker uses a set of locally chosen member for the consensus.
 type AbsRandLocalKnownMemberChecker struct {
 	myPriv           sig.Priv
 	myRand           *rand.Rand
@@ -176,9 +177,6 @@ func (arm *AbsRandLocalKnownMemberChecker) getMyVRF(messages.MsgID) sig.VRFProof
 }
 func (arm *AbsRandLocalKnownMemberChecker) getRnd() (ret [32]byte) {
 	return
-}
-func (arm *AbsRandLocalKnownMemberChecker) setRndStats(stats stats.StatsInterface) {
-	arm.rndStats = stats
 }
 func (arm *AbsRandLocalKnownMemberChecker) newRndMC(index types.ConsensusIndex,
 	stats stats.StatsInterface) absRandMemberInterface {

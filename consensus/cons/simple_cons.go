@@ -106,7 +106,7 @@ func (*SimpleCons) GenerateNewItem(index types.ConsensusIndex, items *consinterf
 }
 
 // ShouldCreatePartial returns true if the message type should be sent as a partial message
-func (sc *SimpleCons) ShouldCreatePartial(headerType messages.HeaderID) bool {
+func (sc *SimpleCons) ShouldCreatePartial(messages.HeaderID) bool {
 	return false
 }
 
@@ -143,7 +143,7 @@ func (sc *SimpleCons) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.
 func (sc *SimpleCons) SetInitialState([]byte) {}
 
 // GotProposal takes the proposal, creates a SimpleConsMessage and broadcasts it.
-func (sc *SimpleCons) GotProposal(hdr messages.MsgHeader, mainChannel channelinterface.MainChannel) error {
+func (sc *SimpleCons) GotProposal(_ messages.MsgHeader, mainChannel channelinterface.MainChannel) error {
 
 	// sanity checks
 	if sc.gotProposal {
@@ -186,6 +186,7 @@ func (sc *SimpleCons) ProcessMessage(
 	isLocal bool,
 	senderChan *channelinterface.SendRecvChannel) (bool, bool) {
 
+	_, _ = isLocal, senderChan
 	if !deser.IsDeserialized {
 		panic("should have deserialized message by now")
 	}
@@ -259,7 +260,7 @@ func (sc *SimpleCons) GetBufferCount(hdr messages.MsgIDHeader,
 
 // GetHeader return blank message header for the HeaderID, this object will be used to deserialize a message into itself (see consinterface.DeserializeMessage).
 // Here only messages.HdrSimpleCons are valid headerIDs.
-func (SimpleCons) GetHeader(pub sig.Pub, gc *generalconfig.GeneralConfig, headerType messages.HeaderID) (messages.MsgHeader, error) {
+func (SimpleCons) GetHeader(pub sig.Pub, _ *generalconfig.GeneralConfig, headerType messages.HeaderID) (messages.MsgHeader, error) {
 	switch headerType {
 	case messages.HdrSimpleCons:
 		return sig.NewMultipleSignedMsg(types.ConsensusIndex{}, pub, messagetypes.NewSimpleConsMessage(pub)), nil
@@ -288,11 +289,11 @@ func (sc *SimpleCons) HasDecided() bool {
 }
 
 // SetNextConsItem gives a pointer to the next consensus item at the next consensus instance, it is called when the next instance is created
-func (bc *SimpleCons) SetNextConsItem(next consinterface.ConsItem) {
+func (sc *SimpleCons) SetNextConsItem(consinterface.ConsItem) {
 }
 
 // PrevHasBeenReset is called when the previous consensus index has been reset to a new index
-func (bc *SimpleCons) PrevHasBeenReset() {
+func (sc *SimpleCons) PrevHasBeenReset() {
 }
 
 // AllowsOutOfOrderProposals returns false.

@@ -793,6 +793,7 @@ func (sc *MvCons2) startCommitTimeout(round types.ConsensusRound, t int, roundSt
 func (sc *MvCons2) broadcastInit(newMsg messages.InternalSignedMsgHeader, proofMsg messages.MsgHeader,
 	mainChannel channelinterface.MainChannel) {
 
+	sc.ConsItems.MC.MC.GetStats().BroadcastProposal()
 	var forwardFunc channelinterface.NewForwardFuncFilter
 	if config.MvBroadcastInitForBufferForwarder { // we change who we broadcast to depending on the configuration
 		forwardFunc = channelinterface.ForwardAllPub // we broadcast the init message to all nodes directly

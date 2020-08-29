@@ -506,6 +506,20 @@ func MinU64Slice(l ...uint64) (ret uint64) {
 	return
 }
 
+// MinIntSlice returns the max value in the slice.
+func MinIntSlice(l ...int) (ret int) {
+	if len(l) == 0 {
+		return
+	}
+	ret = l[0]
+	for _, nxt := range l {
+		if nxt < ret {
+			ret = nxt
+		}
+	}
+	return
+}
+
 // Max64 returns the max of a and b.
 func Max64(a, b int64) int64 {
 	if a > b {

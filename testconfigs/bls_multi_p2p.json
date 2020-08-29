@@ -24,8 +24,9 @@
     "AdditionalP2PNetworks": 2,
     "WarmUpInstances": 1,
     "KeepPast": 1,
-    "ForwardTimeout": 4000,
-    "ProgressTimeout": 15000,
-    "MvConsTimeout": 15000,
-    "MvConsRequestRecoverTimeout": 15000
+    "ForwardTimeout": 500,
+    "RandForwardTimeout": 100,
+    "ProgressTimeout": 1000,
+    "MvConsTimeout": 1500,
+    "MvConsRequestRecoverTimeout": 2000
 }

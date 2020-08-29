@@ -95,9 +95,13 @@ type TestOptions struct {
 	WarmUpInstances             int // Number of consensus instances to run before recording results
 	KeepPast                    int // Number of previously decided consensus instances to keep in memory
 	ForwardTimeout              int // milliseconds 	// for msg forwarder when you dont receive enough messages to foward a buffer automatically
+	RandForwardTimeout          int // amount of time to randomly add to Forward timeout
 	ProgressTimeout             int // milliseconds, if no progress in this time, let neighbors know
 	MvConsTimeout               int // millseconds timeout when taking an action in the 3 step mv to bin reduction
 	MvConsRequestRecoverTimeout int // millseconds timeout before requesting the full proposal after delivering the hash
+
+	NodeChoiceVRFRelaxation int // Additional chance to chose a node as a member when using VRF.
+	CoordChoiceVRF          int // Chance of each node being chosen as a coordinator when using VRF.
 }
 
 // UsesVRFs returns true if this test configuration uses VRFs.
@@ -109,7 +113,17 @@ func (to TestOptions) UsesVRFs() bool {
 	return false
 }
 func (to TestOptions) String() string {
-	return fmt.Sprintf("{ConsType: %v, Rounds: %v, Fail round: %v, Total procs: %v, Nonmember procs: %v, Fail procs: %v, Byz procs: %v, ByzType: %s, \n\tConnection: %s, Msg Drop%%: %v, Network: %s, Nw fan out: %v, Storage type: %s, Clear disk on restart: %v, \n\tInclude proofs: %v, Sig type: %s, Use multisig: %v, Use pub index: %v, Buffer Forwarder: %v, \n\tState machine: %v, Allow concurrent: %v, Rotate cord: %v, Gen rand bytes: %v, Ordering: %v,\n\tRand member type: %v, Rand members %v, LocalRandMemberChange: %v, AllowSupportCoin: %v, MCType: %v, \n\tUseFullBinaryState %v, StorageBuffer %v, IncludeCurrentSigs %v, CPUProfile %v, MemProfile %v,\n\tNumMsgProcessThreads %v, MvProposalSizeBytes %v, BinConsPercentOnes %v, CollectBroadcast: %v,\n\tStopOnCommit: %v, FixedSeed: %v, EncryptChannels: %v, NoSignatures: %v,\n\tCoinType: %v, UseFixedCoinPresets: %v, Sleep Crypto: %v, Share Pubs: %v,\n\tSig BitID: %v, MC BitID: %v, TestID %v}",
+	return fmt.Sprintf("{ConsType: %v, Rounds: %v, Fail round: %v, Total procs: %v, Nonmember procs: %v, Fail procs: %v, Byz procs: %v, "+
+		"ByzType: %s, \n\tConnection: %s, Msg Drop%%: %v, Network: %s, Nw fan out: %v, Storage type: %s, Clear disk on restart: %v,"+
+		"\n\tInclude proofs: %v, Sig type: %s, Use multisig: %v, Use pub index: %v, Buffer Forwarder: %v,"+
+		"\n\tState machine: %v, Allow concurrent: %v, Rotate cord: %v, Gen rand bytes: %v, Ordering: %v,"+
+		"\n\tRand member type: %v, Rand members %v, LocalRandMemberChange: %v, AllowSupportCoin: %v, MCType: %v,"+
+		"\n\tUseFullBinaryState %v, StorageBuffer %v, IncludeCurrentSigs %v, CPUProfile %v, MemProfile %v,"+
+		"\n\tNumMsgProcessThreads %v, MvProposalSizeBytes %v, BinConsPercentOnes %v, CollectBroadcast: %v,"+
+		"\n\tStopOnCommit: %v, FixedSeed: %v, EncryptChannels: %v, NoSignatures: %v,"+
+		"\n\tCoinType: %v, UseFixedCoinPresets: %v, Sleep Crypto: %v, Share Pubs: %v,"+
+		"\n\tSig BitID: %v, MC BitID: %v, WarmUp: %v, KeepPast %v, FwdTimeout: %v, RndFwdTimeout: %v,"+
+		"\n\t ProgressTimeout: %v, MVTimeout: %v, MVRecoverTimeout: %v, NodeVRFRelax: %v, CoordVRF: %v, TestID %v}",
 		to.ConsType, to.MaxRounds, to.FailRounds, to.NumTotalProcs, to.NumNonMembers, to.NumFailProcs, to.NumByz,
 		to.ByzType, to.ConnectionType, to.MsgDropPercent, to.NetworkType, to.FanOut, to.StorageType,
 		to.ClearDiskOnRestart, to.IncludeProofs, to.SigType, to.UseMultisig, to.UsePubIndex, to.BufferForwarder,
@@ -118,7 +132,8 @@ func (to TestOptions) String() string {
 		to.UseFullBinaryState, to.StorageBuffer, to.IncludeCurrentSigs, to.CPUProfile, to.MemProfile,
 		to.NumMsgProcessThreads, to.MvProposalSizeBytes, to.BinConsPercentOnes, to.CollectBroadcast, to.StopOnCommit, to.UseFixedSeed,
 		to.EncryptChannels, to.NoSignatures, to.CoinType, to.UseFixedCoinPresets, to.SleepCrypto, to.SharePubsRPC,
-		to.SigBitIDType, to.MemCheckerBitIDType, to.TestID)
+		to.SigBitIDType, to.MemCheckerBitIDType, to.WarmUpInstances, to.KeepPast, to.ForwardTimeout, to.RandForwardTimeout, to.ProgressTimeout,
+		to.MvConsTimeout, to.MvConsRequestRecoverTimeout, to.NodeChoiceVRFRelaxation, to.CoordChoiceVRF, to.TestID)
 }
 
 func AllowsGetRandBytes(smType StateMachineType) bool {

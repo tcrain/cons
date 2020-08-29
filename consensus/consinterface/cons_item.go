@@ -203,6 +203,9 @@ func CreateGeneralConfig(testId int, eis generalconfig.ExtraInitState,
 	gc.ProgressTimeout = to.ProgressTimeout
 	gc.MvConsTimeout = to.MvConsTimeout
 	gc.MvConsRequestRecoverTimeout = to.MvConsRequestRecoverTimeout
+	gc.NodeChoiceVRFRelaxation = to.NodeChoiceVRFRelaxation
+	gc.CoordChoiceVRF = to.CoordChoiceVRF
+	gc.RandForwardTimeout = to.RandForwardTimeout
 
 	return gc
 }

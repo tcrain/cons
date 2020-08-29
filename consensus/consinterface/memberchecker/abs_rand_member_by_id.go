@@ -23,6 +23,7 @@ import (
 	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
 	"github.com/tcrain/cons/consensus/types"
@@ -70,31 +71,33 @@ type prfRnd struct {
 	rnd uint64
 }
 
+// absRandMemberCheckerByID uses VRF to determine members for the consensus, the members are chosen
+// for each message type.
 type absRandMemberCheckerByID struct {
 	myIdx  types.ConsensusIndex
 	myPriv sig.Priv
 	// myVrf                 sig.VRFProof
-	rnd                   [32]byte
-	randBasicMsg          sig.BasicSignedMessage
-	randUint64            uint64
-	vrfRandByMsgID        map[pubMsgID]prfRnd
-	coordinatorRelaxation uint64
-	rndLock               sync.RWMutex
-	rndStats              stats.StatsInterface
+	rnd            [32]byte
+	randBasicMsg   sig.BasicSignedMessage
+	randUint64     uint64
+	vrfRandByMsgID map[pubMsgID]prfRnd
+	rndLock        sync.RWMutex
+	rndStats       stats.StatsInterface
+	gc             *generalconfig.GeneralConfig
 }
 
-func initAbsRandMemberCheckerByID(priv sig.Priv, stats stats.StatsInterface) *absRandMemberCheckerByID {
+func initAbsRandMemberCheckerByID(priv sig.Priv, stats stats.StatsInterface, gc *generalconfig.GeneralConfig) *absRandMemberCheckerByID {
 	return &absRandMemberCheckerByID{
-		rndStats:              stats,
-		myPriv:                priv,
-		coordinatorRelaxation: config.DefaultCoordinatorRelaxtion,
-		vrfRandByMsgID:        make(map[pubMsgID]prfRnd)}
+		rndStats:       stats,
+		myPriv:         priv,
+		gc:             gc,
+		vrfRandByMsgID: make(map[pubMsgID]prfRnd)}
 }
 
-func (arm *absRandMemberCheckerByID) setMainChannel(mainChannel channelinterface.MainChannel) {}
+func (arm *absRandMemberCheckerByID) setMainChannel(channelinterface.MainChannel) {}
 
 func (arm *absRandMemberCheckerByID) newRndMC(idx types.ConsensusIndex, stats stats.StatsInterface) absRandMemberInterface {
-	ret := initAbsRandMemberCheckerByID(arm.myPriv, stats)
+	ret := initAbsRandMemberCheckerByID(arm.myPriv, stats, arm.gc)
 	ret.myIdx = idx
 	return ret
 }
@@ -102,15 +105,6 @@ func (arm *absRandMemberCheckerByID) newRndMC(idx types.ConsensusIndex, stats st
 // rndDoneNextUpdate state does nothing here.
 func (arm *absRandMemberCheckerByID) rndDoneNextUpdateState() error {
 	return nil
-}
-
-// setCoordinatorRelaxation sets additional relaxation for choosing the coordinator.
-// The reason is that there might not be a node with small enough rand value to be chosen at default.
-func (arm *absRandMemberCheckerByID) setCoordinatorRelaxation(percentage int) {
-	if arm.randBasicMsg == nil {
-		panic("should not call this until after gotRand has been called")
-	}
-	arm.coordinatorRelaxation = uint64(percentage)
 }
 
 func (arm *absRandMemberCheckerByID) getRnd() [32]byte {
@@ -122,9 +116,10 @@ func (arm *absRandMemberCheckerByID) getRnd() [32]byte {
 func (arm *absRandMemberCheckerByID) gotRand(rnd [32]byte, participantNodeCount int, newPriv sig.Priv,
 	sortedMemberPubs sig.PubList, prvMC absRandMemberInterface) {
 
+	_, _, _ = participantNodeCount, sortedMemberPubs, prvMC
 	arm.myPriv = newPriv
 	arm.rnd = rnd
-	arm.randBasicMsg = sig.BasicSignedMessage(rnd[:])
+	arm.randBasicMsg = rnd[:]
 	arm.randUint64 = config.Encoding.Uint64(arm.randBasicMsg)
 }
 
@@ -175,6 +170,7 @@ func (arm *absRandMemberCheckerByID) checkLocal(msgID messages.MsgID, pid sig.Pu
 // totalNodeCount is the total number of nodes in the system.
 // It returns nil if the node can participate for this message, otherwise an error.
 func (arm *absRandMemberCheckerByID) checkRandMember(msgID messages.MsgID, isProposalMsg bool, participantNodeCount, totalNodeCount int, pub sig.Pub) error {
+	_ = isProposalMsg
 	if arm.randBasicMsg == nil {
 		panic("should not call this until after gotRand has been called")
 	}
@@ -195,7 +191,7 @@ func (arm *absRandMemberCheckerByID) checkRandMember(msgID messages.MsgID, isPro
 	// the threshold for the given number of nodes
 	// thrsh := uint64((float64(participantNodeCount)/float64(totalNodeCount))*float64(math.MaxUint64))
 	onePc := uint64(math.MaxUint64) / 100
-	percentage := uint64(utils.Min((participantNodeCount*100)/totalNodeCount+config.DefaultNodeRelaxation, 100))
+	percentage := uint64(utils.Min((participantNodeCount*100)/totalNodeCount+arm.gc.NodeChoiceVRFRelaxation, 100))
 	thrsh := onePc * percentage
 	if item.rnd <= thrsh {
 		return nil
@@ -211,6 +207,7 @@ func (arm *absRandMemberCheckerByID) checkRandMember(msgID messages.MsgID, isPro
 func (arm *absRandMemberCheckerByID) checkRandCoord(participantNodeCount, totalNodeCount int, msgID messages.MsgID,
 	round types.ConsensusRound, pub sig.Pub) (rndValue uint64, coord sig.Pub, err error) {
 
+	_, _, totalNodeCount = participantNodeCount, round, totalNodeCount
 	if arm.randBasicMsg == nil {
 		panic("should not call this until after gotRand has been called")
 	}
@@ -231,7 +228,7 @@ func (arm *absRandMemberCheckerByID) checkRandCoord(participantNodeCount, totalN
 
 	// the threshold for the given number of nodes
 	onePc := uint64(math.MaxUint64) / 100
-	thrsh := uint64(float64(onePc) * float64(arm.coordinatorRelaxation) * (float64(100) / float64(totalNodeCount))) //arm.coordinatorRelaxation
+	thrsh := uint64(float64(onePc) * float64(arm.gc.CoordChoiceVRF)) //* (float64(100) / float64(totalNodeCount))) //arm.coordinatorRelaxation
 
 	// thrsh := uint64((float64(1)/float64(totalNodeCount))*math.MaxUint64)
 	if item.rnd <= thrsh {

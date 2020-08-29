@@ -149,9 +149,9 @@ func initAbsMemberChecker(localRand *rand.Rand, rotateCord bool, rndMemberCount 
 		myPriv:         priv}
 	switch rndMemberType {
 	case types.VRFPerCons:
-		ret.absRandMemberInterface = initAbsRandMemberChecker(priv, stats)
+		ret.absRandMemberInterface = initAbsRandMemberChecker(priv, stats, config)
 	case types.VRFPerMessage:
-		ret.absRandMemberInterface = initAbsRandMemberCheckerByID(priv, stats)
+		ret.absRandMemberInterface = initAbsRandMemberCheckerByID(priv, stats, config)
 	case types.KnownPerCons:
 		ret.absRandMemberInterface = initAbsRoundKnownMemberChecker(stats)
 	case types.LocalRandMember:

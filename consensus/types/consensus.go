@@ -544,3 +544,12 @@ func (v HashStr) MarshalBinary() (data []byte, err error) {
 	}
 	return []byte(v), nil
 }
+
+// IsMember is set when the node knows if it is a member or not
+type IsMember int
+
+const (
+	PossibleMember IsMember = iota
+	NonMemberNode
+	MemberNode
+)

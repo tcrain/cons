@@ -22,7 +22,9 @@
     "RndMemberType": 2,
     "WarmUpInstances": 1,
     "KeepPast": 1,
-    "ProgressTimeout": 15000,
-    "MvConsTimeout": 15000,
-    "MvConsRequestRecoverTimeout": 15000
+    "ProgressTimeout": 5000,
+    "MvConsTimeout": 1000,
+    "MvConsRequestRecoverTimeout": 1500,
+    "NodeChoiceVRFRelaxation":  10,
+    "to.CoordChoiceVRF": 10
 }

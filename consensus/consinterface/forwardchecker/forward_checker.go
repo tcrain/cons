@@ -30,7 +30,6 @@ import (
 	"github.com/tcrain/cons/consensus/types"
 	"math/rand"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/tcrain/cons/consensus/auth/sig"
@@ -74,10 +73,11 @@ type buffMsg struct {
 }
 
 // newBufferForwarder creates a new absBufferForwarder using the internalForwardChecker
-func newBufferForwarder(internal internalForwardChecker, gc *generalconfig.GeneralConfig) *absBufferForwarder {
+func newBufferForwarder(internal internalForwardChecker, gc *generalconfig.GeneralConfig, r *rand.Rand) *absBufferForwarder {
 	return &absBufferForwarder{
 		gc:                     gc,
 		internalForwardChecker: internal,
+		rand:                   r,
 		buffMsgMap:             make(map[messages.MsgID]*buffMsg)}
 }
 
@@ -89,13 +89,14 @@ type absBufferForwarder struct {
 	buffMsgMap  map[messages.MsgID]*buffMsg
 	buffMsgList []*buffMsg
 	gc          *generalconfig.GeneralConfig
+	rand        *rand.Rand
 }
 
 // New creates a new buffer ForwardChecker for the consensus index. It will be always be called on an "initialForwardChecker" that is given as input to
 // MemberCheckerState.Init. A buffer forwarder forwards a message once it has recieved a threshold of messages with the same MsgID.
 func (fwd *absBufferForwarder) New(idx types.ConsensusIndex, participants, allPubs sig.PubList) consinterface.ForwardChecker {
 	_ = allPubs
-	f := newBufferForwarder(fwd.internalForwardChecker.newInternal(idx, participants), fwd.gc)
+	f := newBufferForwarder(fwd.internalForwardChecker.newInternal(idx, participants), fwd.gc, fwd.rand)
 	f.idx = idx
 	return f
 }
@@ -181,7 +182,11 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 		}
 
 		// We only forward the message if we have reached a threshold, or if a timeout has passed without reaching the threshold
-		passedTimeout := time.Since(nxt.sendTime) > time.Duration(fwd.gc.ForwardTimeout)*time.Millisecond
+		var rndAdd time.Duration
+		if fwd.gc.RandForwardTimeout > 0 {
+			rndAdd = (time.Duration(fwd.rand.Intn(2*fwd.gc.RandForwardTimeout) - fwd.gc.RandForwardTimeout)) * time.Millisecond
+		}
+		passedTimeout := time.Since(nxt.sendTime) > time.Duration(fwd.gc.ForwardTimeout)*time.Millisecond+rndAdd
 		if passedTimeout {
 			stats.BufferForwardTimeout()
 		}
@@ -423,7 +428,7 @@ func NewP2PForwarder(requestForwarder bool, fanOut int, bufferForwarder bool, fo
 	p2p := newP2PForwarder(requestForwarder, fanOut, bufferForwarder, forwardPubs)
 	switch bufferForwarder {
 	case true:
-		return newBufferForwarder(p2p, gc)
+		return newBufferForwarder(p2p, gc, rand.New(rand.NewSource(int64(gc.TestIndex))))
 	default:
 		return newDirectForwarder(p2p)
 	}
@@ -536,12 +541,12 @@ type RandomForwarder struct {
 // If bufferForwarder is true, then it buffers messages before forwarding them as described in
 // the buffer forwarder functions.
 func NewRandomForwarder(bufferForwarder bool, fanOut int, gc *generalconfig.GeneralConfig) consinterface.ForwardChecker {
-	randlocal := rand.New(rand.NewSource(atomic.AddInt64(&rndFwdSeed, 1)))
+	randlocal := rand.New(rand.NewSource(int64(gc.TestIndex)))
 	switch bufferForwarder {
 	case true:
 		return newBufferForwarder(&RandomForwarder{
 			fanOut: fanOut,
-			rand:   randlocal}, gc)
+			rand:   randlocal}, gc, randlocal)
 	default:
 		return &absDirectForwarder{
 			internalForwardChecker: &RandomForwarder{

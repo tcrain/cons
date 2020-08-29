@@ -39,7 +39,15 @@ type HeaderID uint32
 type MsgID interface {
 	IsMsgID() bool                             // IsMsgID to satisfy the interface and returns true
 	ToBytes(index types.ConsensusIndex) []byte // Returns the byte representation of MsgID
+	ToMsgIDInfo() MsgIDInfo                    // ToMsgIDInfo converts the MsgID to a MsgIDInfo
 	// CheckEqual(MsgID) bool
+}
+
+// MsgIDInfo is just used for statistics
+type MsgIDInfo struct {
+	Round    uint32
+	HeaderID uint32
+	Extra    byte
 }
 
 // BasicMsgID implements the MsgID interface as a HeaderID.
@@ -56,4 +64,11 @@ func (bm BasicMsgID) ToBytes(index types.ConsensusIndex) []byte {
 	m.AddConsensusID(index.Index)
 	m.AddHeaderID(HeaderID(bm))
 	return m.GetRemainingBytes()
+}
+
+// ToMsgIDInfo converts the MsgID to a MsgIDInfo
+func (bm BasicMsgID) ToMsgIDInfo() MsgIDInfo {
+	return MsgIDInfo{
+		HeaderID: uint32(bm),
+	}
 }
