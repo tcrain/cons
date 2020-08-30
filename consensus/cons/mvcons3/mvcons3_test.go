@@ -62,6 +62,13 @@ func TestMvCons3MultiSig(t *testing.T) {
 		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, []int{}, t)
 }
 
+func TestMvCons3SleepMultiSig(t *testing.T) {
+	to := mvTO
+	to.SleepCrypto = true
+	cons.RunMultiSigTests(to,
+		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, []int{}, t)
+}
+
 func TestMvCons3P2p(t *testing.T) {
 	cons.RunP2pNwTests(mvTO,
 		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, []int{}, t)

@@ -20,20 +20,20 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package mvcons1
 
 import (
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/types"
 	"testing"
 )
 
 // getBinConsStateMachineTypes returns a list of the valid state machine types for multi-value consensus given the configuration.
-func getMvConsStateMachineTypes() []types.StateMachineType {
+/*func getMvConsStateMachineTypes() []types.StateMachineType {
 	// return []types.StateMachineType{types.CurrencyTxProposer}
 	if config.RunAllTests {
 		return types.MultivalueProposerTypes
 	}
 	return []types.StateMachineType{types.CounterProposer}
 }
+*/
 
 func TestMvBinCons1Basic(t *testing.T) {
 	cons.RunBasicTests(types.TestOptions{}, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, []int{}, t)
@@ -88,9 +88,11 @@ func TestMvCons1FailDisk(t *testing.T) {
 }
 
 func TestMvBinConsRnd1Basic(t *testing.T) {
-	cons.RunBasicTests(types.TestOptions{SigType: types.EDCOIN, CoinType: types.StrongCoin2Type}, types.MvBinConsRnd1Type, &MvCons1{}, MvBinConsRnd1Config{}, nil, t)
+	cons.RunBasicTests(types.TestOptions{SigType: types.EDCOIN, CoinType: types.StrongCoin2Type}, types.MvBinConsRnd1Type,
+		&MvCons1{}, MvBinConsRnd1Config{}, nil, t)
 }
 
 func TestMvBinConsRand1Byz(t *testing.T) {
-	cons.RunByzTests(types.TestOptions{SigType: types.EDCOIN, CoinType: types.StrongCoin2Type}, types.MvBinConsRnd1Type, &MvCons1{}, MvBinConsRnd1Config{}, nil, t)
+	cons.RunByzTests(types.TestOptions{SigType: types.EDCOIN, CoinType: types.StrongCoin2Type}, types.MvBinConsRnd1Type,
+		&MvCons1{}, MvBinConsRnd1Config{}, []int{}, t)
 }
