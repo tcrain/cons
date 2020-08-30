@@ -26,5 +26,5 @@
     "KeepPast": 1,
     "ProgressTimeout": 5000,
     "MvConsTimeout": 1000,
-    "MvConsRequestRecoverTimeout": 1500,
+    "MvConsRequestRecoverTimeout": 1500
 }
