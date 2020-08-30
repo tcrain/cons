@@ -37,7 +37,8 @@ type absRandMemberInterface interface {
 	// participantNodeCount is the number of pubs that should be selected from sortedMemberPubs to be chosen as members for
 	// the consensus index.
 	// If sortedMemberPubs is nil they they have not changed since the last consensus index.
-	gotRand(rnd [32]byte, participantNodeCount int, myPriv sig.Priv, sortedMemberPubs sig.PubList, prvMC absRandMemberInterface)
+	gotRand(rnd [32]byte, participantNodeCount int, myPriv sig.Priv, sortedMemberPubs sig.PubList,
+		prvMC absRandMemberInterface)
 	// checkRandMember should return nil if pub should participate in this consensus given the inputs, or an error otherwise.
 	checkRandMember(msgID messages.MsgID, isProposalMsg bool, participantNodeCount, totalNodeCount int, pub sig.Pub) error
 	// checkRandCoord checks if pub should participate in this consensus as a coordinator given the inputs.
@@ -94,7 +95,7 @@ func initAbsRandMemberCheckerByID(priv sig.Priv, stats stats.StatsInterface, gc 
 		vrfRandByMsgID: make(map[pubMsgID]prfRnd)}
 }
 
-func (arm *absRandMemberCheckerByID) setMainChannel(channelinterface.MainChannel) {}
+func (arm *absRandMemberCheckerByID) setMainChannel(_ channelinterface.MainChannel) {}
 
 func (arm *absRandMemberCheckerByID) newRndMC(idx types.ConsensusIndex, stats stats.StatsInterface) absRandMemberInterface {
 	ret := initAbsRandMemberCheckerByID(arm.myPriv, stats, arm.gc)

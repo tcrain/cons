@@ -5,7 +5,6 @@
     "MaxRounds": 10,
     "NumTotalProcs": 40,
     "RndMemberCount": 20,
-    "GenRandBytes": true,
     "NetworkType": 1,
     "FanOut": 4,
     "ConnectionType": 1,
@@ -19,12 +18,13 @@
     "BinConsPercentOnes": 100,
     "SleepCrypto": true,
     "SharePubsRPC": true,
+    "GenRandBytes": true,
     "RndMemberType": 2,
+    "NodeChoiceVRFRelaxation":  10,
+    "CoordChoiceVRF": 10,
     "WarmUpInstances": 1,
     "KeepPast": 1,
     "ProgressTimeout": 5000,
     "MvConsTimeout": 1000,
     "MvConsRequestRecoverTimeout": 1500,
-    "NodeChoiceVRFRelaxation":  10,
-    "to.CoordChoiceVRF": 10
 }

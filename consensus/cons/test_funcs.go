@@ -120,8 +120,8 @@ func getStatsStringInternal(to types.TestOptions, msList []stats.MergedStats, sa
 
 	perProcMerged, mergedStats := stats.MergeStats(msList)
 	// perProcNw, mergedNwStats := stats.MergeNwStats(int(to.MaxRounds), nwStatsList)
-	ret.WriteString(fmt.Sprintf("\nMerged stats: %v, %v\n", mergedStats.String(), mergedStats.BasicNwStats.NwString()))
-	ret.WriteString(fmt.Sprintf("\nMerged stats (per proc): %v, %v\n", perProcMerged.String(), perProcMerged.BasicNwStats.NwString()))
+	ret.WriteString(fmt.Sprintf("\nMerged stats: %v,\n%v\n", mergedStats.String(), mergedStats.BasicNwStats.NwString()))
+	ret.WriteString(fmt.Sprintf("\nMerged stats (per proc): %v,\n%v\n", perProcMerged.String(), perProcMerged.BasicNwStats.NwString()))
 
 	if saveToDisk {
 		for i, nxt := range []stats.MergedStats{perProcMerged, mergedStats} {

@@ -11,7 +11,7 @@ import (
 )
 
 type multiPub struct {
-	sleepPub
+	VrfPub
 	stats        *sig.SigStats
 	bitID        bitid.NewBitIDInterface
 	newBitIDFunc bitid.FromIntFunc
@@ -20,7 +20,7 @@ type multiPub struct {
 
 func newMultiPub(p sig.Pub, newBitIDFunc bitid.FromIntFunc, stats *sig.SigStats) *multiPub {
 	ret := &multiPub{
-		sleepPub:     p.(sleepPub),
+		VrfPub:       *p.(*VrfPub),
 		stats:        stats,
 		newBitIDFunc: newBitIDFunc,
 	}
@@ -31,7 +31,7 @@ func newMultiPub(p sig.Pub, newBitIDFunc bitid.FromIntFunc, stats *sig.SigStats)
 // New creates a new public key object of the same type
 func (pub *multiPub) New() sig.Pub {
 	return &multiPub{
-		sleepPub:     pub.sleepPub.New().(sleepPub),
+		VrfPub:       *pub.VrfPub.New().(*VrfPub),
 		stats:        pub.stats,
 		newBitIDFunc: pub.newBitIDFunc,
 	}
@@ -39,20 +39,20 @@ func (pub *multiPub) New() sig.Pub {
 
 // FromPubBytes creates a public key object from the public key bytes
 func (pub *multiPub) FromPubBytes(b sig.PubKeyBytes) (sig.Pub, error) {
-	p, err := pub.sleepPub.FromPubBytes(b)
+	p, err := pub.VrfPub.FromPubBytes(b)
 	if err != nil {
 		panic(err)
 	}
 	return &multiPub{
 		newBitIDFunc: pub.newBitIDFunc,
-		sleepPub:     p.(sleepPub),
+		VrfPub:       *p.(*VrfPub),
 		stats:        pub.stats,
 	}, nil
 }
 
 // DeserializeSig deserializes a public key and signature object from m, size is the number of bytes read
 func (pub *multiPub) DeserializeSig(m *messages.Message, signType types.SignType) (*sig.SigItem, int, error) {
-	return pub.sleepPub.doDeserializeSig(&multiSig{Sig: Sig{stats: pub.stats}}, pub.New(), m, signType)
+	return pub.VrfPub.doDeserializeSig(&multiSig{Sig: Sig{stats: pub.stats}}, pub.New(), m, signType)
 }
 
 // GetSigMemberNumber returns the number of nodes represented by this pub key
@@ -64,7 +64,7 @@ func (pub *multiPub) GetSigMemberNumber() int {
 // SetIndex sets the index of the node represented by this public key in the consensus participants
 func (pub *multiPub) SetIndex(index sig.PubKeyIndex) {
 	// pub.pubID = ""
-	pub.sleepPub.SetIndex(index)
+	pub.VrfPub.SetIndex(index)
 	pub.bitID = pub.newBitIDFunc([]int{int(index)})
 }
 
@@ -84,7 +84,7 @@ func (pub *multiPub) Clone() sig.MultiPub {
 
 func (pub *multiPub) ShallowCopy() sig.Pub {
 	newPub := *pub
-	newPub.sleepPub = pub.sleepPub.ShallowCopy().(sleepPub)
+	newPub.VrfPub = *pub.VrfPub.ShallowCopy().(*VrfPub)
 	return &newPub
 }
 
@@ -111,19 +111,19 @@ func (pub *multiPub) SubMultiPub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 	if err != nil {
 		panic(err)
 	}
-	newPub, err := pub.sleepPub.FromPubBytes(newBytes)
+	newPub, err := pub.VrfPub.FromPubBytes(newBytes)
 	if err != nil {
 		panic(err)
 	}
 
 	time.Sleep(pub.stats.MultiCombineTime)
-	return &multiPub{sleepPub: newPub.(sleepPub),
+	return &multiPub{VrfPub: *newPub.(*VrfPub),
 		newBitIDFunc: pub.newBitIDFunc,
 		bitID:        nPbid, stats: pub.stats}, nil
 }
 
 // MergePubPartial only merges the pub itself, does not create the new bitid
-func (pub *multiPub) MergePubPartial(pub2 sig.MultiPub) {
+func (pub *multiPub) MergePubPartial(sig.MultiPub) {
 	// time.Sleep(pub.stats.MultiCombineTime)
 	// we perform the sleep at the end (done partial merge)
 	pub.merges++
@@ -182,7 +182,7 @@ func (pub *multiPub) MergePub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 	if err != nil {
 		panic(err)
 	}
-	newPub, err := pub.sleepPub.FromPubBytes(newBytes)
+	newPub, err := pub.VrfPub.FromPubBytes(newBytes)
 	if err != nil {
 		panic(err)
 	}
@@ -190,7 +190,7 @@ func (pub *multiPub) MergePub(pub2 sig.MultiPub) (sig.MultiPub, error) {
 	return &multiPub{
 		newBitIDFunc: pub.newBitIDFunc,
 		stats:        pub.stats,
-		sleepPub:     newPub.(sleepPub),
+		VrfPub:       *newPub.(*VrfPub),
 		bitID:        nBid}, nil
 }
 
@@ -223,7 +223,7 @@ func (pub *multiPub) Serialize(m *messages.Message) (int, error) {
 		}
 		return l, nil
 	}
-	return pub.sleepPub.Serialize(m)
+	return pub.VrfPub.Serialize(m)
 }
 
 // Deserialize deserialzes a header into the object, returning the number of bytes read
@@ -248,7 +248,7 @@ func (pub *multiPub) Deserialize(m *messages.Message, unmarFunc types.ConsensusI
 		}
 		return l, nil
 	}
-	return pub.sleepPub.Deserialize(m, unmarFunc)
+	return pub.VrfPub.Deserialize(m, unmarFunc)
 }
 
 type multiSig struct {

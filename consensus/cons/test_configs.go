@@ -322,7 +322,17 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 	fmt.Println("Running with multisigs")
 	iter, err := NewTestOptIter(AllOptions, consConfigs, NewSingleIter(SingleSMTest, to))
 	assert.Nil(t, err)
+	runIterTests(initItem, consConfigs, iter, toRun, t)
 
+	fmt.Println("Running with multisigs and randomized members")
+	tmpTo := to
+	tmpTo.NumTotalProcs = 10
+	tmpTo.RndMemberType = types.KnownPerCons
+	tmpTo.MCType = types.CurrentTrueMC
+	tmpTo.RndMemberCount = tmpTo.NumTotalProcs - tmpTo.NumNonMembers - 1
+	tmpTo.GenRandBytes = true
+	iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(SingleSMTest, tmpTo))
+	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, toRun, t)
 
 	fmt.Println("Running with multisigs and buffer forwarder")

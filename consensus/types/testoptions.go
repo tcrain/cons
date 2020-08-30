@@ -520,10 +520,14 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		err = fmt.Errorf("cannot have both byzantine and crash processes in the same test")
 		return
 	}
-	if to.UseMultisig && to.RndMemberType != NonRandom {
-		// TODO multisig should work with KnownPerCons random type
-		err = fmt.Errorf("multisig and random member selection not currently supported")
-		return
+	if to.UseMultisig {
+		switch to.RndMemberType {
+		case NonRandom, KnownPerCons:
+			// multisig allowed
+		default:
+			err = fmt.Errorf("multisig and random member selection not currently supported")
+			return
+		}
 	}
 	if to.NumNonMembers >= to.NumTotalProcs {
 		err = fmt.Errorf("need to have some members")

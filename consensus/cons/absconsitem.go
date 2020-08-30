@@ -185,7 +185,7 @@ func (sc *AbsConsItem) CheckMemberLocal() bool {
 func (sc *AbsConsItem) CheckMemberLocalMsg(msgID messages.MsgID) bool {
 	if sc.CheckMemberLocal() {
 		// is proposal message is true since we always send the message when creating it locally
-		if consinterface.CheckRandMember(sc.ConsItems.MC, sc.ConsItems.MC.MC.GetMyPriv().GetPub(),
+		if consinterface.CheckRandMember(sc.ConsItems.MC.MC, sc.ConsItems.MC.MC.GetMyPriv().GetPub(),
 			true, msgID) == nil { // I am a random member
 
 			sc.ConsItems.MC.MC.GetStats().MemberMsgID(msgID)

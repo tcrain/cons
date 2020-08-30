@@ -186,6 +186,7 @@ func (mc *absMemberChecker) AbsGotDecision(newFixedCoord sig.Pub, newMemberPubs,
 	if mc.gotDecision {
 		panic("called got decision twice")
 	}
+
 	if !prevMember.GetIndex().Index.IsInitIndex() && !prevMember.gotDecision {
 		panic("previous did not get decision")
 	}

@@ -47,6 +47,9 @@ func GetAllSigStatsNewPriv(onlyVrf, onlyMulti bool, newBitIDFunc []bitid.FromInt
 					}
 				}
 				if nxt.AllowsMulti && sig.UseMultisig {
+					if !nxt.AllowsVRF {
+						panic("for now all multisigs must support VRF") // TODO
+					}
 					p, err = NewSleepMultiPriv(p, bidFunc, &nxt)
 				}
 				return p, err
@@ -76,11 +79,11 @@ func NewSleepPriv(stats *sig.SigStats, i sig.PubKeyIndex) (sig.Priv, error) {
 }
 
 type MultiPriv struct {
-	SleepPriv
+	VrfPriv
 }
 
 // Returns key that is used for signing the sign type.
-func (p *MultiPriv) GetPrivForSignType(signType types.SignType) (sig.Priv, error) {
+func (p *MultiPriv) GetPrivForSignType(types.SignType) (sig.Priv, error) {
 	return p, nil
 }
 
@@ -100,9 +103,9 @@ func (p *MultiPriv) ShallowCopy() sig.Priv {
 }
 
 func NewSleepMultiPriv(priv sig.Priv, newBitIDFunc bitid.FromIntFunc, stats *sig.SigStats) (sig.Priv, error) {
-	priv.(SleepPriv).setPub(newMultiPub(priv.GetPub(), newBitIDFunc, stats))
+	priv.(*VrfPriv).setPub(newMultiPub(priv.GetPub(), newBitIDFunc, stats))
 	return &MultiPriv{
-		SleepPriv: priv.(SleepPriv),
+		VrfPriv: *priv.(*VrfPriv),
 	}, nil
 }
 
@@ -127,7 +130,7 @@ type VrfPriv struct {
 }
 
 // Returns key that is used for signing the sign type.
-func (p *VrfPriv) GetPrivForSignType(signType types.SignType) (sig.Priv, error) {
+func (p *VrfPriv) GetPrivForSignType(types.SignType) (sig.Priv, error) {
 	return p, nil
 }
 

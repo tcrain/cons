@@ -208,8 +208,14 @@ func MsgIDCountString(msgIDCount, minMsgID, maxMsgID []MsgIDInfoCount) string {
 		}
 	}
 	str.WriteString("MsgID Counts: [")
+	var i int
 	for k, val := range items {
-		str.WriteString(fmt.Sprintf("{%v%v:%v, Count: %v, Min: %v, Max: %v}, ", messages.HeaderID(k.HeaderID), k.Round, k.Extra, val[0], val[1], val[2]))
+		if i != 0 && i%2 == 0 {
+			str.WriteString("\n\t\t")
+		}
+		str.WriteString(fmt.Sprintf("{%v%v:%v, Count: %v, Min: %v, Max: %v}, ", messages.HeaderID(k.HeaderID),
+			k.Round, k.Extra, val[0], val[1], val[2]))
+		i++
 	}
 	str.WriteString("]")
 	return str.String()
