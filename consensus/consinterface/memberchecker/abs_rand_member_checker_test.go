@@ -29,6 +29,7 @@ import (
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/types"
+	"github.com/tcrain/cons/consensus/utils"
 	"testing"
 )
 
@@ -78,11 +79,17 @@ func intAbsRandKnownMemberCheckerTest(newPrivFunc func() (sig.Priv, error), t *t
 	for i, p := range privs {
 		pubs[i] = p.GetPub()
 	}
+	memMap := make(map[sig.PubKeyID]sig.Pub)
+	for _, p := range privs {
+		pid, err := p.GetPub().GetPubID()
+		utils.PanicNonNil(err)
+		memMap[pid] = p.GetPub()
+	}
 
 	count := len(privs) / 2
 	for i := range privs {
 		a[i] = initAbsRoundKnownMemberChecker(nil)
-		a[i].gotRand(initRnd, len(privs)/2, privs[0], pubs, nil)
+		a[i].gotRand(initRnd, len(privs)/2, privs[0], pubs, memMap, nil)
 	}
 
 	var memCount int
@@ -118,13 +125,19 @@ func intTestAbsRandMemberChecker(newPrivFunc func() (sig.Priv, error), newMCFunc
 	}
 	// sort.Sort(privs)
 	privs.SetIndices()
+	memMap := make(map[sig.PubKeyID]sig.Pub)
+	for _, p := range privs {
+		pid, err := p.GetPub().GetPubID()
+		utils.PanicNonNil(err)
+		memMap[pid] = p.GetPub()
+	}
 
 	initMsg := sig.BasicSignedMessage("some message")
 	initRnd, _ := privs[0].(sig.VRFPriv).Evaluate(initMsg)
 	a := make([]absRandMemberInterface, len(privs))
 	for i, priv := range privs {
 		a[i] = newMCFunc(priv).newRndMC(types.SingleComputeConsensusIDShort(types.ConsensusInt(0)), nil)
-		a[i].gotRand(initRnd, 0, priv, nil, nil)
+		a[i].gotRand(initRnd, 0, priv, nil, memMap, nil)
 	}
 	count := len(privs)
 
