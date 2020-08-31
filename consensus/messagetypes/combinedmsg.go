@@ -133,7 +133,7 @@ func (mvi *CombinedMessage) ShallowCopy() messages.InternalSignedMsgHeader {
 // Serialize appends a serialized header to the message m, and returns the size of bytes written
 func (mvi *CombinedMessage) SerializeInternal(m *messages.Message) (bytesWritten, signEndOffset int, err error) {
 	bytesWritten, signEndOffset = headerPartialSerialze(m, mvi.FullMsgHash, mvi.Round, mvi.PartialMsgHashes)
-	logging.Errorf("combine full hashes", bytesWritten, signEndOffset, mvi.FullMsgHash, mvi.PartialMsgHashes)
+	logging.Error("combine full hashes", bytesWritten, signEndOffset, mvi.FullMsgHash, mvi.PartialMsgHashes)
 
 	// serialize the InternalSignedMsgHeader
 	var l1, sizeOffset int
