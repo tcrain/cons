@@ -37,11 +37,6 @@ import (
 //
 /////////////////////////////////////////////////////////////////////////////////
 
-type pubAndID struct {
-	sig.Pub
-	sig.PubKeyID
-}
-
 // absMemberChecker implements part of the MemberChecker interface that can be reused by different
 // implementations of member checkers.
 type absMemberChecker struct {
@@ -86,7 +81,7 @@ func (mc *absMemberChecker) GetStats() stats.StatsInterface {
 
 // CheckRoundCoord returns the public key of the coordinator for round round.
 // It is just the mod of the round in the sorted list of public keys.
-func (mc *absMemberChecker) CheckRoundCoord(msgID messages.MsgID, checkPub sig.Pub,
+func (mc *absMemberChecker) CheckRoundCoord(_ messages.MsgID, checkPub sig.Pub,
 	round types.ConsensusRound) (coordPub sig.Pub, err error) {
 
 	return getRoundCord(mc, mc.idx.Index, checkPub, round)
@@ -139,24 +134,24 @@ func initAbsMemberChecker(localRand *rand.Rand, rotateCord bool, rndMemberCount 
 		panic("priv should not be nil")
 	}
 
-	stats := config.Stats
+	sts := config.Stats
 
 	ret := &absMemberChecker{rotateCord: rotateCord,
 		config:         config,
-		stats:          stats,
+		stats:          sts,
 		rndMemberCount: rndMemberCount,
 		rndMemberType:  rndMemberType,
 		myPriv:         priv}
 	switch rndMemberType {
 	case types.VRFPerCons:
-		ret.absRandMemberInterface = initAbsRandMemberChecker(priv, stats, config)
+		ret.absRandMemberInterface = initAbsRandMemberChecker(priv, sts, config)
 	case types.VRFPerMessage:
-		ret.absRandMemberInterface = initAbsRandMemberCheckerByID(priv, stats, config)
+		ret.absRandMemberInterface = initAbsRandMemberCheckerByID(priv, sts, config)
 	case types.KnownPerCons:
-		ret.absRandMemberInterface = initAbsRoundKnownMemberChecker(stats)
+		ret.absRandMemberInterface = initAbsRoundKnownMemberChecker(sts)
 	case types.LocalRandMember:
 		ret.absRandMemberInterface = initAbsRandLocalKnownMemberChecker(localRand, priv,
-			localRandChangeFrequency, stats)
+			localRandChangeFrequency, sts)
 	case types.NonRandom:
 	// no abs rnd member checker
 	default:
@@ -266,17 +261,17 @@ func (mc *absMemberChecker) AbsGotDecision(newFixedCoord sig.Pub, newMemberPubs,
 	if mc.rndMemberCount > 0 {
 		if len(prevDec) > 0 { // only sent the new random bytes if a non-nil decision
 			mc.gotRand(randBytes, utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, retMemberPubs,
-				prevMember.absRandMemberInterface)
+				mc.memberPubStrings, prevMember.absRandMemberInterface)
 		} else { // otherwise we keep the same random bytes
 			mc.gotRand(prevMember.getRnd(), utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, retMemberPubs,
-				prevMember.absRandMemberInterface)
+				mc.memberPubStrings, prevMember.absRandMemberInterface)
 		}
 	}
 
 	return
 }
 
-func (mc *absMemberChecker) checkCoordInternal(round types.ConsensusRound, cordPub, checkPub sig.Pub) (sig.Pub, error) {
+func (mc *absMemberChecker) checkCoordInternal(_ types.ConsensusRound, cordPub, checkPub sig.Pub) (sig.Pub, error) {
 
 	cordPubID, err := cordPub.GetPubID()
 	if err != nil {
@@ -301,7 +296,7 @@ func (mc *absMemberChecker) newAbsMc(idx types.ConsensusIndex) *absMemberChecker
 		if idx.Index.IsInitIndex() {
 			// we do this here because we need to calculate the new values
 			newMc.gotRand(mc.getRnd(), utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, nil,
-				mc.absRandMemberInterface)
+				mc.memberPubStrings, mc.absRandMemberInterface)
 		}
 	}
 	newMc.stats = newStats
@@ -361,7 +356,7 @@ func (mc *absMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, otherP
 
 	if mc.rndMemberCount > 0 {
 		mc.gotRand(initRandBytes, utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)),
-			mc.myPriv, mc.sortedMemberPubs, nil)
+			mc.myPriv, mc.sortedMemberPubs, mc.memberPubStrings, nil)
 	}
 }
 

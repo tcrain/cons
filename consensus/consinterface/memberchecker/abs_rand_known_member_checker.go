@@ -53,7 +53,7 @@ func (arm *absRoundKnownMemberChecker) rndDoneNextUpdateState() error {
 func (arm *absRoundKnownMemberChecker) setMainChannel(channelinterface.MainChannel) {}
 
 func (arm *absRoundKnownMemberChecker) gotRand(rnd [32]byte, participantNodeCount int, newPriv sig.Priv,
-	sortedMemberPubs sig.PubList, prvMC absRandMemberInterface) {
+	sortedMemberPubs sig.PubList, _ map[sig.PubKeyID]sig.Pub, prvMC absRandMemberInterface) {
 
 	_ = newPriv
 	arm.rnd = rnd

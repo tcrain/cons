@@ -86,7 +86,7 @@ func (arm *AbsRandLocalKnownMemberChecker) rndDoneNextUpdateState() error {
 }
 
 func (arm *AbsRandLocalKnownMemberChecker) gotRand(_ [32]byte, participantNodeCount int, newPriv sig.Priv,
-	sortedMemberPubs sig.PubList, prvMC absRandMemberInterface) {
+	sortedMemberPubs sig.PubList, memberMap map[sig.PubKeyID]sig.Pub, prvMC absRandMemberInterface) {
 
 	arm.myPriv = newPriv
 	myPub := arm.myPriv.GetPub()
@@ -133,7 +133,7 @@ func (arm *AbsRandLocalKnownMemberChecker) gotRand(_ [32]byte, participantNodeCo
 			arm.pubMap[pid] = p
 			arm.pubList[i] = p
 		}
-		if !gotMyPid { // we have to add ourselves as a member if we haven't already
+		if !gotMyPid && memberMap[myPid] != nil { // we have to add ourselves as a member if we haven't already (and we are a normal member)
 			delete(arm.pubMap, lastPid)
 			arm.pubList[len(arm.pubList)-1] = myPub
 			arm.pubMap[myPid] = myPub

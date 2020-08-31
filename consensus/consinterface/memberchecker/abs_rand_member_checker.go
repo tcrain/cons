@@ -90,7 +90,7 @@ func (arm *absRandMemberChecker) getMyVRF(messages.MsgID) sig.VRFProof {
 // gotRand should be called with the random bytes received from the state machine after deciding the previous
 // consensus instance.
 func (arm *absRandMemberChecker) gotRand(rnd [32]byte, participantNodeCount int, newPriv sig.Priv,
-	sortedMemberPubs sig.PubList, prvMC absRandMemberInterface) {
+	sortedMemberPubs sig.PubList, _ map[sig.PubKeyID]sig.Pub, prvMC absRandMemberInterface) {
 
 	_, _, _ = participantNodeCount, sortedMemberPubs, prvMC
 

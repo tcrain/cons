@@ -239,9 +239,10 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 
 	// to.StorageType = types.Memstorage
 	to.NumTotalProcs = 30
-	to.RndMemberCount = 28
-	to.FanOut = 6
 	to.NumNonMembers = config.NonMembers
+	// We choose rand members as all other nodes, since on recover we may get a different set of other nodes
+	to.RndMemberCount = to.NumTotalProcs - to.NumNonMembers
+	to.FanOut = to.FanOut
 
 	fmt.Println("Running with VRF type random member selection")
 	iter, err := NewTestOptIter(AllOptions, consConfigs, NewSingleIter(SingleSMTest, to))

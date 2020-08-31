@@ -580,8 +580,18 @@ func joinSigs(sigms *signedMsgState, addOthersSigsCount int, priv sig.Priv, mc *
 			totalCount = 0
 			sigItems = append(make([]*sig.SigItem, 0, len(sigms.SigMap)+1), sigItems...)
 
+			// add my signature first
+			pid, err := mc.MC.GetMyPriv().GetPub().GetPubID()
+			utils.PanicNonNil(err)
+			if itm, ok := sigms.SigMap[pid]; ok {
+				sigItems = append(sigItems, itm)
+				totalCount++
+			}
 			// add normal sigs as needed
-			for _, asig := range sigms.SigMap {
+			for nxtPid, asig := range sigms.SigMap {
+				if nxtPid == pid {
+					continue
+				}
 				if totalCount >= addOthersSigsCount {
 					break
 				}

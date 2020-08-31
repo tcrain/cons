@@ -38,7 +38,7 @@ type absRandMemberInterface interface {
 	// the consensus index.
 	// If sortedMemberPubs is nil they they have not changed since the last consensus index.
 	gotRand(rnd [32]byte, participantNodeCount int, myPriv sig.Priv, sortedMemberPubs sig.PubList,
-		prvMC absRandMemberInterface)
+		memberMap map[sig.PubKeyID]sig.Pub, prvMC absRandMemberInterface)
 	// checkRandMember should return nil if pub should participate in this consensus given the inputs, or an error otherwise.
 	checkRandMember(msgID messages.MsgID, isProposalMsg bool, participantNodeCount, totalNodeCount int, pub sig.Pub) error
 	// checkRandCoord checks if pub should participate in this consensus as a coordinator given the inputs.
@@ -115,7 +115,7 @@ func (arm *absRandMemberCheckerByID) getRnd() [32]byte {
 // gotRand should be called with the random bytes received from the state machine after deciding the previous
 // consensus instance.
 func (arm *absRandMemberCheckerByID) gotRand(rnd [32]byte, participantNodeCount int, newPriv sig.Priv,
-	sortedMemberPubs sig.PubList, prvMC absRandMemberInterface) {
+	sortedMemberPubs sig.PubList, _ map[sig.PubKeyID]sig.Pub, prvMC absRandMemberInterface) {
 
 	_, _, _ = participantNodeCount, sortedMemberPubs, prvMC
 	arm.myPriv = newPriv
