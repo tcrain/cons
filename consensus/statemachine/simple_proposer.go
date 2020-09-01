@@ -47,6 +47,7 @@ func NewSimpleProposalInfo() *SimpleProposalInfo {
 }
 
 func (spi *SimpleProposalInfo) StatsString(testDuration time.Duration) string {
+	_ = testDuration
 	return ""
 }
 
@@ -63,7 +64,8 @@ func (spi *SimpleProposalInfo) GetInitialState() []byte {
 }
 
 // HasDecided is called after the index nxt has decided.
-func (spi *SimpleProposalInfo) HasDecided(poposer sig.Pub, nxt types.ConsensusInt, decision []byte) {
+func (spi *SimpleProposalInfo) HasDecided(proposer sig.Pub, nxt types.ConsensusInt, decision []byte) {
+	_ = proposer
 	spi.AbsHasDecided(nxt, decision)
 }
 
@@ -89,7 +91,7 @@ func (spi *SimpleProposalInfo) GetProposal() {
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *SimpleProposalInfo) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
 	// No byzantine supported, just return the original proposal
 	return originProposal
@@ -97,6 +99,7 @@ func (spi *SimpleProposalInfo) GetByzProposal(originProposal []byte,
 
 // ValidateProposal should return true if the input proposal is valid.
 func (spi *SimpleProposalInfo) ValidateProposal(proposer sig.Pub, dec []byte) error {
+	_ = proposer
 	if string(dec) != fmt.Sprintf("simpleCons%v", spi.index.Index) {
 		return fmt.Errorf("got an invalid decision %v", string(dec))
 	}

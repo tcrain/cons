@@ -490,7 +490,7 @@ func (sc *BinConsRnd3) checkBroadcastsAuxCoin(est types.BinVal, supportCoin bool
 
 		// Set to true before checking if we are a member, since check member will always
 		// give the same result for this round
-		if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+		if sc.CheckMemberLocalMsg(auxMsg) {
 			if round > 1 && !(round == 2 && sc.getMsgState().isMv) { // don't use a coin for round 1 of multi value reduction
 
 				if round > binMsgState.maxPresetCoinRound {
@@ -538,7 +538,7 @@ func (sc *BinConsRnd3) checkBroadcastsAux(est types.BinVal, supportCoin bool, ro
 
 		// Set to true before checking if we are a member, since check member will always
 		// give the same result for this round
-		if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+		if sc.CheckMemberLocalMsg(auxMsg) {
 			prfMsgs = append(prfMsgs, sc.generateProofsInternal(auxMsg, supportCoin, est, round)...)
 			sc.BroadcastFunc(nil, sc.ConsItems, auxMsg, true,
 				sc.ConsItems.FwdChecker.GetNewForwardListFunc(), mainChannel, sc.GeneralConfig, prfMsgs...)
@@ -570,7 +570,7 @@ func (sc *BinConsRnd3) checkBroadcastsAuxBoth(est types.BinVal, round types.Cons
 
 		// Set to true before checking if we are a member, since check member will always
 		// give the same result for this round
-		if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+		if sc.CheckMemberLocalMsg(auxMsg) {
 			prfMsgs = append(prfMsgs, sc.generateProofsInternal(auxMsg, false, est, round)...)
 			sc.BroadcastFunc(nil, sc.ConsItems, auxMsg, true,
 				sc.ConsItems.FwdChecker.GetNewForwardListFunc(), mainChannel, sc.GeneralConfig, prfMsgs...)

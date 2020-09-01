@@ -146,7 +146,7 @@ func (spi *CounterProposalInfo) ValidateProposal(proposer sig.Pub, dec []byte) e
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *CounterProposalInfo) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
 	n := spi.GetRndNumBytes()
 	buf := bytes.NewReader(originProposal[n:])
@@ -174,11 +174,14 @@ func (spi *CounterProposalInfo) StartIndex(nxt types.ConsensusInt) consinterface
 	ret := &CounterProposalInfo{}
 	*ret = *spi
 	ret.AbsStartIndex(nxt)
+	ret.RandStartIndex(spi.randBytes)
+
 	logging.Infof("my id %v generate next my counter %v, my index %v, nxt idx %v, created from %v", spi.GeneralConfig.TestIndex, spi.proposalIndex, spi.index, nxt, spi.createdFrom)
 	return ret
 }
 
 func (spi *CounterProposalInfo) StatsString(testDuration time.Duration) string {
+	_ = testDuration
 	return fmt.Sprintf("Got to counter %v out of %v instances", spi.proposalIndex, spi.index)
 }
 

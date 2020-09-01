@@ -469,7 +469,7 @@ func (sc *MvBinConsRnd2) checkProgress(t, nmt int, mainChannel channelinterface.
 		// (the first argument is 0 here because we the structure keeps track of having sent proposal for the round+1)
 		if !msgState.BinConsMessageStateInterface.SentProposal(0, true, sc.ConsItems.MC) {
 			auxMsg := sc.binCons.GetMVInitialRoundBroadcast(0)
-			if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) { // check if we are a member for this type of message
+			if sc.CheckMemberLocalMsg(auxMsg) { // check if we are a member for this type of message
 				// We support 0 since we have not gotten a proposal
 				logging.Infof("Supporting 0 for index %v, since not enough echos received", sc.Index)
 				sc.BroadcastFunc(nil, sc.ConsItems, auxMsg, !sc.NoSignatures,
@@ -549,7 +549,7 @@ func (sc *MvBinConsRnd2) broadcastCommit(nmt int, proposalHash []byte,
 	newMsg := messagetypes.NewMvCommitMessage()
 	newMsg.ProposalHash = proposalHash
 
-	if sc.CheckMemberLocalMsg(newMsg.GetMsgID()) { // only send the message if we are a participant of consensus
+	if sc.CheckMemberLocalMsg(newMsg) { // only send the message if we are a participant of consensus
 
 		// Check if we should include proofs and who to broadcast to based on the BroadcastCollect settings
 		includeProofs, nxtCoordPub := cons.CheckIncludeEchoProofs(0, sc.ConsItems,

@@ -434,7 +434,7 @@ func (sc *BinConsRnd2) checkBVAuxBroadcasts(nmt int, t int, round types.Consensu
 				// Set to true before checking if we are a member, since check member will always
 				// give the same result for this round
 				sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round)
-				if sc.CheckMemberLocalMsg(bvMsg.GetMsgID()) {
+				if sc.CheckMemberLocalMsg(bvMsg) {
 					sc.BroadcastFunc(nil, sc.ConsItems, bvMsg, !sc.NoSignatures,
 						sc.ConsItems.FwdChecker.GetNewForwardListFunc(), mainChannel, sc.GeneralConfig)
 				}
@@ -459,7 +459,7 @@ func (sc *BinConsRnd2) checkBVAuxBroadcasts(nmt int, t int, round types.Consensu
 				// Set to true before checking if we are a member, since check member will always
 				// give the same result for this round
 				sc.ConsItems.MC.MC.GetStats().AddParticipationRound(roundStruct.supportBvInfo[i].round)
-				if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+				if sc.CheckMemberLocalMsg(auxMsg) {
 					sc.BroadcastFunc(nil, sc.ConsItems, auxMsg, !sc.NoSignatures,
 						sc.ConsItems.FwdChecker.GetNewForwardListFunc(), mainChannel, sc.GeneralConfig)
 					// cons.BroadcastBin(nil, sc.ByzType, sc, auxMsg, mainChannel, prfs...)
@@ -488,7 +488,7 @@ func (sc *BinConsRnd2) checkBVAuxBroadcasts(nmt int, t int, round types.Consensu
 			auxMsg.Round = round
 			// send the aux
 			sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round)
-			if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+			if sc.CheckMemberLocalMsg(auxMsg) {
 				sc.BroadcastFunc(nil, sc.ConsItems, auxMsg, !sc.NoSignatures,
 					sc.ConsItems.FwdChecker.GetNewForwardListFunc(), mainChannel, sc.GeneralConfig)
 			}
@@ -572,7 +572,7 @@ func (sc *BinConsRnd2) checkCoinBroadcasts(nmt int, t int, round types.Consensus
 					// Set to true before checking if we are a member, since check member will always
 					// give the same result for this round
 					sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round + 1)
-					if sc.CheckMemberLocalMsg(bvMsg.GetMsgID()) {
+					if sc.CheckMemberLocalMsg(bvMsg) {
 						sc.BroadcastFunc(nil, sc.ConsItems, bvMsg, !sc.NoSignatures,
 							sc.ConsItems.FwdChecker.GetNewForwardListFunc(), mainChannel, sc.GeneralConfig)
 						// cons.BroadcastBin(nil, sc.ByzType, sc, auxMsg, mainChannel, prfs...)
@@ -588,7 +588,7 @@ func (sc *BinConsRnd2) checkCoinBroadcasts(nmt int, t int, round types.Consensus
 					auxMsg.Round = round + 1
 					// Set to true before checking if we are a member, since check member will always
 					// give the same result for this round
-					if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+					if sc.CheckMemberLocalMsg(auxMsg) {
 						sc.BroadcastFunc(nil, sc.ConsItems, auxMsg, !sc.NoSignatures,
 							sc.ConsItems.FwdChecker.GetNewForwardListFunc(), mainChannel, sc.GeneralConfig)
 						// cons.BroadcastBin(nil, sc.ByzType, sc, auxMsg, mainChannel, prfs...)

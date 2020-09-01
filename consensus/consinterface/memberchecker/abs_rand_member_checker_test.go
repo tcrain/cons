@@ -60,7 +60,10 @@ func TestAbsRandKnownMemberChecker(t *testing.T) {
 	intAbsRandKnownMemberCheckerTest(ec.NewEcpriv, t)
 }
 
+var knownGC = &generalconfig.GeneralConfig{}
+
 func intAbsRandKnownMemberCheckerTest(newPrivFunc func() (sig.Priv, error), t *testing.T) {
+
 	numKeys := 100
 	privs := make(sig.PrivList, numKeys)
 	var err error
@@ -87,14 +90,14 @@ func intAbsRandKnownMemberCheckerTest(newPrivFunc func() (sig.Priv, error), t *t
 	}
 
 	count := len(privs) / 2
-	for i := range privs {
-		a[i] = initAbsRoundKnownMemberChecker(nil)
+	for i, p := range privs {
+		a[i] = initAbsRoundKnownMemberChecker(p, nil, knownGC)
 		a[i].gotRand(initRnd, len(privs)/2, privs[0], pubs, memMap, nil)
 	}
 
 	var memCount int
 	for _, p := range pubs {
-		if a[0].checkRandMember(nil, false, count, len(privs), p) == nil {
+		if a[0].checkRandMember(nil, false, false, count, len(privs), p) == nil {
 			memCount++
 		}
 	}
@@ -147,19 +150,19 @@ func intTestAbsRandMemberChecker(newPrivFunc func() (sig.Priv, error), newMCFunc
 
 	for i, priv := range privs {
 		if i != 0 { // since we already added the VRF of the local key when gotRand was called, we only check this for other keys
-			assert.NotNil(t, a[0].checkRandMember(msgID, false, count, count, priv.GetPub()))
+			assert.NotNil(t, a[0].checkRandMember(msgID, false, false, count, count, priv.GetPub()))
 		}
 
-		prf := a[i].getMyVRF(msgID)
-		err := a[0].GotVrf(priv.GetPub(), msgID, prf)
+		prf := a[i].getMyVRF(false, msgID)
+		err := a[0].GotVrf(priv.GetPub(), false, msgID, prf)
 		assert.Nil(t, err)
 
-		assert.Nil(t, a[0].checkRandMember(msgID, false, count, count, priv.GetPub()))
+		assert.Nil(t, a[0].checkRandMember(msgID, false, false, count, count, priv.GetPub()))
 	}
 
 	var memberCount int
 	for _, priv := range privs {
-		if err := a[0].checkRandMember(msgID, false, count/2, count, priv.GetPub()); err == nil {
+		if err := a[0].checkRandMember(msgID, false, false, count/2, count, priv.GetPub()); err == nil {
 			memberCount++
 		}
 	}
@@ -174,8 +177,8 @@ func intTestAbsRandMemberChecker(newPrivFunc func() (sig.Priv, error), newMCFunc
 			somemsg := messagetypes.NewAuxProofMessage(false)
 			somemsg.Round = types.ConsensusRound(i)
 			msgID := somemsg.GetMsgID()
-			prf := a[j].getMyVRF(msgID)
-			err := a[0].GotVrf(priv.GetPub(), msgID, prf)
+			prf := a[j].getMyVRF(false, msgID)
+			err := a[0].GotVrf(priv.GetPub(), false, msgID, prf)
 			assert.Nil(t, err)
 
 			if _, _, err := a[0].checkRandCoord(count/2, count, msgID, types.ConsensusRound(i), priv.GetPub()); err == nil {

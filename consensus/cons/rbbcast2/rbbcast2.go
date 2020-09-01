@@ -466,7 +466,7 @@ func (sc *RbBcast2) broadcastCommit(nmt int, proposalHash []byte,
 	newMsg := messagetypes.NewMvCommitMessage()
 	newMsg.ProposalHash = proposalHash
 
-	if sc.CheckMemberLocalMsg(newMsg.GetMsgID()) { // only send the message if we are a participant of consensus
+	if sc.CheckMemberLocalMsg(newMsg) { // only send the message if we are a participant of consensus
 
 		// Check if we should include proofs and who to broadcast to based on the BroadcastCollect settings
 		includeProofs, nxtCoordPub := cons.CheckIncludeEchoProofs(0, sc.ConsItems,

@@ -20,47 +20,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package memberchecker
 
 import (
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/auth/sig"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
 	"math"
-	"sync"
 )
-
-type absRandMemberInterface interface {
-	// gotRand will be called when the consensus index has decided. If random bytes are enabled they will be included.
-	// participantNodeCount is the number of pubs that should be selected from sortedMemberPubs to be chosen as members for
-	// the consensus index.
-	// If sortedMemberPubs is nil they they have not changed since the last consensus index.
-	gotRand(rnd [32]byte, participantNodeCount int, myPriv sig.Priv, sortedMemberPubs sig.PubList,
-		memberMap map[sig.PubKeyID]sig.Pub, prvMC absRandMemberInterface)
-	// checkRandMember should return nil if pub should participate in this consensus given the inputs, or an error otherwise.
-	checkRandMember(msgID messages.MsgID, isProposalMsg bool, participantNodeCount, totalNodeCount int, pub sig.Pub) error
-	// checkRandCoord checks if pub should participate in this consensus as a coordinator given the inputs.
-	// If pub is nil then the coordinator pub should be returned as coord.
-	// randVal is the random value given to the pub as coordinator, the lower the value the more it is supported as coordinator.
-	// Otherwise an error is returned if pub is not a coordinator.
-	checkRandCoord(participantNodeCount, totalNodeCount int, msgID messages.MsgID, round types.ConsensusRound,
-		pub sig.Pub) (rndVal uint64, coord sig.Pub, err error)
-	// GotVrf should be called when a VRFProof is received for the pub and message type.
-	GotVrf(pub sig.Pub, msgID messages.MsgID, proof sig.VRFProof) error
-	// getMyVRF returns the VRFProof for the local node and message type for this consensus.
-	getMyVRF(id messages.MsgID) sig.VRFProof
-	// getRnd returns the random value given by gotRnd.
-	getRnd() [32]byte
-	// newRndMC is called to generate a new random member checker for the given index. It should be called on the
-	// initial random member checker.
-	newRndMC(index types.ConsensusIndex, stats stats.StatsInterface) absRandMemberInterface
-	// setMainChannel is called once during initialization to set the main channel object.
-	setMainChannel(mainChannel channelinterface.MainChannel)
-	// rndDoneNextUpdate state should be called by MemberChecker.DoneNextUpdateState
-	rndDoneNextUpdateState() error
-}
 
 type pubMsgID struct {
 	pub   sig.PubKeyID
@@ -75,83 +42,31 @@ type prfRnd struct {
 // absRandMemberCheckerByID uses VRF to determine members for the consensus, the members are chosen
 // for each message type.
 type absRandMemberCheckerByID struct {
-	myIdx  types.ConsensusIndex
-	myPriv sig.Priv
-	// myVrf                 sig.VRFProof
-	rnd            [32]byte
-	randBasicMsg   sig.BasicSignedMessage
-	randUint64     uint64
-	vrfRandByMsgID map[pubMsgID]prfRnd
-	rndLock        sync.RWMutex
-	rndStats       stats.StatsInterface
-	gc             *generalconfig.GeneralConfig
+	*absRandCoordByID
 }
 
-func initAbsRandMemberCheckerByID(priv sig.Priv, stats stats.StatsInterface, gc *generalconfig.GeneralConfig) *absRandMemberCheckerByID {
+func initAbsRandMemberCheckerByID(priv sig.Priv, stats stats.StatsInterface,
+	gc *generalconfig.GeneralConfig) *absRandMemberCheckerByID {
+
 	return &absRandMemberCheckerByID{
-		rndStats:       stats,
-		myPriv:         priv,
-		gc:             gc,
-		vrfRandByMsgID: make(map[pubMsgID]prfRnd)}
+		absRandCoordByID: initAbsRandCoordByID(priv, stats, gc),
+	}
 }
-
-func (arm *absRandMemberCheckerByID) setMainChannel(_ channelinterface.MainChannel) {}
 
 func (arm *absRandMemberCheckerByID) newRndMC(idx types.ConsensusIndex, stats stats.StatsInterface) absRandMemberInterface {
-	ret := initAbsRandMemberCheckerByID(arm.myPriv, stats, arm.gc)
-	ret.myIdx = idx
-	return ret
-}
-
-// rndDoneNextUpdate state does nothing here.
-func (arm *absRandMemberCheckerByID) rndDoneNextUpdateState() error {
-	return nil
-}
-
-func (arm *absRandMemberCheckerByID) getRnd() [32]byte {
-	return arm.rnd
-}
-
-// gotRand should be called with the random bytes received from the state machine after deciding the previous
-// consensus instance.
-func (arm *absRandMemberCheckerByID) gotRand(rnd [32]byte, participantNodeCount int, newPriv sig.Priv,
-	sortedMemberPubs sig.PubList, _ map[sig.PubKeyID]sig.Pub, prvMC absRandMemberInterface) {
-
-	_, _, _ = participantNodeCount, sortedMemberPubs, prvMC
-	arm.myPriv = newPriv
-	arm.rnd = rnd
-	arm.randBasicMsg = rnd[:]
-	arm.randUint64 = config.Encoding.Uint64(arm.randBasicMsg)
+	return &absRandMemberCheckerByID{
+		absRandCoordByID: arm.absRandCoordByID.newRndMC(idx, stats).(*absRandCoordByID),
+	}
 }
 
 // getMyVRF returns the vrf proof for the local node.
-func (arm *absRandMemberCheckerByID) getMyVRF(msgID messages.MsgID) sig.VRFProof {
-	// compute our own vrf
-	mypid, err := arm.myPriv.GetPub().GetPubID()
-	if err != nil {
-		panic(err)
-	}
-	arm.rndLock.Lock()
-	item, ok := arm.vrfRandByMsgID[pubMsgID{pub: mypid, msgID: msgID}]
-	arm.rndLock.Unlock()
-	if ok {
-		return item.prf
-	}
-
-	newMsg := arm.computeNewMsg(msgID)
-	_, prf := arm.myPriv.(sig.VRFPriv).Evaluate(newMsg)
-	if arm.rndStats != nil {
-		arm.rndStats.CreatedVRF()
-	}
-	// add it to our local map
-	if err := arm.GotVrf(arm.myPriv.GetPub(), msgID, prf); err != nil {
-		panic(err)
-	}
-	return prf
+func (arm *absRandMemberCheckerByID) getMyVRF(isProposal bool, msgID messages.MsgID) sig.VRFProof {
+	_ = isProposal
+	return arm.getMyVRFInternal(msgID)
 }
 
 // checkLocal is called to check if we are checking for local membership for the MsgID then we have computed the local VRF
-func (arm *absRandMemberCheckerByID) checkLocal(msgID messages.MsgID, pid sig.PubKeyID) {
+func (arm *absRandMemberCheckerByID) checkLocal(isProposal bool, msgID messages.MsgID, pid sig.PubKeyID) {
 	mypid, err := arm.myPriv.GetPub().GetPubID()
 	if err != nil {
 		panic(err)
@@ -161,7 +76,7 @@ func (arm *absRandMemberCheckerByID) checkLocal(msgID messages.MsgID, pid sig.Pu
 		_, ok := arm.vrfRandByMsgID[pubMsgID{pub: mypid, msgID: msgID}]
 		arm.rndLock.RUnlock()
 		if !ok {
-			arm.getMyVRF(msgID)
+			arm.getMyVRF(isProposal, msgID)
 		}
 	}
 }
@@ -170,8 +85,10 @@ func (arm *absRandMemberCheckerByID) checkLocal(msgID messages.MsgID, pid sig.Pu
 // participantNodeCount is the number of participants expected for this consensus.
 // totalNodeCount is the total number of nodes in the system.
 // It returns nil if the node can participate for this message, otherwise an error.
-func (arm *absRandMemberCheckerByID) checkRandMember(msgID messages.MsgID, isProposalMsg bool, participantNodeCount, totalNodeCount int, pub sig.Pub) error {
-	_ = isProposalMsg
+func (arm *absRandMemberCheckerByID) checkRandMember(msgID messages.MsgID, isLocal, isProposalMsg bool,
+	participantNodeCount, totalNodeCount int, pub sig.Pub) error {
+
+	_ = isLocal
 	if arm.randBasicMsg == nil {
 		panic("should not call this until after gotRand has been called")
 	}
@@ -180,7 +97,7 @@ func (arm *absRandMemberCheckerByID) checkRandMember(msgID messages.MsgID, isPro
 	if err != nil {
 		panic(err)
 	}
-	arm.checkLocal(msgID, pid) // check if this is a local message
+	arm.checkLocal(isProposalMsg, msgID, pid) // check if this is a local message
 
 	// the nodes random bytes converted to a uint64
 	arm.rndLock.RLock()
@@ -200,79 +117,9 @@ func (arm *absRandMemberCheckerByID) checkRandMember(msgID messages.MsgID, isPro
 	return types.ErrNotMember
 }
 
-// checkRandCoord uses the VRFs to determine if pub is a valid coordinator for this consensus.
-// Note due to the random function, there can be 0 or multiple valid coordinators.
-// participantNodeCount is the number of participants expected for this node.
-// totalNodeCount is the total number of nodes in the system.
-// It returns nil if the node can participate for this message, otherwise an error.
-func (arm *absRandMemberCheckerByID) checkRandCoord(participantNodeCount, totalNodeCount int, msgID messages.MsgID,
-	round types.ConsensusRound, pub sig.Pub) (rndValue uint64, coord sig.Pub, err error) {
-
-	_, _, totalNodeCount = participantNodeCount, round, totalNodeCount
-	if arm.randBasicMsg == nil {
-		panic("should not call this until after gotRand has been called")
-	}
-
-	pid, err := pub.GetPubID()
-	if err != nil {
-		panic(err)
-	}
-	arm.checkLocal(msgID, pid) // check if this is a local message
-
-	arm.rndLock.RLock()
-	item, ok := arm.vrfRandByMsgID[pubMsgID{pub: pid, msgID: msgID}]
-	arm.rndLock.RUnlock()
-	if !ok {
-		panic(1)
-		return 0, nil, types.ErrNotReceivedVRFProof
-	}
-
-	// the threshold for the given number of nodes
-	onePc := uint64(math.MaxUint64) / 100
-	thrsh := uint64(float64(onePc) * float64(arm.gc.CoordChoiceVRF)) //* (float64(100) / float64(totalNodeCount))) //arm.coordinatorRelaxation
-
-	// thrsh := uint64((float64(1)/float64(totalNodeCount))*math.MaxUint64)
-	if item.rnd <= thrsh {
-		return item.rnd, pub, nil
-	}
-	return 0, nil, types.ErrNotMember
-}
-
 // GotVrf should be called when a node's VRF proof is received for this consensus instance.
-func (arm *absRandMemberCheckerByID) GotVrf(pub sig.Pub, msgID messages.MsgID, proof sig.VRFProof) error {
-	if arm.randBasicMsg == nil {
-		panic("should not call this until after gotRand has been called")
-	}
+func (arm *absRandMemberCheckerByID) GotVrf(pub sig.Pub, isProposal bool, msgID messages.MsgID, proof sig.VRFProof) error {
 
-	pid, err := pub.GetPubID()
-	if err != nil {
-		panic(err)
-	}
-
-	arm.rndLock.Lock()
-	_, ok := arm.vrfRandByMsgID[pubMsgID{pub: pid, msgID: msgID}]
-	arm.rndLock.Unlock()
-	if !ok {
-		newMsg := arm.computeNewMsg(msgID)
-		rndByte, err := pub.(sig.VRFPub).ProofToHash(newMsg, proof)
-		if arm.rndStats != nil {
-			arm.rndStats.ValidatedVRF()
-		}
-		if err != nil {
-			return err
-		}
-		rnd := config.Encoding.Uint64(rndByte[:])
-		arm.rndLock.Lock()
-		arm.vrfRandByMsgID[pubMsgID{pub: pid, msgID: msgID}] = prfRnd{prf: proof, rnd: rnd}
-		arm.rndLock.Unlock()
-	}
-	return nil
-}
-
-func (arm *absRandMemberCheckerByID) computeNewMsg(msgID messages.MsgID) sig.BasicSignedMessage {
-	// The message we use to compute the VRF is the MsgID (containing the index) plus the random bytes
-	m := messages.NewMsgBuffer()
-	m.AddBytes(msgID.ToBytes(arm.myIdx))
-	m.AddBytes(arm.randBasicMsg)
-	return m.GetRemainingBytes()
+	_ = isProposal
+	return arm.gotVrfInternal(pub, msgID, proof)
 }

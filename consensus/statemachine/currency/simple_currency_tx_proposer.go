@@ -234,14 +234,19 @@ func (spi *SimpleCurrencyTxProposer) GetInitialState() []byte {
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *SimpleCurrencyTxProposer) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
-	n := spi.GetRndNumBytes()
+	var err error
+	var n int
+	buf := bytes.NewReader(originProposal)
+	n, err = spi.RandHasDecided(spi.GeneralConfig.Priv.GetPub(), buf, false)
+	if err != nil {
+		panic(err)
+	}
 
 	var validBlock bool
 	var txBlock *TxBlock
-	var err error
-	validBlock, txBlock, err = spi.deserializeBlock(bytes.NewReader(originProposal[n:]))
+	validBlock, txBlock, err = spi.deserializeBlock(buf)
 	if err != nil {
 		panic(err)
 	}
@@ -441,6 +446,7 @@ func (spi *SimpleCurrencyTxProposer) StartIndex(nxt types.ConsensusInt) consinte
 	ret.myProposals = nil
 
 	ret.AbsStartIndex(nxt)
+	ret.RandStartIndex(spi.AbsRandSM.GetRand())
 	return ret
 }
 

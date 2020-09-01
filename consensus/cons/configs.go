@@ -512,6 +512,16 @@ var AllTestConfig = OptionStruct{
 	UseFixedCoinPresets:    types.WithBothBool,
 }
 
+var BasicTestConfigs = ReplaceNilFields(OptionStruct{
+	StateMachineTypes:    []types.StateMachineType{types.CurrencyTxProposer},
+	MemberCheckerTypes:   []types.MemberCheckerType{types.CurrentTrueMC},
+	StopOnCommitTypes:    []types.StopOnCommitType{types.Immediate},
+	ByzTypes:             []types.ByzType{types.NonFaulty},
+	IncludeProofsTypes:   types.WithFalse,
+	EncryptChannelsTypes: types.WithFalse,
+	UsePubIndexTypes:     types.WithTrue,
+}, AllTestConfig)
+
 // SingleSMTest is the same as AllTestConfig with the state machine types replaced to one type.
 var SingleSMTest = ReplaceNilFields(OptionStruct{StateMachineTypes: []types.StateMachineType{types.BinaryProposer,
 	types.CounterProposer, types.CausalCounterProposer},

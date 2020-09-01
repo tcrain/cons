@@ -249,6 +249,13 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, toRun, t)
 
+	fmt.Println("Running with VRF type random member selection and random coordinator")
+	cTo := to
+	cTo.UseRandCoord = true
+	iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(BasicTestConfigs, cTo))
+	assert.Nil(t, err)
+	runIterTests(initItem, consConfigs, iter, toRun, t)
+
 	if runLocalRand {
 		// for these tests we only want to run one test, so we just take the first config if none is set
 		if len(toRun) == 0 {
@@ -268,6 +275,14 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 		}, AllTestConfig)
 
 		iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, to))
+		assert.Nil(t, err)
+		runIterTests(initItem, consConfigs, iter, toRun, t)
+
+		fmt.Println("Running with local random member selection and random coord")
+		cTo := to
+		cTo.GenRandBytes = true
+		cTo.UseRandCoord = true
+		iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, cTo))
 		assert.Nil(t, err)
 		runIterTests(initItem, consConfigs, iter, toRun, t)
 

@@ -460,7 +460,7 @@ func (sc *BinConsRnd1) checkBroadcastsAuxCoin(nmt int, t int, round types.Consen
 
 			// Set to true before checking if we are a member, since check member will always
 			// give the same result for this round
-			if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+			if sc.CheckMemberLocalMsg(auxMsg) {
 				// add the coin
 				if round > binMsgState.maxCoinPresetRound {
 					coinMsg := sc.coin.GenerateCoinMessage(round,
@@ -578,7 +578,7 @@ func (sc *BinConsRnd1) checkBroadcasts(nmt int, t int, round types.ConsensusRoun
 		auxMsg.Round = round + 1
 		// Set to true before checking if we are a member, since check member will always
 		// give the same result for this round
-		if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+		if sc.CheckMemberLocalMsg(auxMsg) {
 			if sc.IncludeProofs {
 				// collect signatures to support your choice
 				var err error

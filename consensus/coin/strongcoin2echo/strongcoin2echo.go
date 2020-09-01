@@ -58,7 +58,7 @@ func (sc1 *StrongCoin2Echo) GenerateCoinMessage(round types.ConsensusRound, alwa
 
 		// Set to true before checking if we are a member, since check member will always
 		// give the same result for this round
-		if consItem.CheckMemberLocalMsg(coinMsg.GetMsgID()) || alwaysGenerate {
+		if consItem.CheckMemberLocalMsg(coinMsg) || alwaysGenerate {
 			// compute the coin
 			// Add any needed signatures
 			var err error
@@ -109,7 +109,7 @@ func (sc1 *StrongCoin2Echo) CheckCoinMessage(deser *channelinterface.Deserialize
 
 			// Set to true before checking if we are a member, since check member will always
 			// give the same result for this round
-			if consItem.CheckMemberLocalMsg(coinMsg.GetMsgID()) || alwaysGenerate {
+			if consItem.CheckMemberLocalMsg(coinMsg) || alwaysGenerate {
 				// compute the coin
 				// Add any needed signatures
 				var err error

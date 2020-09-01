@@ -78,16 +78,19 @@ func (spi *MvCons1ProposalInfo) Init(gc *generalconfig.GeneralConfig, lastPropos
 func (spi *MvCons1ProposalInfo) HasDecided(proposer sig.Pub, nxt types.ConsensusInt, decision []byte) {
 	spi.AbsHasDecided(nxt, decision)
 
-	buf := bytes.NewReader(decision)
-	var err error
-	_, err = spi.RandHasDecided(proposer, buf, true)
-	if err != nil {
-		logging.Error("invalid mv vrf proof", err)
-	}
-
-	if buf.Len() != spi.proposalSizeBytes {
-		logging.Warning("invalid mv proposal length", buf.Len(), spi.proposalSizeBytes)
-		return
+	if len(decision) == 0 {
+		logging.Warning("Decided nil")
+	} else {
+		buf := bytes.NewReader(decision)
+		var err error
+		_, err = spi.RandHasDecided(proposer, buf, true)
+		if err != nil {
+			logging.Error("invalid mv vrf proof", err)
+		}
+		if buf.Len() != spi.proposalSizeBytes {
+			logging.Warning("invalid mv proposal length", buf.Len(), spi.proposalSizeBytes)
+			return
+		}
 	}
 }
 
@@ -179,6 +182,7 @@ func (spi *MvCons1ProposalInfo) StartIndex(nxt types.ConsensusInt) consinterface
 	*ret = *spi
 
 	ret.AbsStartIndex(nxt)
+	ret.RandStartIndex(spi.randBytes)
 	return ret
 }
 

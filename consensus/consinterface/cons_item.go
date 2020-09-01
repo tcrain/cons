@@ -126,7 +126,7 @@ type ConsItem interface {
 		mainChannel channelinterface.MainChannel,
 		additionalMsgs ...messages.MsgHeader)
 	// CheckMemberLocalMsg checks if the local node is a member of the consensus for this message type
-	CheckMemberLocalMsg(msgID messages.MsgID) bool
+	CheckMemberLocalMsg(hdr messages.InternalSignedMsgHeader) bool
 	// CheckMemberLocal checks if the node is a member of the consensus.
 	CheckMemberLocal() bool
 	// GetConsInterfaceItems returns the ConsInterfaceItems for this consesnsus instance.
@@ -206,6 +206,7 @@ func CreateGeneralConfig(testId int, eis generalconfig.ExtraInitState,
 	gc.NodeChoiceVRFRelaxation = to.NodeChoiceVRFRelaxation
 	gc.CoordChoiceVRF = to.CoordChoiceVRF
 	gc.RandForwardTimeout = to.RandForwardTimeout
+	gc.UseRandCoord = to.UseRandCoord
 
 	return gc
 }

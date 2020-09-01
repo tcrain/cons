@@ -83,6 +83,7 @@ func (spi *SimpleTxProposer) Collect() {
 }
 
 func (spi *SimpleTxProposer) StatsString(testDuration time.Duration) string {
+	_ = testDuration
 	return fmt.Sprintf("Max id committed: %v, %v", spi.maxTxIdCommitted, spi.txPool.String())
 }
 
@@ -91,9 +92,9 @@ func (spi *SimpleTxProposer) StatsString(testDuration time.Duration) string {
 func (spi *SimpleTxProposer) runTxProposeThread() {
 	spi.txThread = true
 	go func() {
-		rand := rand.New(rand.NewSource(spi.randSeed + int64(spi.index.Index.(types.ConsensusInt))))
+		rnd := rand.New(rand.NewSource(spi.randSeed + int64(spi.index.Index.(types.ConsensusInt))))
 		for atomic.LoadInt32(&spi.startedNext) == 0 && !spi.txPool.BlockIfFull() { // run until the pool is closed
-			if err := spi.SubmitTransaction(spi.maxTxIdCommitted + rand.Intn(1000)); err != nil {
+			if err := spi.SubmitTransaction(spi.maxTxIdCommitted + rnd.Intn(1000)); err != nil {
 				logging.Info("Error during tx proposal: ", err)
 			}
 		}
@@ -116,7 +117,7 @@ func (spi *SimpleTxProposer) Init(gc *generalconfig.GeneralConfig, lastProposal 
 }
 
 func (spi *SimpleTxProposer) txValidFunc(tx transactionsm.TransactionInterface) error {
-	if tx.(*transactionsm.TestTx).Id <= int(spi.maxTxIdCommitted) {
+	if tx.(*transactionsm.TestTx).Id <= spi.maxTxIdCommitted {
 		return types.ErrInvalidIndex
 	}
 	return nil
@@ -154,7 +155,7 @@ func (spi *SimpleTxProposer) HasDecided(proposer sig.Pub, nxt types.ConsensusInt
 
 		// Store the max committed id
 		for _, nxtTx := range txList.Items {
-			if int(nxtTx.(*transactionsm.TestTx).Id) > spi.maxTxIdCommitted {
+			if nxtTx.(*transactionsm.TestTx).Id > spi.maxTxIdCommitted {
 				spi.maxTxIdCommitted = int(nxtTx.(*transactionsm.TestTx).Id)
 			}
 		}
@@ -252,7 +253,7 @@ func (spi *SimpleTxProposer) GetProposal() {
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *SimpleTxProposer) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
 	n := spi.GetRndNumBytes()
 	buf := bytes.NewReader(originProposal[n:])
@@ -321,7 +322,7 @@ func (spi *SimpleTxProposer) StartIndex(nxt types.ConsensusInt) consinterface.St
 		sharedState:      spi.sharedState,
 		endChan:          make(chan int, 1),
 		prevItem:         spi}
-
+	ret.RandStartIndex(spi.randBytes)
 	ret.AbsStartIndex(nxt)
 	return ret
 }

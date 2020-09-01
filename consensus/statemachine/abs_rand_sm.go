@@ -61,10 +61,12 @@ func (spi *AbsRandSM) AbsRandInit(gc *generalconfig.GeneralConfig) {
 // GetRand returns the 32 random bytes for this state machine.
 // It should only be called after RandHasDecided.
 func (spi *AbsRandSM) GetRand() [32]byte {
-	if !spi.useRand {
-		panic("rand bytes not enabled")
-	}
 	return spi.randBytes
+}
+
+// RandStartIndex is called when the state machine is started with the previously decided random bytes.
+func (spi *AbsRandSM) RandStartIndex(prevRand [32]byte) {
+	spi.randBytes = prevRand // we start with the previously decided random bytes in case we decide nil or the VRF is invalid
 }
 
 // RandGetProposal encodes random bytes using a VRF to the buffer.

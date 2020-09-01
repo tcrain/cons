@@ -69,6 +69,7 @@ type GeneralConfig struct {
 	MvConsRequestRecoverTimeout int                        // millseconds timeout before requesting the full proposal after delivering the hash
 	NodeChoiceVRFRelaxation     int                        // Additional chance to chose a node as a member when using VRF.
 	CoordChoiceVRF              int                        // Chance of each node being chosen as a coordinator when using VRF.
+	UseRandCoord                bool                       // If true round coordinators will be chosen using VRFs
 }
 
 type ExtraInitState interface {

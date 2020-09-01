@@ -52,7 +52,7 @@ func NewBinCons1ProposalInfo(binConsPercentOnes int, seed int64, numParticipants
 	// rand := rand.New(rand.NewSource(atomic.AddInt64(&binconsSeed, 1)))
 	randlocal := rand.New(rand.NewSource(seed))
 
-	var perm []bool
+	var perm []bool                           // no longer used
 	if false && numParticipants == numNodes { // We use a random permutation to choose the number of ones exactly (otherwise we just choose randomly)
 		perm = make([]bool, numParticipants)
 		numOnes := int(float64(numParticipants) * (float64(binConsPercentOnes) / 100))
@@ -70,8 +70,9 @@ func (spi *BinCons1ProposalInfo) shuffleOnes() {
 }
 
 // Init initalizes the object.
-func (spi *BinCons1ProposalInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt, needsConcurrent types.ConsensusInt,
-	mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType) {
+func (spi *BinCons1ProposalInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt,
+	needsConcurrent types.ConsensusInt, mainChannel channelinterface.MainChannel,
+	doneChan chan channelinterface.ChannelCloseType) {
 
 	spi.AbsInit(gc, lastProposal, needsConcurrent, mainChannel, doneChan)
 }
@@ -82,6 +83,7 @@ func (spi *BinCons1ProposalInfo) GetInitialState() []byte {
 }
 
 func (spi *BinCons1ProposalInfo) StatsString(testDuration time.Duration) string {
+	_ = testDuration
 	return ""
 }
 
@@ -120,12 +122,13 @@ func checkBinary(dec []byte) error {
 
 // ValidateProposal should return true if the input proposal is valid.
 func (spi *BinCons1ProposalInfo) ValidateProposal(proposer sig.Pub, dec []byte) error {
+	_ = proposer
 	return checkBinary(dec)
 }
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *BinCons1ProposalInfo) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
 	return []byte{1 - originProposal[0]}
 }
@@ -143,6 +146,7 @@ func (spi *BinCons1ProposalInfo) StartIndex(nxt types.ConsensusInt) consinterfac
 
 // HasDecided is called after the index nxt has decided.
 func (spi *BinCons1ProposalInfo) HasDecided(proposer sig.Pub, nxt types.ConsensusInt, decision []byte) {
+	_ = proposer
 	if err := checkBinary(decision); err != nil {
 		panic(err)
 	}

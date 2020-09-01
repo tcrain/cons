@@ -657,7 +657,7 @@ func (sc *MvCons2) checkProgressRound(round types.ConsensusRound, t, nmt int, ma
 			// if we have a valid init message then we don't care about the timeout (if we are not selecting random members)
 			var hash types.HashBytes
 			zeroHashValid, initMsg := sc.isInitValid(round, nmt)
-			selectRandMembers := consinterface.ShouldWaitForRndCoord(sc.ConsItems.MC.MC.RandMemberType())
+			selectRandMembers := consinterface.ShouldWaitForRndCoord(sc.ConsItems.MC.MC.RandMemberType(), sc.GeneralConfig)
 			if initMsg != nil && // have a valid init message and either (a) or (b)
 				((selectRandMembers && roundState.initTimeOutState == cons.TimeoutPassed) || // (a) the init timeout has passed and we are selecting random members
 					!selectRandMembers) { // (b) we are not selecting random members
@@ -814,7 +814,7 @@ func (sc *MvCons2) broadcastEcho(nmt int, proposalHash []byte, round types.Conse
 	newMsg.ProposalHash = proposalHash
 	sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round)
 
-	if sc.CheckMemberLocalMsg(newMsg.GetMsgID()) { // only send the message if we are a participant of consensus
+	if sc.CheckMemberLocalMsg(newMsg) { // only send the message if we are a participant of consensus
 		var proofMsg messages.MsgHeader
 		var err error
 		if sc.includeProofs && round > 0 {
@@ -841,7 +841,7 @@ func (sc *MvCons2) broadcastCommit(nmt int, proposalHash []byte, round types.Con
 	newMsg.ProposalHash = proposalHash
 	sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round)
 
-	if sc.CheckMemberLocalMsg(newMsg.GetMsgID()) { // only send the message if we are a participant of consensus
+	if sc.CheckMemberLocalMsg(newMsg) { // only send the message if we are a participant of consensus
 
 		// Check if we should include proofs and who to broadcast to based on the BroadcastCollect settings
 		includeProofs, nxtCoordPub := cons.CheckIncludeEchoProofs(round, sc.ConsItems,

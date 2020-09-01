@@ -716,7 +716,7 @@ func (sc *BinConsRnd6) broadcastMsg(msgType messages.HeaderID, binVal types.BinV
 		panic(msgType)
 	}
 	sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round)
-	if sc.CheckMemberLocalMsg(msg.GetMsgID()) {
+	if sc.CheckMemberLocalMsg(msg) {
 		sc.BroadcastFunc(nil, sc.ConsItems, msg, !sc.NoSignatures,
 			sc.ConsItems.FwdChecker.GetNewForwardListFunc(), sc.MainChannel, sc.GeneralConfig)
 

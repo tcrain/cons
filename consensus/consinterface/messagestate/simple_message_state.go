@@ -273,7 +273,7 @@ func (sms *SimpleMessageState) SetupSignedMessage(hdr messages.InternalSignedMsg
 
 	var myVrf sig.VRFProof
 	// add the signatures
-	myVrf = mc.MC.GetMyVRF(hdr.GetMsgID())
+	myVrf = mc.MC.GetMyVRF(messages.IsProposalHeader(sms.index, hdr), hdr.GetMsgID())
 	_, err := sms.msgMap.setupSigs(sm, priv, generateMySig, myVrf, addOthersSigsCount, mc)
 	return sm, err
 }

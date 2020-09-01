@@ -64,9 +64,6 @@ type TestOptions struct {
 	StateMachineType      StateMachineType       // The application being implemented by the state machines
 	PartialMessageType    PartialMessageType     // The type of partial messsages to use during broadcasts
 	AllowConcurrent       uint64                 // Number of concurrent consensus indecies to allow to run.
-	GenRandBytes          bool                   // If true the state machine shouldn generate random bytes each decision.
-	RndMemberCount        int                    // Only works if GenRandBytes is ture. This chooses RndMemberCount members to randomly decide which nodes will participate, if 0 random selection is not used.
-	RndMemberType         RndMemberType          // Type of random membeship selection, RndMemberCount must be > 0 for this.
 	LocalRandMemberChange uint64                 // On consensus index mod this value, the local rand member checker will change.
 	RotateCord            bool                   // If true then the coordinator will rotate each consensus index, if supported by the member checker.
 	AllowSupportCoin      bool                   // True if AuxProofMessages can support the coin directly instead of a bin value.
@@ -100,8 +97,13 @@ type TestOptions struct {
 	MvConsTimeout               int // millseconds timeout when taking an action in the 3 step mv to bin reduction
 	MvConsRequestRecoverTimeout int // millseconds timeout before requesting the full proposal after delivering the hash
 
-	NodeChoiceVRFRelaxation int // Additional chance to chose a node as a member when using VRF.
-	CoordChoiceVRF          int // Chance of each node being chosen as a coordinator when using VRF.
+	NodeChoiceVRFRelaxation int           // Additional chance to chose a node as a member when using VRF.
+	CoordChoiceVRF          int           // Chance of each node being chosen as a coordinator when using VRF.
+	GenRandBytes            bool          // If true the state machine shouldn generate random bytes each decision.
+	RndMemberCount          int           // Only works if GenRandBytes is ture. This chooses RndMemberCount members to randomly decide which nodes will participate, if 0 random selection is not used.
+	RndMemberType           RndMemberType // Type of random membeship selection, RndMemberCount must be > 0 for this.
+	UseRandCoord            bool          // If true round coordinators will be chosen using VRFs note, that these are only calculated from within the existing random members
+	// so the coordinator relaxation may need to be higher
 }
 
 // UsesVRFs returns true if this test configuration uses VRFs.
@@ -110,28 +112,29 @@ func (to TestOptions) UsesVRFs() bool {
 	case KnownPerCons, VRFPerCons, VRFPerMessage:
 		return true
 	}
-	return false
+	return to.UseRandCoord
 }
 func (to TestOptions) String() string {
-	return fmt.Sprintf("{ConsType: %v, Rounds: %v, Fail round: %v, Total procs: %v, Nonmember procs: %v, Fail procs: %v, Byz procs: %v, "+
-		"ByzType: %s, \n\tConnection: %s, Msg Drop%%: %v, Network: %s, Nw fan out: %v, Storage type: %s, Clear disk on restart: %v,"+
+	return fmt.Sprintf("{ConsType: %v, Rounds: %v, Fail round: %v, Total procs: %v, Nonmember procs: %v, Fail procs: %v, "+
+		"\n\tConnection: %s, Msg Drop%%: %v, Network: %s, Nw fan out: %v, Storage type: %s, Clear disk on restart: %v,"+
 		"\n\tInclude proofs: %v, Sig type: %s, Use multisig: %v, Use pub index: %v, Buffer Forwarder: %v,"+
 		"\n\tState machine: %v, Allow concurrent: %v, Rotate cord: %v, Gen rand bytes: %v, Ordering: %v,"+
-		"\n\tRand member type: %v, Rand members %v, LocalRandMemberChange: %v, AllowSupportCoin: %v, MCType: %v,"+
+		"\n\tRand member type: %v, Rand coord: %v, Rand members %v, LocalRandMemberChange: %v, AllowSupportCoin: %v,"+
 		"\n\tUseFullBinaryState %v, StorageBuffer %v, IncludeCurrentSigs %v, CPUProfile %v, MemProfile %v,"+
 		"\n\tNumMsgProcessThreads %v, MvProposalSizeBytes %v, BinConsPercentOnes %v, CollectBroadcast: %v,"+
-		"\n\tStopOnCommit: %v, FixedSeed: %v, EncryptChannels: %v, NoSignatures: %v,"+
-		"\n\tCoinType: %v, UseFixedCoinPresets: %v, Sleep Crypto: %v, Share Pubs: %v,"+
+		"\n\tStopOnCommit: %v, FixedSeed: %v, EncryptChannels: %v, NoSignatures: %v, Byz procs: %v, ByzType: %s,"+
+		"\n\tCoinType: %v, UseFixedCoinPresets: %v, Sleep Crypto: %v, Share Pubs: %v,  MCType: %v,"+
 		"\n\tSig BitID: %v, MC BitID: %v, WarmUp: %v, KeepPast %v, FwdTimeout: %v, RndFwdTimeout: %v,"+
 		"\n\t ProgressTimeout: %v, MVTimeout: %v, MVRecoverTimeout: %v, NodeVRFRelax: %v, CoordVRF: %v, TestID %v}",
-		to.ConsType, to.MaxRounds, to.FailRounds, to.NumTotalProcs, to.NumNonMembers, to.NumFailProcs, to.NumByz,
-		to.ByzType, to.ConnectionType, to.MsgDropPercent, to.NetworkType, to.FanOut, to.StorageType,
+		to.ConsType, to.MaxRounds, to.FailRounds, to.NumTotalProcs, to.NumNonMembers, to.NumFailProcs,
+		to.ConnectionType, to.MsgDropPercent, to.NetworkType, to.FanOut, to.StorageType,
 		to.ClearDiskOnRestart, to.IncludeProofs, to.SigType, to.UseMultisig, to.UsePubIndex, to.BufferForwarder,
-		to.StateMachineType, to.AllowConcurrent, to.RotateCord, to.GenRandBytes, to.OrderingType, to.RndMemberType, to.RndMemberCount,
-		to.LocalRandMemberChange, to.AllowSupportCoin, to.MCType,
+		to.StateMachineType, to.AllowConcurrent, to.RotateCord, to.GenRandBytes, to.OrderingType, to.RndMemberType,
+		to.UseRandCoord, to.RndMemberCount, to.LocalRandMemberChange, to.AllowSupportCoin,
 		to.UseFullBinaryState, to.StorageBuffer, to.IncludeCurrentSigs, to.CPUProfile, to.MemProfile,
 		to.NumMsgProcessThreads, to.MvProposalSizeBytes, to.BinConsPercentOnes, to.CollectBroadcast, to.StopOnCommit, to.UseFixedSeed,
-		to.EncryptChannels, to.NoSignatures, to.CoinType, to.UseFixedCoinPresets, to.SleepCrypto, to.SharePubsRPC,
+		to.EncryptChannels, to.NoSignatures, to.NumByz, to.ByzType, to.CoinType, to.UseFixedCoinPresets,
+		to.SleepCrypto, to.SharePubsRPC, to.MCType,
 		to.SigBitIDType, to.MemCheckerBitIDType, to.WarmUpInstances, to.KeepPast, to.ForwardTimeout, to.RandForwardTimeout, to.ProgressTimeout,
 		to.MvConsTimeout, to.MvConsRequestRecoverTimeout, to.NodeChoiceVRFRelaxation, to.CoordChoiceVRF, to.TestID)
 }
@@ -314,6 +317,11 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		}
 	}
 
+	if to.RndMemberType == VRFPerCons && to.UseRandCoord {
+		err = fmt.Errorf("rand coord not supported with VRFPerCons")
+		return
+	}
+
 	if to.NoSignatures {
 		switch to.RndMemberType {
 		case VRFPerCons, VRFPerMessage, KnownPerCons:
@@ -486,7 +494,8 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		err = fmt.Errorf("if using random membership selection, must have a RndMemberCout at least 4")
 		return
 	}
-	if (consType == RbBcast1Type || consType == RbBcast2Type) && (to.RndMemberType == VRFPerCons || to.RndMemberType == VRFPerMessage) {
+	if (consType == RbBcast1Type || consType == RbBcast2Type) && (to.RndMemberType == VRFPerCons ||
+		to.RndMemberType == VRFPerMessage || to.UseRandCoord) {
 
 		err = fmt.Errorf("cons type RbBcast does not support VRFPerCons or VRFPerMessage (because there will be differnt coordinators, and will block termination)")
 		return
@@ -511,6 +520,9 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 	if !(to.GenRandBytes || to.RndMemberType == LocalRandMember) && to.RndMemberCount > 0 {
 		err = fmt.Errorf("if ChooseRandMembers, then GenRandBytes must be true")
 		return
+	}
+	if !to.GenRandBytes && to.UseRandCoord {
+		err = fmt.Errorf("GenRandBytes must be true if using random coordinator")
 	}
 	if !to.AllowsRandMembers(to.MCType) && to.RndMemberCount > 0 {
 		err = fmt.Errorf("member checker type %v does not support random membership", to.MCType)
@@ -567,13 +579,17 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		err = fmt.Errorf("when using MvCons3 must use true memberchecker TrueMC")
 		return
 	}
-	if consType == MvCons3Type && (to.RotateCord || to.RndMemberType != NonRandom) {
+	if consType == MvCons3Type && (to.RotateCord || to.RndMemberType != NonRandom || to.UseRandCoord) {
 		err = fmt.Errorf("must set rotateCord to false and disable random membership when using MvCons3")
 		return
 	}
 	if to.OrderingType == Causal {
 		if to.RotateCord {
 			err = fmt.Errorf("must set rotateCord to false when using causal order")
+			return
+		}
+		if to.UseRandCoord {
+			err = fmt.Errorf("UseRandCoord must be fale when using causal ordering")
 			return
 		}
 		if to.ByzType != NonFaulty {

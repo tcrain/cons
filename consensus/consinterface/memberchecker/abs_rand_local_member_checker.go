@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
@@ -48,10 +49,13 @@ type AbsRandLocalKnownMemberChecker struct {
 	index                    types.ConsensusIndex
 	localRandChangeFrequency types.ConsensusInt // how often to change random members
 	mainChannel              channelinterface.MainChannel
+
+	cidrand *absRandCoordByID
 }
 
 func initAbsRandLocalKnownMemberChecker(rnd *rand.Rand, priv sig.Priv,
-	localRandChangeFrequency types.ConsensusInt, stats stats.StatsInterface) *AbsRandLocalKnownMemberChecker {
+	localRandChangeFrequency types.ConsensusInt, stats stats.StatsInterface,
+	gc *generalconfig.GeneralConfig) *AbsRandLocalKnownMemberChecker {
 
 	ret := &AbsRandLocalKnownMemberChecker{}
 	ret.rndStats = stats
@@ -59,6 +63,28 @@ func initAbsRandLocalKnownMemberChecker(rnd *rand.Rand, priv sig.Priv,
 	ret.pubMap = make(map[sig.PubKeyID]sig.Pub)
 	ret.myRand = rnd
 	ret.localRandChangeFrequency = localRandChangeFrequency
+	if gc.UseRandCoord {
+		ret.cidrand = initAbsRandCoordByID(priv, stats, gc)
+	}
+
+	return ret
+}
+
+func (arm *AbsRandLocalKnownMemberChecker) newRndMC(index types.ConsensusIndex,
+	stats stats.StatsInterface) absRandMemberInterface {
+
+	ret := &AbsRandLocalKnownMemberChecker{}
+	ret.pubMap = make(map[sig.PubKeyID]sig.Pub)
+	ret.rndStats = stats
+	ret.mainChannel = arm.mainChannel
+	ret.myRand = arm.myRand
+	ret.myPriv = arm.myPriv
+	ret.index = index
+	ret.localRandChangeFrequency = arm.localRandChangeFrequency
+	if arm.cidrand != nil {
+		ret.cidrand = arm.cidrand.newRndMC(index, stats).(*absRandCoordByID)
+	}
+
 	return ret
 }
 
@@ -85,8 +111,12 @@ func (arm *AbsRandLocalKnownMemberChecker) rndDoneNextUpdateState() error {
 	return nil
 }
 
-func (arm *AbsRandLocalKnownMemberChecker) gotRand(_ [32]byte, participantNodeCount int, newPriv sig.Priv,
+func (arm *AbsRandLocalKnownMemberChecker) gotRand(rnd [32]byte, participantNodeCount int, newPriv sig.Priv,
 	sortedMemberPubs sig.PubList, memberMap map[sig.PubKeyID]sig.Pub, prvMC absRandMemberInterface) {
+
+	if arm.cidrand != nil {
+		arm.cidrand.gotRand(rnd, participantNodeCount, newPriv, sortedMemberPubs, memberMap, prvMC)
+	}
 
 	arm.myPriv = newPriv
 	myPub := arm.myPriv.GetPub()
@@ -144,50 +174,53 @@ func (arm *AbsRandLocalKnownMemberChecker) gotRand(_ [32]byte, participantNodeCo
 	arm.makeConnections()
 }
 
-func (arm *AbsRandLocalKnownMemberChecker) checkRandMember(msgID messages.MsgID, isProposalMsg bool, participantNodeCount,
-	totalNodeCount int, pub sig.Pub) error {
+func (arm *AbsRandLocalKnownMemberChecker) checkRandMember(msgID messages.MsgID, isLocal, isProposalMsg bool,
+	participantNodeCount, totalNodeCount int, pub sig.Pub) error {
 
 	_, _, _ = msgID, participantNodeCount, totalNodeCount
 	pid, err := pub.GetPubID()
 	if err != nil {
 		panic(err)
 	}
-	if isProposalMsg { // if it's proposal then all members are valid, not just the rand ones
+	if isProposalMsg || isLocal {
+		// if it's a local message then it's always a member since we participate as long as we are a normal member
+		// if it's proposal then all members are valid, not just the rand ones
+		// this will be checked if it is the correct coordinator by the consensus item, which will call checkRandCoord
+		// TODO if the msg is a proposal, then the message is a member as long as it is in sorted pub list (this is done already I think
+		// by the normal member check?)
+		// can use InternalSignedMsgHeader.NeedsSMValidation
 		return nil
 	}
 	if _, ok := arm.pubMap[pid]; ok {
 		return nil
 	}
 
-	// TODO if the msg is a proposal, then the message is a member as long as it is in sorted pub list
-	// can use InternalSignedMsgHeader.NeedsSMValidation
-
 	return types.ErrNotMember
 }
-func (arm *AbsRandLocalKnownMemberChecker) checkRandCoord(_, _ int,
-	_ messages.MsgID, _ types.ConsensusRound, _ sig.Pub) (rndVal uint64, coord sig.Pub, err error) {
+func (arm *AbsRandLocalKnownMemberChecker) checkRandCoord(participantNodeCount, totalNodeCount int, msgID messages.MsgID,
+	round types.ConsensusRound, pub sig.Pub) (rndValue uint64, coord sig.Pub, err error) {
+
+	if arm.cidrand != nil {
+		return arm.cidrand.checkRandCoord(participantNodeCount, totalNodeCount, msgID, round, pub)
+	}
 
 	panic("unused, the normal coordinator should be chosen")
 }
-func (arm *AbsRandLocalKnownMemberChecker) GotVrf(sig.Pub, messages.MsgID, sig.VRFProof) error {
+func (arm *AbsRandLocalKnownMemberChecker) GotVrf(pub sig.Pub, isProposal bool, msgID messages.MsgID, vrf sig.VRFProof) error {
+	if arm.cidrand != nil {
+		return arm.cidrand.GotVrf(pub, isProposal, msgID, vrf)
+	}
 	return nil
 }
-func (arm *AbsRandLocalKnownMemberChecker) getMyVRF(messages.MsgID) sig.VRFProof {
+func (arm *AbsRandLocalKnownMemberChecker) getMyVRF(isProposal bool, msgID messages.MsgID) sig.VRFProof {
+	if arm.cidrand != nil {
+		return arm.cidrand.getMyVRF(isProposal, msgID)
+	}
 	return nil
 }
 func (arm *AbsRandLocalKnownMemberChecker) getRnd() (ret [32]byte) {
+	if arm.cidrand != nil {
+		return arm.cidrand.getRnd()
+	}
 	return
-}
-func (arm *AbsRandLocalKnownMemberChecker) newRndMC(index types.ConsensusIndex,
-	stats stats.StatsInterface) absRandMemberInterface {
-
-	ret := &AbsRandLocalKnownMemberChecker{}
-	ret.pubMap = make(map[sig.PubKeyID]sig.Pub)
-	ret.rndStats = stats
-	ret.mainChannel = arm.mainChannel
-	ret.myRand = arm.myRand
-	ret.myPriv = arm.myPriv
-	ret.index = index
-	ret.localRandChangeFrequency = arm.localRandChangeFrequency
-	return ret
 }

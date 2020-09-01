@@ -182,13 +182,12 @@ func (sc *AbsConsItem) CheckMemberLocal() bool {
 }
 
 // CheckMemberLocalMsg checks if the local node is a member of the consensus for this message type
-func (sc *AbsConsItem) CheckMemberLocalMsg(msgID messages.MsgID) bool {
+func (sc *AbsConsItem) CheckMemberLocalMsg(hdr messages.InternalSignedMsgHeader) bool {
 	if sc.CheckMemberLocal() {
 		// is proposal message is true since we always send the message when creating it locally
-		if consinterface.CheckRandMember(sc.ConsItems.MC.MC, sc.ConsItems.MC.MC.GetMyPriv().GetPub(),
-			true, msgID) == nil { // I am a random member
+		if consinterface.CheckRandMember(sc.ConsItems.MC.MC,
+			sc.ConsItems.MC.MC.GetMyPriv().GetPub(), hdr, hdr.GetMsgID(), true) == nil { // I am a random member
 
-			sc.ConsItems.MC.MC.GetStats().MemberMsgID(msgID)
 			return true
 		}
 	}

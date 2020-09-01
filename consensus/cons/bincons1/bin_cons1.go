@@ -396,7 +396,7 @@ func (sc *BinCons1) CheckRound(nmt int, t int, round types.ConsensusRound,
 			sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round + 1)
 			roundStruct.sentProposal = true // Set to true before checking if we are a member, since check member will always
 			// give the same result for this round
-			if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+			if sc.CheckMemberLocalMsg(auxMsg) {
 				if sc.IncludeProofs {
 					// collect signatures to support your choice
 					var err error

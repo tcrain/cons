@@ -189,7 +189,7 @@ func (sc *MvCons1) GotProposal(hdr messages.MsgHeader,
 }
 
 func (sc *MvCons1) checkSendEcho() {
-	selectRandMembers := consinterface.ShouldWaitForRndCoord(sc.ConsItems.MC.MC.RandMemberType())
+	selectRandMembers := consinterface.ShouldWaitForRndCoord(sc.ConsItems.MC.MC.RandMemberType(), sc.GeneralConfig)
 	if !sc.sentEcho && // we haven't sent an echo
 		len(sc.sortedInitHashes) > 0 && // we have received an init and either (a) or (b)
 		((selectRandMembers && sc.checkInitTimeoutPassed()) || // (a) we are selecting random members, and our init timeout ran out
@@ -357,7 +357,7 @@ func (sc *MvCons1) checkEchoState(t, nmt int, mainChannel channelinterface.MainC
 
 				if !msgState.BinConsMessageStateInterface.SentProposal(0, true, sc.ConsItems.MC) {
 					auxMsg := sc.binCons.GetMVInitialRoundBroadcast(1)
-					if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) { // Check if we are a member for this type of message
+					if sc.CheckMemberLocalMsg(auxMsg) { // Check if we are a member for this type of message
 						// if we didn't already support 0 for binary consesnsus for round 1, then we can support 1
 						// (the first argument is 0 here because we the structure keeps track of having sent proposal for the round+1)
 
@@ -418,7 +418,7 @@ func (sc *MvCons1) checkEchoState(t, nmt int, mainChannel channelinterface.MainC
 			// (the first argument is 0 here because we the structure keeps track of having sent proposal for the round+1)
 			if !msgState.BinConsMessageStateInterface.SentProposal(0, true, sc.ConsItems.MC) {
 				auxMsg := sc.binCons.GetMVInitialRoundBroadcast(0)
-				if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) { // check if we are a member for this type of message
+				if sc.CheckMemberLocalMsg(auxMsg) { // check if we are a member for this type of message
 					// We support 0 since we have not gotten a proposal
 					logging.Infof("Supporting 0 for index %v, since not enough echos received", sc.Index)
 					sc.BroadcastFunc(nil, sc.ConsItems, auxMsg, true,
@@ -639,7 +639,7 @@ func (sc *MvCons1) broadcastEcho(proposalHash []byte, mainChannel channelinterfa
 	sc.sentEcho = true
 	newMsg := messagetypes.NewMvEchoMessage()
 	newMsg.ProposalHash = proposalHash
-	if sc.CheckMemberLocalMsg(newMsg.GetMsgID()) { // Check if we are a member for this message type
+	if sc.CheckMemberLocalMsg(newMsg) { // Check if we are a member for this message type
 		logging.Info("bcast echo", sc.GeneralConfig.TestIndex, sc.Index, sc.ConsItems.MC.MC.GetMemberCount())
 
 		cordPub := cons.GetCoordPubCollectBroadcast(0, sc.ConsItems, sc.GeneralConfig)

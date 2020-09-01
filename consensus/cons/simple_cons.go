@@ -159,7 +159,7 @@ func (sc *SimpleCons) GotProposal(_ messages.MsgHeader, mainChannel channelinter
 		// setup a SimpleConsMessage to be broadcast
 		w := messagetypes.NewSimpleConsMessage(sc.ConsItems.MC.MC.GetMyPriv().GetPub())
 		w.MyPub = sc.ConsItems.MC.MC.GetMyPriv().GetPub()
-		if sc.CheckMemberLocalMsg(w.GetMsgID()) { // check if we are a member for this message type
+		if sc.CheckMemberLocalMsg(w) { // check if we are a member for this message type
 
 			sc.Broadcast(nil, w, true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
 				mainChannel, nil)

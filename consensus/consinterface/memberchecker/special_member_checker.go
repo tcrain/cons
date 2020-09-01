@@ -58,10 +58,10 @@ func (tsm *NoSpecialMembers) UpdateState(newKeys sig.PubList, randBytes [32]byte
 }
 
 // CheckMemberLocalMsg checks if pub is a special member, here is always returns an error since there are no speical pubs.
-func (tsm *NoSpecialMembers) CheckMember(idx types.ConsensusIndex, pub sig.Pub, mc consinterface.MemberChecker, isProposalMsg bool,
-	msgID messages.MsgID) (sig.Pub, error) {
+func (tsm *NoSpecialMembers) CheckMember(idx types.ConsensusIndex, pub sig.Pub, mc consinterface.MemberChecker,
+	hdr messages.InternalSignedMsgHeader, msgID messages.MsgID) (sig.Pub, error) {
 
-	_, _, _, _, _ = idx, pub, mc, isProposalMsg, msgID
+	_, _, _, _, _ = idx, pub, mc, hdr, msgID
 	return nil, types.ErrNotMember
 }
 
@@ -120,7 +120,7 @@ func (msm *MultiSigMemChecker) UpdateState(newKeys sig.PubList, randBytes [32]by
 // If pub has a valid BitID then CheckMemberLocalMsg will always return a merged public key by merging the
 // indices from teh BitID using the normal public keys.
 func (msm *MultiSigMemChecker) CheckMember(idx types.ConsensusIndex, pub sig.Pub,
-	mc consinterface.MemberChecker, isProposalMsg bool, msgID messages.MsgID) (sig.Pub, error) {
+	mc consinterface.MemberChecker, hdr messages.InternalSignedMsgHeader, msgID messages.MsgID) (sig.Pub, error) {
 
 	if idx.Index != msm.idx.Index {
 		panic(fmt.Sprintf("wrong member checker index %v, %v", idx, msm.idx))
@@ -140,7 +140,7 @@ func (msm *MultiSigMemChecker) CheckMember(idx types.ConsensusIndex, pub sig.Pub
 	// Go through the pub keys and merge them one by one into the new key
 	for i, err := iter.NextID(); err == nil; i, err = iter.NextID() {
 		if i < 0 || i >= len(msm.originPubList) ||
-			consinterface.CheckRandMember(mc, msm.originPubList[i], isProposalMsg, msgID) != nil { // be sure it is a valid member index
+			consinterface.CheckRandMember(mc, msm.originPubList[i], hdr, msgID, false) != nil { // be sure it is a valid member index
 
 			// The bitid contains an invalid index
 			return nil, types.ErrInvalidBitID
@@ -191,7 +191,7 @@ func (tsm *ThrshSigMemChecker) UpdateState(newKeys sig.PubList, randBytes [32]by
 
 // CheckMemberLocalMsg checks if pub is the threshold key and returns new pub that has all the values filled.
 func (tsm *ThrshSigMemChecker) CheckMember(idx types.ConsensusIndex, pub sig.Pub, mc consinterface.MemberChecker,
-	isProposalMsg bool, msgID messages.MsgID) (sig.Pub, error) {
+	hdr messages.InternalSignedMsgHeader, msgID messages.MsgID) (sig.Pub, error) {
 
 	if idx.Index != tsm.idx.Index {
 		panic(fmt.Sprintf("wrong member checker index %v, %v", idx, tsm.idx))
@@ -207,7 +207,7 @@ func (tsm *ThrshSigMemChecker) CheckMember(idx types.ConsensusIndex, pub sig.Pub
 		}
 		if str == myPubID {
 			// TODO is there any need to check random member here?
-			if err := consinterface.CheckRandMember(mc, tsmPub, isProposalMsg, msgID); err != nil {
+			if err := consinterface.CheckRandMember(mc, tsmPub, hdr, msgID, false); err != nil {
 				panic(err)
 			}
 			return tsmPub, nil

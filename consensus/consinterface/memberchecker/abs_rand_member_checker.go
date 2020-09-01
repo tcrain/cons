@@ -57,16 +57,22 @@ type absRandMemberChecker struct {
 }
 
 func initAbsRandMemberChecker(priv sig.Priv, stats stats.StatsInterface, gc *generalconfig.GeneralConfig) *absRandMemberChecker {
-	return &absRandMemberChecker{
+	ret := &absRandMemberChecker{
 		rndStats: stats,
 		myPriv:   priv,
 		gc:       gc,
 		vrfRand:  make(map[sig.PubKeyID]*rndNodeInfo)}
+	return ret
 }
 
 func (arm *absRandMemberChecker) newRndMC(idx types.ConsensusIndex, stats stats.StatsInterface) absRandMemberInterface {
-	ret := initAbsRandMemberChecker(arm.myPriv, stats, arm.gc)
-	ret.myIdx = idx
+	ret := &absRandMemberChecker{
+		rndStats: stats,
+		myPriv:   arm.myPriv,
+		gc:       arm.gc,
+		vrfRand:  make(map[sig.PubKeyID]*rndNodeInfo),
+		myIdx:    idx,
+	}
 	return ret
 }
 
@@ -80,7 +86,8 @@ func (arm *absRandMemberChecker) getRnd() [32]byte {
 }
 
 // getMyVRF returns the vrf proof for the local node.
-func (arm *absRandMemberChecker) getMyVRF(messages.MsgID) sig.VRFProof {
+func (arm *absRandMemberChecker) getMyVRF(isProposal bool, msgID messages.MsgID) sig.VRFProof {
+	_, _ = isProposal, msgID
 	if arm.myVrf == nil {
 		panic("shouldnt be nil")
 	}
@@ -90,10 +97,9 @@ func (arm *absRandMemberChecker) getMyVRF(messages.MsgID) sig.VRFProof {
 // gotRand should be called with the random bytes received from the state machine after deciding the previous
 // consensus instance.
 func (arm *absRandMemberChecker) gotRand(rnd [32]byte, participantNodeCount int, newPriv sig.Priv,
-	sortedMemberPubs sig.PubList, _ map[sig.PubKeyID]sig.Pub, prvMC absRandMemberInterface) {
+	sortedMemberPubs sig.PubList, pubMap map[sig.PubKeyID]sig.Pub, prvMC absRandMemberInterface) {
 
-	_, _, _ = participantNodeCount, sortedMemberPubs, prvMC
-
+	_, _, _, _ = participantNodeCount, sortedMemberPubs, pubMap, prvMC
 	arm.rnd = rnd
 	arm.myPriv = newPriv
 
@@ -117,7 +123,7 @@ func (arm *absRandMemberChecker) gotRand(rnd [32]byte, participantNodeCount int,
 	if arm.rndStats != nil {
 		arm.rndStats.CreatedVRF()
 	}
-	if err := arm.GotVrf(arm.myPriv.GetPub(), nil, prf); err != nil {
+	if err := arm.GotVrf(arm.myPriv.GetPub(), false, nil, prf); err != nil {
 		panic(err)
 	}
 	arm.myVrf = prf
@@ -127,9 +133,10 @@ func (arm *absRandMemberChecker) gotRand(rnd [32]byte, participantNodeCount int,
 // participantNodeCount is the number of participants expected for this consensus.
 // totalNodeCount is the total number of nodes in the system.
 // It returns nil if the node can participate for this message, otherwise an error.
-func (arm *absRandMemberChecker) checkRandMember(_ messages.MsgID, _ bool, participantNodeCount,
+func (arm *absRandMemberChecker) checkRandMember(_ messages.MsgID, isLocal, isProposal bool, participantNodeCount,
 	totalNodeCount int, pub sig.Pub) error {
 
+	_, _ = isLocal, isProposal
 	if arm.randBasicMsg == nil {
 		panic("should not call this until after gotRand has been called")
 	}
@@ -177,7 +184,9 @@ func (arm *absRandMemberChecker) checkRandCoord(participantNodeCount, totalNodeC
 	}
 
 	// first check if we are a member, we need this since we rotate the cord following the first round
-	if err = arm.checkRandMember(msgID, true, participantNodeCount, totalNodeCount, pub); err != nil { // Check if we are a member
+	if err = arm.checkRandMember(msgID, false, true, participantNodeCount,
+		totalNodeCount, pub); err != nil { // Check if we are a member
+
 		return 0, nil, err
 	}
 
@@ -209,8 +218,9 @@ func (arm *absRandMemberChecker) checkRandCoord(participantNodeCount, totalNodeC
 }
 
 // GotVrf should be called when a node's VRF proof is received for this consensus instance.
-func (arm *absRandMemberChecker) GotVrf(pub sig.Pub, msgID messages.MsgID, proof sig.VRFProof) error {
-	_ = msgID
+func (arm *absRandMemberChecker) GotVrf(pub sig.Pub, isProposal bool, msgID messages.MsgID, proof sig.VRFProof) error {
+
+	_, _ = isProposal, msgID
 	if arm.randBasicMsg == nil {
 		panic("should not call this until after gotRand has been called")
 	}
