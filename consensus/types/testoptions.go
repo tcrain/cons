@@ -459,22 +459,30 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 
 	switch consType {
 	case BinConsRnd1Type, BinConsRnd2Type, BinConsRnd3Type, BinConsRnd4Type, BinConsRnd5Type,
-		BinConsRnd6Type, MvBinConsRnd1Type:
-		if !to.UsePubIndex {
-			err = fmt.Errorf("must use pub index for BinConsRnd1Type/MvBinConsRnd1Type")
+		BinConsRnd6Type, MvBinConsRnd1Type, MvBinConsRnd2Type:
+		switch to.CoinType {
+		case NoCoinType:
+			err = fmt.Errorf("must use a coin type when using a randomized consensus")
 			return
-		}
-		switch to.SigType {
-		case EDCOIN, TBLS, TBLSDual, CoinDual:
+		case FlipCoinType, KnownCoinType, LocalCoinType:
+			// ok
 		default:
-			err = fmt.Errorf("must use threshold or coin sigs for BinConsRnd1")
-			return
-		}
-		switch to.RndMemberType {
-		case NonRandom:
-		default:
-			err = fmt.Errorf("BinConsRnd1 does not support random membership")
-			return
+			if !to.UsePubIndex {
+				err = fmt.Errorf("must use pub index for BinConsRnd1Type/MvBinConsRnd1Type")
+				return
+			}
+			switch to.SigType {
+			case EDCOIN, TBLS, TBLSDual, CoinDual:
+			default:
+				err = fmt.Errorf("must use threshold or coin sigs for BinConsRnd1")
+				return
+			}
+			switch to.RndMemberType {
+			case NonRandom:
+			default:
+				err = fmt.Errorf("BinConsRnd1 does not support random membership")
+				return
+			}
 		}
 	default:
 		if to.UseFixedCoinPresets {

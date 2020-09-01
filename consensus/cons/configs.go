@@ -516,6 +516,7 @@ var BasicTestConfigs = ReplaceNilFields(OptionStruct{
 	StateMachineTypes:    []types.StateMachineType{types.CurrencyTxProposer},
 	MemberCheckerTypes:   []types.MemberCheckerType{types.CurrentTrueMC},
 	StopOnCommitTypes:    []types.StopOnCommitType{types.Immediate},
+	CoinTypes:            []types.CoinType{types.NoCoinType, types.FlipCoinType},
 	ByzTypes:             []types.ByzType{types.NonFaulty},
 	IncludeProofsTypes:   types.WithFalse,
 	EncryptChannelsTypes: types.WithFalse,

@@ -47,11 +47,11 @@ func (sc *TestConsItem) Broadcast(nextCoordPub sig.Pub, msg messages.InternalSig
 	mainChannel channelinterface.MainChannel,
 	additionalMsgs ...messages.MsgHeader) {
 }
-func (sc *TestConsItem) GetCommitProof() []messages.MsgHeader          { return nil }
-func (sc *TestConsItem) SetCommitProof(prf []messages.MsgHeader)       {}
-func (sc *TestConsItem) GetPrevCommitProof() []messages.MsgHeader      { return nil }
-func (sc *TestConsItem) CheckMemberLocalMsg(msgID messages.MsgID) bool { return true }
-func (sc *TestConsItem) AddPreHeader(header messages.MsgHeader)        {}
+func (sc *TestConsItem) GetCommitProof() []messages.MsgHeader                      { return nil }
+func (sc *TestConsItem) SetCommitProof([]messages.MsgHeader)                       {}
+func (sc *TestConsItem) GetPrevCommitProof() []messages.MsgHeader                  { return nil }
+func (sc *TestConsItem) CheckMemberLocalMsg(messages.InternalSignedMsgHeader) bool { return true }
+func (sc *TestConsItem) AddPreHeader(header messages.MsgHeader)                    {}
 func (*TestConsItem) GenerateNewItem(index types.ConsensusIndex, consItems *consinterface.ConsInterfaceItems,
 	mainChannel channelinterface.MainChannel,
 	prevItem consinterface.ConsItem, bcastFunc consinterface.ByzBroadcastFunc, gc *generalconfig.GeneralConfig) consinterface.ConsItem {
@@ -224,12 +224,14 @@ func (mc *TestMemberChecker) GetParticipants() sig.PubList {
 func (mc *TestMemberChecker) GetAllPubs() sig.PubList {
 	return nil
 }
-func (mc *TestMemberChecker) GotVrf(pub sig.Pub, msgID messages.MsgID, proof sig.VRFProof) error {
+func (mc *TestMemberChecker) GotVrf(pub sig.Pub, isProposal bool, msgID messages.MsgID, proof sig.VRFProof) error {
 	panic("unused")
 }
-func (mc *TestMemberChecker) GetMyVRF(id messages.MsgID) sig.VRFProof { return nil }
+func (mc *TestMemberChecker) GetMyVRF(bool, messages.MsgID) sig.VRFProof { return nil }
 
-func (mc *TestMemberChecker) CheckRandMember(pub sig.Pub, msgID messages.MsgID, isProposalMsg bool) error {
+func (mc *TestMemberChecker) CheckRandMember(pub sig.Pub, hdr messages.InternalSignedMsgHeader,
+	msgID messages.MsgID, isLocal bool) error {
+
 	return nil
 }
 func (mc *TestMemberChecker) SelectRandMembers() bool { return false }

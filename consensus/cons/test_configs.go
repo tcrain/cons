@@ -249,12 +249,14 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, toRun, t)
 
-	fmt.Println("Running with VRF type random member selection and random coordinator")
-	cTo := to
-	cTo.UseRandCoord = true
-	iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(BasicTestConfigs, cTo))
-	assert.Nil(t, err)
-	runIterTests(initItem, consConfigs, iter, toRun, t)
+	if to.OrderingType == types.Total {
+		fmt.Println("Running with VRF type random member selection and random coordinator")
+		cTo := to
+		cTo.UseRandCoord = true
+		iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(BasicTestConfigs, cTo))
+		assert.Nil(t, err)
+		runIterTests(initItem, consConfigs, iter, toRun, t)
+	}
 
 	if runLocalRand {
 		// for these tests we only want to run one test, so we just take the first config if none is set
@@ -278,13 +280,15 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 		assert.Nil(t, err)
 		runIterTests(initItem, consConfigs, iter, toRun, t)
 
-		fmt.Println("Running with local random member selection and random coord")
-		cTo := to
-		cTo.GenRandBytes = true
-		cTo.UseRandCoord = true
-		iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, cTo))
-		assert.Nil(t, err)
-		runIterTests(initItem, consConfigs, iter, toRun, t)
+		if to.OrderingType == types.Total {
+			fmt.Println("Running with local random member selection and random coord")
+			cTo := to
+			cTo.GenRandBytes = true
+			cTo.UseRandCoord = true
+			iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, cTo))
+			assert.Nil(t, err)
+			runIterTests(initItem, consConfigs, iter, toRun, t)
+		}
 
 		if to.ConsType != types.RbBcast1Type && to.ConsType != types.RbBcast2Type { // TODO fix local rand member recover after failure for RBBCast (different proposals)
 			numMembers := to.RndMemberCount
