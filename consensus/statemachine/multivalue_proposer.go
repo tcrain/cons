@@ -52,17 +52,26 @@ type MvCons1ProposalInfo struct {
 	AbsRandSM
 	rand              *rand.Rand
 	proposalSizeBytes int // size of the proposals in bytes
+
+	proposalsDecided *int
+	bytesDecided     *int
+	nilDecided       *int
 }
 
 // NewMvCons1ProposalInfo generates a new MvCons1ProposalInfo object.
 func NewMvCons1ProposalInfo(useRand bool, initRandBytes [32]byte,
 	proposalSizeBytes int, seed int64) *MvCons1ProposalInfo {
 
+	var proposalsDecided, bytesDecided, nilDecided int
 	// rand := rand.New(rand.NewSource(atomic.AddInt64(&binconsSeed, 1)))
 	randlocal := rand.New(rand.NewSource(seed))
 	return &MvCons1ProposalInfo{
-		AbsRandSM: NewAbsRandSM(initRandBytes, useRand),
-		rand:      randlocal, proposalSizeBytes: proposalSizeBytes}
+		AbsRandSM:         NewAbsRandSM(initRandBytes, useRand),
+		rand:              randlocal,
+		proposalSizeBytes: proposalSizeBytes,
+		proposalsDecided:  &proposalsDecided,
+		bytesDecided:      &bytesDecided,
+		nilDecided:        &nilDecided}
 }
 
 // Init initializes the object.
@@ -80,6 +89,7 @@ func (spi *MvCons1ProposalInfo) HasDecided(proposer sig.Pub, nxt types.Consensus
 
 	if len(decision) == 0 {
 		logging.Warning("Decided nil")
+		*spi.nilDecided++
 	} else {
 		buf := bytes.NewReader(decision)
 		var err error
@@ -91,6 +101,8 @@ func (spi *MvCons1ProposalInfo) HasDecided(proposer sig.Pub, nxt types.Consensus
 			logging.Warning("invalid mv proposal length", buf.Len(), spi.proposalSizeBytes)
 			return
 		}
+		*spi.bytesDecided += len(decision)
+		*spi.proposalsDecided++
 	}
 }
 
@@ -112,7 +124,8 @@ func (spi *MvCons1ProposalInfo) GetInitialState() []byte {
 }
 
 func (spi *MvCons1ProposalInfo) StatsString(testDuration time.Duration) string {
-	return ""
+	return fmt.Sprintf("proposals decided: %v, nil decided: %v, bytes decided: %v",
+		*spi.proposalsDecided, *spi.nilDecided, *spi.bytesDecided)
 }
 
 // GetProposal is called when a consensus index is ready for a proposal.

@@ -249,7 +249,8 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, toRun, t)
 
-	if to.OrderingType == types.Total {
+	if to.OrderingType == types.Total && to.ConsType != types.RbBcast1Type && to.ConsType != types.RbBcast2Type {
+		// we dont run random coordinator with rbbcasts since they must have only a single broadcaster
 		fmt.Println("Running with VRF type random member selection and random coordinator")
 		cTo := to
 		cTo.UseRandCoord = true
@@ -280,17 +281,18 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 		assert.Nil(t, err)
 		runIterTests(initItem, consConfigs, iter, toRun, t)
 
-		if to.OrderingType == types.Total {
-			fmt.Println("Running with local random member selection and random coord")
-			cTo := to
-			cTo.GenRandBytes = true
-			cTo.UseRandCoord = true
-			iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, cTo))
-			assert.Nil(t, err)
-			runIterTests(initItem, consConfigs, iter, toRun, t)
-		}
-
 		if to.ConsType != types.RbBcast1Type && to.ConsType != types.RbBcast2Type { // TODO fix local rand member recover after failure for RBBCast (different proposals)
+
+			if to.OrderingType == types.Total {
+				fmt.Println("Running with local random member selection and random coord")
+				cTo := to
+				cTo.GenRandBytes = true
+				cTo.UseRandCoord = true
+				iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, cTo))
+				assert.Nil(t, err)
+				runIterTests(initItem, consConfigs, iter, toRun, t)
+			}
+
 			numMembers := to.RndMemberCount
 			// restart from disk enough remain live to continue
 			fmt.Println("Running with local random member selection and less than 1/3 fail and clear disk (just a single test)")
