@@ -48,6 +48,10 @@ func TestMvCons3Byz(t *testing.T) {
 }
 
 func TestMvCons3MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(mvTO,
 		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, nil, t)
 }
@@ -58,6 +62,10 @@ func TestMvCons3MsgDrop(t *testing.T) {
 }
 
 func TestMvCons3MultiSig(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMultiSigTests(mvTO,
 		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, []int{}, t)
 }
@@ -70,6 +78,10 @@ func TestMvCons3SleepMultiSig(t *testing.T) {
 }
 
 func TestMvCons3P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunP2pNwTests(mvTO,
 		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, []int{}, t)
 }

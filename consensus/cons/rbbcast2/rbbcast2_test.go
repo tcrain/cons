@@ -42,6 +42,10 @@ func TestRbBcast2Basic(t *testing.T) {
 }
 
 func TestRbBcast2RandMC(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunRandMCTests(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, true,
 		[]int{}, t)
 }
@@ -59,6 +63,10 @@ func TestRbBcast2Byz(t *testing.T) {
 }
 
 func TestRbBcast2MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, nil, t)
 }
 
@@ -71,6 +79,10 @@ func TestRbBcast2MultiSig(t *testing.T) {
 }
 
 func TestRbBcast2P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunP2pNwTests(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, nil, t)
 }
 
@@ -79,6 +91,10 @@ func TestRbBcast2FailDisk(t *testing.T) {
 }
 
 func TestRbBcast2CausalBasic(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunBasicTests(causalTO,
 		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, []int{}, t)
 }
@@ -96,6 +112,10 @@ func TestRbBcast2CausalFailDisk(t *testing.T) {
 }
 
 func TestRbBcast2CausalRandMC(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunRandMCTests(causalTO,
 		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, true, []int{}, t)
 }

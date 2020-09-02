@@ -48,6 +48,10 @@ func TestBinConsRnd1Basic(t *testing.T) {
 }
 
 func TestBinConsRnd1SleepBasic(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	to := binTO
 	to.SleepCrypto = true
 	cons.RunBasicTests(to, types.BinConsRnd1Type, &BinConsRnd1{},
@@ -65,6 +69,10 @@ func TestBinConsRnd1BasicFlip(t *testing.T) {
 }
 
 func TestBinConsRnd1BasicStrongCoin1Echo(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunBasicTests(binTOStrongCoin1Echo, types.BinConsRnd1Type, &BinConsRnd1{},
 		Config{}, []int{}, t)
 }
@@ -77,6 +85,10 @@ func TestBinConsRnd1SleepBasicStrongCoin1Echo(t *testing.T) {
 }
 
 func TestBinConsRnd1BasicStrongCoin2(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunBasicTests(binTOStrongCoin2, types.BinConsRnd1Type, &BinConsRnd1{},
 		Config{}, []int{}, t)
 }
@@ -90,6 +102,10 @@ func TestBinConsRnd1SleepBasicStrongCoin2(t *testing.T) {
 }
 
 func TestBinConsRnd1BasicStrongCoin2Echo(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunBasicTests(binTOStrongCoin2Echo, types.BinConsRnd1Type, &BinConsRnd1{},
 		Config{}, []int{}, t)
 }
@@ -108,6 +124,10 @@ func TestBinConsRnd1Byz(t *testing.T) {
 }
 
 func TestBinConsRnd1MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(binTO, types.BinConsRnd1Type, &BinConsRnd1{},
 		Config{}, nil, t)
 }
@@ -118,6 +138,10 @@ func TestBinConsRnd1MsgDrop(t *testing.T) {
 }
 
 func TestBinConsRnd1P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunP2pNwTests(binTO, types.BinConsRnd1Type, &BinConsRnd1{},
 		Config{}, []int{}, t)
 }

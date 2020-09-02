@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package mvcons1
 
 import (
+	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/types"
 	"testing"
@@ -40,12 +41,20 @@ func TestMvBinCons1Basic(t *testing.T) {
 }
 
 func TestMvBinCons1BasicSleep(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	to := types.TestOptions{}
 	to.SleepCrypto = true
 	cons.RunBasicTests(to, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, []int{}, t)
 }
 
 func TestMvBinCons1RandMC(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunRandMCTests(types.TestOptions{}, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, true,
 		[]int{}, t)
 }
@@ -62,6 +71,10 @@ func TestMvBinCons1Byz(t *testing.T) {
 }
 
 func TestMvBinCons1MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(types.TestOptions{}, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, nil, t)
 }
 
@@ -70,6 +83,10 @@ func TestMvBinCons1MsgDrop(t *testing.T) {
 }
 
 func TestMvCons1MultiSig(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMultiSigTests(types.TestOptions{}, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, []int{}, t)
 }
 
@@ -80,6 +97,10 @@ func TestMvCons1MultiSigSleep(t *testing.T) {
 }
 
 func TestMvCons1P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunP2pNwTests(types.TestOptions{}, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, nil, t)
 }
 

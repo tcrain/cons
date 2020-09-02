@@ -27,12 +27,13 @@ import (
 )
 
 // getBinConsStateMachineTypes returns a list of the valid state machine types for binary consensus given the configuration.
-func getBinConsStateMachineTypes() []types.StateMachineType {
+/*func getBinConsStateMachineTypes() []types.StateMachineType {
 	if config.RunAllTests {
 		return types.BinaryProposerTypes
 	}
 	return []types.StateMachineType{types.BinaryProposer}
 }
+*/
 
 var binTO = types.TestOptions{BinConsPercentOnes: 50, IncludeProofs: true}
 
@@ -41,6 +42,9 @@ func TestBinCons1Basic(t *testing.T) {
 }
 
 func TestBinCons1SleepBasic(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
 	myTO := binTO
 	myTO.SleepCrypto = true
 	cons.RunBasicTests(myTO, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)
@@ -51,6 +55,10 @@ func TestBinCons1Byz(t *testing.T) {
 }
 
 func TestBinCons1MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(binTO, types.BinCons1Type, &BinCons1{}, Config{}, nil, t)
 }
 
@@ -59,6 +67,9 @@ func TestBinCons1MsgDrop(t *testing.T) {
 }
 
 func TestBinCons1MultiSig(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
 	cons.RunMultiSigTests(binTO, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)
 }
 
@@ -71,6 +82,9 @@ func TestBinCons1SleepMultiSig(t *testing.T) {
 }
 
 func TestBinCons1P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
 	cons.RunP2pNwTests(binTO, types.BinCons1Type, &BinCons1{}, Config{}, []int{}, t)
 }
 

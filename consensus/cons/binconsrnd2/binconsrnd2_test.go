@@ -46,6 +46,10 @@ func TestBinConsRnd2Basic(t *testing.T) {
 }
 
 func TestBinConsRnd2BasicSleep(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	to := binTO
 	to.SleepCrypto = true
 	cons.RunBasicTests(to, types.BinConsRnd2Type, &BinConsRnd2{},
@@ -73,6 +77,10 @@ func TestBinConsRnd2Byz(t *testing.T) {
 }
 
 func TestBinConsRnd2MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(binTO, types.BinConsRnd2Type, &BinConsRnd2{},
 		Config{}, nil, t)
 }

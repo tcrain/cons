@@ -49,6 +49,10 @@ func TestMvCons2Byz(t *testing.T) {
 }
 
 func TestMvCons2MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(types.TestOptions{}, types.MvCons2Type, &MvCons2{}, MvCons2Config{}, nil, t)
 }
 
@@ -61,6 +65,10 @@ func TestMvCons2MultiSig(t *testing.T) {
 }
 
 func TestMvCons2P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunP2pNwTests(types.TestOptions{}, types.MvCons2Type, &MvCons2{}, MvCons2Config{}, nil, t)
 }
 

@@ -343,7 +343,7 @@ func (TestSM) HasDecided(proposer sig.Pub, index types.ConsensusInt, decision []
 func (TestSM) StartIndex(index types.ConsensusInt) consinterface.StateMachineInterface { return nil }
 func (TestSM) FailAfter(index types.ConsensusInt)                                      {}
 func (TestSM) Init(generalConfig *generalconfig.GeneralConfig, lastProposal types.ConsensusInt, needsConcurrent types.ConsensusInt,
-	mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType) {
+	mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
 }
 func (TestSM) GetByzProposal(originProposal []byte, gc *generalconfig.GeneralConfig) (byzProposal []byte) {
 	return

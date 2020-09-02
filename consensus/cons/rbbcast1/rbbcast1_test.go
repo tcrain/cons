@@ -48,6 +48,10 @@ func TestRbBcast1Byz(t *testing.T) {
 }
 
 func TestRbBcast1MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(types.TestOptions{}, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, nil, t)
 }
 
@@ -60,6 +64,10 @@ func TestRbBcast1MultiSig(t *testing.T) {
 }
 
 func TestRbBcast1P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunP2pNwTests(types.TestOptions{}, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, nil, t)
 }
 
