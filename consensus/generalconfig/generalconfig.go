@@ -82,7 +82,7 @@ func CheckFaulty(idx types.ConsensusIndex, gc *GeneralConfig) bool {
 	}
 	switch idx := idx.Index.(type) {
 	case types.ConsensusInt:
-		if idx >= types.ConsensusInt(gc.ByzStartIndex)+types.ConsensusInt(gc.WarmUpInstances) {
+		if idx > types.ConsensusInt(gc.ByzStartIndex)+types.ConsensusInt(gc.WarmUpInstances) {
 			return true
 		}
 		return false

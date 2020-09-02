@@ -336,6 +336,7 @@ func DeserializeMessage(tci *TestConsItem, idx types.ConsensusIndex, msg *messag
 
 type TestSM struct{}
 
+func (TestSM) GetSMStats() consinterface.SMStats                                       { return nil }
 func (TestSM) GetProposal()                                                            {}
 func (TestSM) FinishedLastRound() bool                                                 { return false }
 func (TestSM) HasDecided(proposer sig.Pub, index types.ConsensusInt, decision []byte)  {}

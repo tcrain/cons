@@ -23,6 +23,7 @@ This package contains the code for running consensus processes through a process
 package main
 
 import (
+	"encoding/gob"
 	"flag"
 	"fmt"
 	"github.com/tcrain/cons/consensus/cons"
@@ -139,6 +140,8 @@ func (rc *RunningCons) GetResults(i int, res *rpcsetup.RpcResults) error {
 	}
 	stats := scs.SCS.Stats.MergeLocalStats(int(types.ComputeNumRounds(scs.To)))
 	res.Stats = &stats
+	res.SMStats = scs.SCS.ConsState.SMStats()
+	gob.Register(res.SMStats)
 	// res.NwStats = scs.SCS.Stats.(*stats.BasicNwStats)
 	return nil
 }

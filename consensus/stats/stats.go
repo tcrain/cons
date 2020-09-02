@@ -611,7 +611,7 @@ func (bs *BasicStats) MergeLocalStats(numCons int) (total MergedStats) {
 		}
 	}
 	if len(items) != numCons {
-		panic("should have stats for each cons")
+		panic(fmt.Sprintf("should have stats for each cons, %v, %v", len(items), numCons))
 	}
 	total = mergeInternal(items)
 	total = mergeInternalLocal(items, total)

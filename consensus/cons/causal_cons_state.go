@@ -467,6 +467,11 @@ func (cs *CausalConsState) SMStatsString(testDuration time.Duration) string {
 	return cs.memberCheckerState.ProposalInfo[cs.memberCheckerState.LastDecided].StatsString(testDuration)
 }
 
+// SMStats returns the stats object of the state machine.
+func (cs *CausalConsState) SMStats() consinterface.SMStats {
+	return cs.memberCheckerState.ProposalInfo[cs.memberCheckerState.LastDecided].GetSMStats()
+}
+
 // Collect is called when the item is being garbage collected.
 func (sc *CausalConsState) Collect() {
 	sc.memberCheckerState.Collect()

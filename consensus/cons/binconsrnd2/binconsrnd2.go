@@ -566,9 +566,6 @@ func (sc *BinConsRnd2) checkCoinBroadcasts(nmt int, t int, round types.Consensus
 					nxtRoundStruct.supportBvInfo[est].echod = true
 					// Broadcast the BV message for the next round
 					bvMsg := messagetypes.CreateBVMessage(est, round+1)
-					if est == 1 && round+1 == 1 {
-						fmt.Println("b")
-					}
 					// Set to true before checking if we are a member, since check member will always
 					// give the same result for this round
 					sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round + 1)

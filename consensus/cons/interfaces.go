@@ -41,6 +41,8 @@ type ConsStateInterface interface {
 
 	// SMStatsString prints the statistics of the state machine.
 	SMStatsString(testDuration time.Duration) string
+	// SMStats returns the stats object of the state machine.
+	SMStats() consinterface.SMStats
 
 	// Collect is called when the process is terminating
 	Collect()

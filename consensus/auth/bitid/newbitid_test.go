@@ -2,7 +2,6 @@ package bitid
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
@@ -399,7 +398,6 @@ func checkPool(t *testing.T, intFunc FromIntFunc) {
 		assert.Equal(t, 0, max)
 		assert.Equal(t, 0, count)
 		assert.Equal(t, utils.GetUniqueCount(nxt.GetItemList()), unique)
-		fmt.Println(nxt.GetItemList())
 		pool.Done(nxt)
 	}
 }

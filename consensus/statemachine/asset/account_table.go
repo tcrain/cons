@@ -28,14 +28,19 @@ import (
 )
 
 type AccountTable struct {
-	accountMap map[sig.PubKeyStr]*AssetAccount
-	stats      AssetStats
+	accountMap            map[sig.PubKeyStr]*AssetAccount
+	startedRecordingStats bool
+	stats                 AssetStats
 }
 
 func NewAccountTable() *AccountTable {
 	return &AccountTable{
 		accountMap: make(map[sig.PubKeyStr]*AssetAccount),
 	}
+}
+
+func (at *AccountTable) StartRecordingStats() {
+	at.startedRecordingStats = true
 }
 
 func (at *AccountTable) SendToSelf(pub sig.Pub, hashes []types.HashBytes,
@@ -103,14 +108,15 @@ var errSignatureInvalid = fmt.Errorf("invalid signature")
 // ValidateTransfer returns an error if the asset transfer is not valid. If validate sig is false then
 // the transfer's signatures will not be validated.
 func (at *AccountTable) ValidateTransfer(tr *AssetTransfer, checkFunc CheckTransferOutputFunc, validateSig bool) (err error) {
-	defer func() {
-		if err == nil {
-			at.stats.PassedValidations++
-		} else {
-			at.stats.FailedValidations++
-		}
-	}()
-
+	if at.startedRecordingStats {
+		defer func() {
+			if err == nil {
+				at.stats.PassedValidations++
+			} else {
+				at.stats.FailedValidations++
+			}
+		}()
+	}
 	if err = tr.CheckFormat(); err != nil {
 		return
 	}
@@ -160,8 +166,9 @@ func (at *AccountTable) ConsumeTransfer(tr *AssetTransfer) {
 		addAcc.AddAsset(nxt)
 	}
 
-	at.stats.AssetConsumedCount += uint64(len(tr.Inputs))
-
+	if at.startedRecordingStats {
+		at.stats.AssetConsumedCount += uint64(len(tr.Inputs))
+	}
 	return
 }
 
@@ -170,13 +177,15 @@ func (at *AccountTable) ConsumeTransfer(tr *AssetTransfer) {
 func (at *AccountTable) GenerateAssetTransfer(sender sig.Priv, inputAssets,
 	outPuts []AssetInterface, recipiants []sig.Pub, checkFunc CheckTransferOutputFunc) (tx *AssetTransfer, err error) {
 
-	defer func() {
-		if err == nil {
-			at.stats.AssetGeneratedCount++
-		} else {
-			at.stats.FailedAssetGeneratedCount++
-		}
-	}()
+	if at.startedRecordingStats {
+		defer func() {
+			if err == nil {
+				at.stats.AssetGeneratedCount++
+			} else {
+				at.stats.FailedAssetGeneratedCount++
+			}
+		}()
+	}
 
 	sendHashes := make([]types.HashBytes, len(inputAssets))
 	for i, nxt := range inputAssets {

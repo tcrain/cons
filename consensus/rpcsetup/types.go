@@ -21,6 +21,7 @@ package rpcsetup
 
 import (
 	"fmt"
+	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/network"
 	"github.com/tcrain/cons/consensus/stats"
@@ -57,6 +58,7 @@ type CausalDecisions struct {
 type RpcResults struct {
 	Stats *stats.MergedStats // Binary consensus statistics
 	// NwStats  *stats.BasicNwStats  // Network statistics
+	SMStats consinterface.SMStats
 }
 
 type TPanic struct{}

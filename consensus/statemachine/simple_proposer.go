@@ -39,6 +39,7 @@ import (
 type SimpleProposalInfo struct {
 	AbsStateMachine
 	AbsRandSMNotSupported
+	SimpleStats
 }
 
 // NewSimpleProposalInfo creates an empty SimpleProposalInfo object.
@@ -46,16 +47,25 @@ func NewSimpleProposalInfo() *SimpleProposalInfo {
 	return &SimpleProposalInfo{}
 }
 
-func (spi *SimpleProposalInfo) StatsString(testDuration time.Duration) string {
+type SimpleStats struct{}
+
+func (sm SimpleStats) StatsString(testDuration time.Duration) string {
 	_ = testDuration
 	return ""
 }
 
 // Init initalizes the simple proposal object state.
-func (spi *SimpleProposalInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt, needsConcurrent types.ConsensusInt,
-	mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType) {
+func (spi *SimpleProposalInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt,
+	needsConcurrent types.ConsensusInt, mainChannel channelinterface.MainChannel,
+	doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
 
+	_ = basicInit
 	spi.AbsInit(gc, lastProposal, needsConcurrent, mainChannel, doneChan)
+}
+
+// GetSMStats returns the statistics object for the SM.
+func (spi *SimpleProposalInfo) GetSMStats() consinterface.SMStats {
+	return spi.SimpleStats
 }
 
 // GetInitialState returns []byte("initial state")

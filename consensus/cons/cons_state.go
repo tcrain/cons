@@ -673,6 +673,11 @@ func (cs *ConsState) SMStatsString(testDuration time.Duration) string {
 	return cs.memberCheckerState.ProposalInfo[cs.memberCheckerState.LocalIndex-1].StatsString(testDuration)
 }
 
+// SMStats returns the stats object of the state machine.
+func (cs *ConsState) SMStats() consinterface.SMStats {
+	return cs.memberCheckerState.ProposalInfo[cs.memberCheckerState.LocalIndex-1].GetSMStats()
+}
+
 // Collect is called when the process is terminating.
 func (cs *ConsState) Collect() {
 	cs.memberCheckerState.Collect()

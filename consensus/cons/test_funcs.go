@@ -232,7 +232,7 @@ func GenerateExtraParticipantRegisterState(to types.TestOptions, priv sig.Priv, 
 func GenerateCausalStateMachine(to types.TestOptions, priv sig.Priv, proposer sig.Pub,
 	extraParticipantInfo [][]byte, pid int64, testProc channelinterface.MainChannel,
 	finishedChan chan channelinterface.ChannelCloseType, memberCheckerState consinterface.ConsStateInterface,
-	generalConfig *generalconfig.GeneralConfig) (ret consinterface.CausalStateMachineInterface) {
+	generalConfig *generalconfig.GeneralConfig, basicInit bool) (ret consinterface.CausalStateMachineInterface) {
 
 	memberCount := to.NumTotalProcs - to.NumNonMembers
 
@@ -260,7 +260,7 @@ func GenerateCausalStateMachine(to types.TestOptions, priv sig.Priv, proposer si
 	default:
 		panic(to.StateMachineType)
 	}
-	ret.Init(generalConfig, computeSMFinish(to), memberCheckerState, testProc, finishedChan)
+	ret.Init(generalConfig, computeSMFinish(to), memberCheckerState, testProc, finishedChan, basicInit)
 	return ret
 }
 
@@ -268,7 +268,7 @@ func GenerateCausalStateMachine(to types.TestOptions, priv sig.Priv, proposer si
 func GenerateStateMachine(to types.TestOptions, priv sig.Priv,
 	extraParticipantInfo [][]byte, pid int64, testProc channelinterface.MainChannel,
 	finishedChan chan channelinterface.ChannelCloseType, newPubFunc func() sig.Pub, newSigFunc func() sig.Sig,
-	generalConfig *generalconfig.GeneralConfig) (ret consinterface.StateMachineInterface) {
+	generalConfig *generalconfig.GeneralConfig, basicInit bool) (ret consinterface.StateMachineInterface) {
 
 	smSeed := nonFixedSmSeed
 	if to.UseFixedSeed {
@@ -304,7 +304,7 @@ func GenerateStateMachine(to types.TestOptions, priv sig.Priv,
 	default:
 		panic(to.StateMachineType)
 	}
-	ret.Init(generalConfig, computeSMFinish(to), types.ConsensusInt(to.AllowConcurrent), testProc, finishedChan)
+	ret.Init(generalConfig, computeSMFinish(to), types.ConsensusInt(to.AllowConcurrent), testProc, finishedChan, basicInit)
 	return
 }
 
@@ -791,13 +791,13 @@ func GenerateConsState(t assert.TestingT, to types.TestOptions, priv sig.Priv, r
 	switch to.OrderingType {
 	case types.Total:
 		sm = GenerateStateMachine(to, priv.GetBaseKey(), retExtraParRegInfo, int64(i), testProc, finishedChan,
-			priv.GetBaseKey().GetPub().New, priv.GetBaseKey().NewSig, generalConfig)
+			priv.GetBaseKey().GetPub().New, priv.GetBaseKey().NewSig, generalConfig, false)
 		if isFailure {
 			sm.FailAfter(computeFailRound(to))
 		}
 	case types.Causal:
 		causalSM = GenerateCausalStateMachine(to, priv, proposer, retExtraParRegInfo, int64(i), testProc, finishedChan,
-			memberCheckerState, generalConfig)
+			memberCheckerState, generalConfig, false)
 		if isFailure {
 			causalSM.FailAfter(computeFailRound(to))
 		}
@@ -1212,7 +1212,7 @@ func RunConsType(initItem consinterface.ConsItem,
 	// We need to compute the value of the initial hash // TODO clean this up
 	if to.OrderingType == types.Causal {
 		initSM := GenerateCausalStateMachine(to, privKeys[0], pubKeys[0], retExtraParRegInfo, int64(0),
-			testProcs[0], nil, nil, generalConfigs[0])
+			testProcs[0], nil, nil, generalConfigs[0], true)
 		SetInitIndex(initSM)
 	}
 
@@ -1468,7 +1468,7 @@ func VerifyDecisions(to types.TestOptions, retExtraParRegInfo [][]byte, consType
 
 	sm := GenerateStateMachine(to, nil, retExtraParRegInfo,
 		0, nil, nil, privKey.GetBaseKey().GetPub().New,
-		privKey.GetBaseKey().NewSig, generalConfig)
+		privKey.GetBaseKey().NewSig, generalConfig, true)
 	outOfOrderErrs, errs := CheckDecisions(decs, sm, to)
 	if len(errs) > 0 {
 		panic(fmt.Sprint(errs, outOfOrderErrs))
@@ -1476,7 +1476,6 @@ func VerifyDecisions(to types.TestOptions, retExtraParRegInfo [][]byte, consType
 	if len(outOfOrderErrs) > 0 {
 		logging.Errorf("Got some out of order errors: %v", outOfOrderErrs)
 		if !to.AllowsOutOfOrderProposals(consType) {
-			fmt.Println(decs)
 			panic(outOfOrderErrs)
 		}
 	}
@@ -1488,7 +1487,7 @@ func VerifyCausalDecisions(to types.TestOptions, retExtraParRegInfo [][]byte,
 	orderedDecisions [][]byte) {
 
 	errs := CheckCausalDecisions(roots, orderedDecisions, GenerateCausalStateMachine(to, privKey, privKey.GetPub(),
-		retExtraParRegInfo, 0, nil, nil, nil, generalConfig), to)
+		retExtraParRegInfo, 0, nil, nil, nil, generalConfig, true), to)
 	if len(errs) > 0 {
 		panic(fmt.Sprint(errs))
 	}
@@ -1545,7 +1544,9 @@ func recCheckEqual(nodes []*utils.StringNode, to types.TestOptions) error {
 // CheckDecisions checks if the decided values are valid.
 // (1) Checks that all processes decided the same value.
 // (2) Checks with the state machine that the decided values are valid.
-func CheckDecisions(decidedValues [][][]byte, pi consinterface.StateMachineInterface, to types.TestOptions) (outOforderErrors, errors []error) {
+func CheckDecisions(decidedValues [][][]byte, pi consinterface.StateMachineInterface,
+	to types.TestOptions) (outOforderErrors, errors []error) {
+
 	if len(decidedValues) < 2 {
 		panic("not enough processes")
 	}

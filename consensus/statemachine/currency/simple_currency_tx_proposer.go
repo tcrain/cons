@@ -77,10 +77,11 @@ type SimpleCurrencyTxProposer struct {
 	accTable    *AccountTable
 	globalState *currencyGlobalState
 
-	myProposals  []*TransferTx
-	txRetChan    chan []transactionsm.TransactionInterface
-	initPubs     []sig.Pub
-	initialState []byte
+	myProposals           []*TransferTx
+	txRetChan             chan []transactionsm.TransactionInterface
+	initPubs              []sig.Pub
+	initialState          []byte
+	startedRecordingStats bool
 
 	hashes         *copywritemap.CopyWriteMap // map[types.ConsensusInt]messages.HashBytes
 	lastBlockIndex types.ConsensusInt
@@ -158,6 +159,24 @@ func NewSimpleTxProposer(useRand bool, initRandBytes [32]byte,
 	return ret
 }
 
+// GetSMStats returns the statistics object for the SM.
+func (spi *SimpleCurrencyTxProposer) GetSMStats() consinterface.SMStats {
+	return CurrencyStats{
+		AccStats:  *spi.accTable.stats,
+		PoolStats: spi.txPool.GetStats(),
+	}
+}
+
+type CurrencyStats struct {
+	AccStats  AccountStats
+	PoolStats transactionsm.PoolStats
+}
+
+func (cs CurrencyStats) StatsString(testDuration time.Duration) string {
+	return fmt.Sprintf("\n%v\nAccount stats: %v\nPool stats: %v", cs.AccStats.StatsString(testDuration),
+		cs.AccStats.String(), cs.PoolStats.String())
+}
+
 func (spi *SimpleCurrencyTxProposer) StatsString(testDuration time.Duration) string {
 	return fmt.Sprintf("\n%v\nAccount stats: %v\nPool stats: %v\n%v", spi.accTable.stats.StatsString(testDuration),
 		spi.accTable.stats.String(), spi.txPool.String(), spi.accTable.String())
@@ -214,14 +233,17 @@ func (spi *SimpleCurrencyTxProposer) runTxProposeThread(idx int, privKey sig.Pri
 }
 
 // Init initalizes the simple proposal object state.
-func (spi *SimpleCurrencyTxProposer) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt, needsConcurrent types.ConsensusInt,
-	mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType) {
+func (spi *SimpleCurrencyTxProposer) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt,
+	needsConcurrent types.ConsensusInt, mainChannel channelinterface.MainChannel,
+	doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
 
 	spi.AbsInit(gc, lastProposal, needsConcurrent, mainChannel, doneChan)
 	spi.AbsRandSM.AbsRandInit(gc)
-	for i, priv := range spi.myKeys {
-		if c := spi.runTxProposeThread(gc.TestIndex+i, priv); c != nil {
-			spi.globalState.donePropose = append(spi.globalState.donePropose, c)
+	if !basicInit {
+		for i, priv := range spi.myKeys {
+			if c := spi.runTxProposeThread(gc.TestIndex+i, priv); c != nil {
+				spi.globalState.donePropose = append(spi.globalState.donePropose, c)
+			}
 		}
 	}
 	// spi.runTxProposeThread()
@@ -447,6 +469,12 @@ func (spi *SimpleCurrencyTxProposer) StartIndex(nxt types.ConsensusInt) consinte
 
 	ret.AbsStartIndex(nxt)
 	ret.RandStartIndex(spi.AbsRandSM.GetRand())
+
+	if !spi.startedRecordingStats && ret.GetStartedRecordingStats() {
+		spi.startedRecordingStats = true
+		spi.accTable.stats.Reset()
+		spi.txPool.ResetStats()
+	}
 	return ret
 }
 

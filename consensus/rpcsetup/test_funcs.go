@@ -337,7 +337,7 @@ func runInitialSetup(setup *SingleConsSetup, t assert.TestingT) (err error) {
 	if scs.To.OrderingType == types.Causal {
 		initSM := cons.GenerateCausalStateMachine(scs.To, scs.PrivKey, scs.PrivKey.GetPub(),
 			scs.RetExtraParRegInfo, int64(scs.I), scs.TestProc, nil, nil,
-			scs.Gc)
+			scs.Gc, true)
 
 		setup.Mutex.Lock()
 		if !*setup.SetInitialHash {

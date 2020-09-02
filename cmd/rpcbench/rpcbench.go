@@ -25,6 +25,7 @@ Also each node that will be running the test must have a rpcnode.RunningCons pro
 package main
 
 import (
+	"encoding/gob"
 	"flag"
 	"fmt"
 	"github.com/tcrain/cons/consensus/auth/sig"
@@ -109,6 +110,7 @@ func main() {
 		logging.Error("invalid config ", err)
 		panic(err)
 	}
+	cons.SetTestConfigOptions(&to, true)
 
 	logging.Info("Reading ip file: ", ipFile)
 	ips, err := utils.ReadTCPIPFile(ipFile, true)
@@ -263,6 +265,12 @@ func main() {
 	}
 	wg.Wait()
 
+	priv, err := cons.MakeUnusedKey(0, to)
+	if err != nil {
+		logging.Error("error generating private key", err)
+		panic(err)
+	}
+
 	var sm consinterface.StateMachineInterface
 	if to.CheckDecisions {
 
@@ -275,11 +283,6 @@ func main() {
 		epi := make([][]byte, len(pi))
 		for i, nxt := range pi {
 			epi[i] = nxt.ExtraInfo
-		}
-		priv, err := cons.MakeUnusedKey(0, to)
-		if err != nil {
-			logging.Error("error generating private key", err)
-			panic(err)
 		}
 
 		// Generate a state machine to validate the decisions
@@ -310,6 +313,7 @@ func main() {
 			wg.Wait()
 
 			sm = cons.VerifyDecisions(to, epi, to.ConsType, priv, generalConfig, decs)
+			_ = sm
 		case types.Causal:
 			// check the decide values are all equal
 			decs := make([]rpcsetup.CausalDecisions, to.NumTotalProcs)
@@ -343,7 +347,20 @@ func main() {
 		go func(idx int) {
 			logging.Infof("Getting results cons node index %v\n", idx)
 			mod := idx % len(ips)
-			res, err := rpcServers[mod].GetResults(idx)
+			var smStats consinterface.SMStats
+			gc := consinterface.CreateGeneralConfig(0, nil, nil, to, nil, priv)
+			switch to.OrderingType {
+			case types.Total:
+				smStats = cons.GenerateStateMachine(to, priv, nil,
+					0, nil, nil, nil,
+					nil, gc, true).GetSMStats()
+			default:
+				smStats = cons.GenerateCausalStateMachine(to, priv,
+					nil, nil, 0, nil,
+					nil, nil, gc, true).GetSMStats()
+			}
+			gob.Register(smStats)
+			res, err := rpcServers[mod].GetResults(idx, smStats)
 			if err != nil {
 				logging.Error(err)
 				panic(err)
@@ -390,10 +407,8 @@ func main() {
 	}
 
 	logging.Printf(cons.GetStatsString(to, statsList, true, resultsFolder))
-	if sm != nil {
-		totalTime := statsList[0].FinishTime.Sub(statsList[0].StartTime)
-		logging.Print(sm.StatsString(totalTime)) // TODO merge these stats also???
-	}
+	totalTime := statsList[0].FinishTime.Sub(statsList[0].StartTime)
+	logging.Print("SM stats: ", results[0].SMStats.StatsString(totalTime)) // TODO merge these stats also???
 
 	// Store the test options files
 	if err := types.TOToDisk(toFolder, to); err != nil {

@@ -31,7 +31,6 @@ import (
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
-	"time"
 )
 
 const initialCounterString = "some initial unique counter string"
@@ -40,28 +39,32 @@ const initialCounterString = "some initial unique counter string"
 type CausalCounterProposerInfo struct {
 	AbsCausalStateMachine
 	AbsRandSM
-	// our proposal count
+	// our proposal Increments
 	proposalIndex uint64
 	lastProposal  uint64
 	// my pub
 	myPub sig.Pub
 	// who makes the proposals
-	proposer sig.Pub
+	proposer              sig.Pub
+	startedRecordingStats bool // set to true once stat recording has started
+	*CounterStats
 }
 
 // NewCausalCounterProposerInfo generates a new CausalCounterProposerInfo object.
 func NewCausalCounterProposerInfo(myPub, proposer sig.Pub, useRand bool, initRandBytes [32]byte) *CausalCounterProposerInfo {
 
 	return &CausalCounterProposerInfo{AbsRandSM: NewAbsRandSM(initRandBytes, useRand),
-		myPub:    myPub,
-		proposer: proposer}
+		myPub:        myPub,
+		proposer:     proposer,
+		CounterStats: &CounterStats{}}
 }
 
 // Init initalizes the object. Called once on just the very initial object.
 func (spi *CausalCounterProposerInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt,
-	memberCheckerState consinterface.ConsStateInterface, mainChannel channelinterface.MainChannel,
-	doneChan chan channelinterface.ChannelCloseType) {
+	_ consinterface.ConsStateInterface, mainChannel channelinterface.MainChannel,
+	doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
 
+	_ = basicInit
 	spi.lastProposal = uint64(lastProposal)
 	spi.AbsRandSM.AbsRandInit(gc)
 
@@ -72,7 +75,7 @@ func (spi *CausalCounterProposerInfo) Init(gc *generalconfig.GeneralConfig, last
 
 	spi.AbsInit(myIndex, gc,
 		[]sig.ConsIDPub{
-			sig.ConsIDPub{ID: types.ConsensusHash(types.GetHash(spi.GetInitialState())),
+			{ID: types.ConsensusHash(types.GetHash(spi.GetInitialState())),
 				Pub: spi.proposer}}, mainChannel, doneChan)
 }
 
@@ -106,6 +109,9 @@ func (spi *CausalCounterProposerInfo) HasDecided(proposer sig.Pub, index types.C
 	if len(owners) != 1 {
 		panic("should always have only one counter owner")
 	}
+	if spi.startedRecordingStats {
+		spi.TotalDecisions++
+	}
 	if len(decision) == 0 { // a nil decision
 		// keep the same counter
 	} else {
@@ -136,6 +142,9 @@ func (spi *CausalCounterProposerInfo) HasDecided(proposer sig.Pub, index types.C
 		// initial proposal will be 1
 		logging.Info("Incrementing counter", spi.proposalIndex, spi.index)
 		spi.proposalIndex++
+		if spi.startedRecordingStats {
+			spi.Increments++
+		}
 	}
 	// The output is the hash of the new counter value.
 	buff := bytes.NewBuffer(nil)
@@ -148,7 +157,7 @@ func (spi *CausalCounterProposerInfo) HasDecided(proposer sig.Pub, index types.C
 	outputs := []sig.ConsIDPub{{ID: types.ConsensusHash(types.GetHash(parIdx)),
 		Pub: owners[0]}}
 
-	end := spi.proposalIndex == spi.lastProposal
+	end := spi.proposalIndex+1 == spi.lastProposal
 	spi.AbsHasDecided(proposer, index, decision, outputs, end)
 
 	pStr, err := owners[0].GetPubString()
@@ -161,7 +170,7 @@ func (spi *CausalCounterProposerInfo) HasDecided(proposer sig.Pub, index types.C
 	}
 	if pStr == myStr {
 		// there is a single proposer, make the next proposal if not finished
-		if spi.proposalIndex < spi.lastProposal {
+		if spi.proposalIndex+1 < spi.lastProposal {
 			spi.getProposal()
 		}
 	}
@@ -230,7 +239,7 @@ func (spi *CausalCounterProposerInfo) getProposal() {
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *CausalCounterProposerInfo) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
 	n := spi.GetRndNumBytes()
 	buf := bytes.NewReader(originProposal[n:])
@@ -295,20 +304,26 @@ func (spi *CausalCounterProposerInfo) GenerateNewSM(consumedIndices []types.Cons
 	}
 	ret := &CausalCounterProposerInfo{}
 	*ret = *parent
-	startRecordingStats := parent.proposalIndex == uint64(spi.GeneralConfig.WarmUpInstances)
+	var startRecordingStats bool
+	if !ret.startedRecordingStats {
+		if parent.proposalIndex+1 == uint64(spi.GeneralConfig.WarmUpInstances) {
+			ret.startedRecordingStats, startRecordingStats = true, true
+		}
+	}
 	ret.AbsStartIndex(consumedIndices, parentSMs, startRecordingStats)
 	logging.Infof("generating new causal counter sm from counter %v", parent.proposalIndex)
 	return ret
-}
-
-func (spi *CausalCounterProposerInfo) StatsString(testDuration time.Duration) string {
-	return fmt.Sprintf("Got to counter %v for hash %v", spi.proposalIndex, spi.index)
 }
 
 // GetDependentItems returns a  list of items dependent from this SM.
 // This list must be the same as the list returned from HasDecided
 func (spi *CausalCounterProposerInfo) GetDependentItems() []sig.ConsIDPub {
 	return spi.AbsGetDependentItems()
+}
+
+// GetSMStats returns the statistics object for the SM.
+func (spi *CausalCounterProposerInfo) GetSMStats() consinterface.SMStats {
+	return spi.CounterStats
 }
 
 // CheckDecisions ensure each value decided incraments the value by 1 (except for nil decisions).

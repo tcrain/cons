@@ -50,8 +50,9 @@ type CausalStateMachineInterface interface {
 
 	// Init is called to initialize the object, lastProposal is the number of consensus instances to run, after which a message should be sent
 	// on doneChan telling the consensus to shut down.
+	// If basic init is true, then the SM will just be used for checking stats and checking decisions.
 	Init(gc *generalconfig.GeneralConfig, endAfter types.ConsensusInt, memberCheckerState ConsStateInterface,
-		mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType)
+		mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType, basicInit bool)
 
 	// GenerateNewSM is called on this init SM to generate a new SM given the items to be consumed.
 	// It should just generate the item, it should not change the state of any of the parentSMs.
@@ -87,6 +88,10 @@ type CausalStateMachineInterface interface {
 	StartInit(memberCheckerState ConsStateInterface)
 }
 
+type SMStats interface {
+	StatsString(testDuration time.Duration) string
+}
+
 type GeneralStateMachineInterface interface {
 	// FinishedLastRound returns true if the last test index has finished.
 	FinishedLastRound() bool
@@ -104,6 +109,8 @@ type GeneralStateMachineInterface interface {
 	StatsString(testDuration time.Duration) string
 	// GetDecided returns true if the SM has decided.
 	GetDecided() bool
+	// GetSMStats returns the statistics object for the SM.
+	GetSMStats() SMStats
 	// GetRand returns 32 random bytes if supported by the state machine type.
 	// It should only be called after HasDecided.
 	GetRand() [32]byte
@@ -140,8 +147,9 @@ type StateMachineInterface interface {
 	// Init is called to initialize the object, lastProposal is the number of consensus instances to run, after which a message should be sent
 	// on doneChan telling the consensus to shut down.
 	// Need concurrent is the number of consensus indicies that need to be additionally run for the consensus to complete.
+	// If basic init is true, then the SM will just be used for checking stats and checking decisions.
 	Init(generalConfig *generalconfig.GeneralConfig, lastProposal types.ConsensusInt, needsConcurrent types.ConsensusInt,
-		mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType) // To set state
+		mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType, basicInit bool) // To set state
 	// GetDone returns the done status of this SM.
 	GetDone() types.DoneType
 	// CheckDecisions is for testing and will be called at the end of the test with the ordered list of all the decided values, it should then check if the

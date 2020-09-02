@@ -1,5 +1,7 @@
 {
     "TestID": 3,
+    "ConsType": 10,
+    "StateMachineType": 5,
     "MaxRounds": 10,
     "NumTotalProcs": 8,
     "NetworkType": 0,

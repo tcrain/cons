@@ -2,7 +2,7 @@
     "TestID": 6,
     "OrderingType": 1,
     "ConsType": 13,
-    "StateMachineType": 6,
+    "StateMachineType": 7,
     "MaxRounds": 10,
     "CoinType": 0,
     "NumTotalProcs": 25,

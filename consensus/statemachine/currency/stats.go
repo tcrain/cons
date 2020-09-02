@@ -34,19 +34,28 @@ type AccountStats struct {
 	FailedGenerationTxCount uint64
 }
 
-func (as AccountStats) GenerateTx() {
+func (as *AccountStats) Reset() {
+	atomic.StoreUint64(&as.GeneratedTxCount, 0)
+	atomic.StoreUint64(&as.FailedGenerationTxCount, 0)
+	atomic.StoreUint64(&as.PassedValidations, 0)
+	atomic.StoreUint64(&as.FailedValidations, 0)
+	as.MoneyTransfered = 0
+	as.TxConsumedCount = 0
+}
+
+func (as *AccountStats) GenerateTx() {
 	atomic.AddUint64(&as.GeneratedTxCount, 1)
 }
 
-func (as AccountStats) FailedGenerateTx() {
+func (as *AccountStats) FailedGenerateTx() {
 	atomic.AddUint64(&as.FailedGenerationTxCount, 1)
 }
 
-func (as AccountStats) PassedValidation() {
+func (as *AccountStats) PassedValidation() {
 	atomic.AddUint64(&as.PassedValidations, 1)
 }
 
-func (as AccountStats) FailedValidation() {
+func (as *AccountStats) FailedValidation() {
 	atomic.AddUint64(&as.FailedValidations, 1)
 }
 
