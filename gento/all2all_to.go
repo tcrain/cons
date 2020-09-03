@@ -31,22 +31,32 @@ func GenAll2AllSimple() {
 	optsSig := cons.ReplaceNilFields(cons.OptionStruct{
 		SigTypes:  []types.SigType{types.EC},
 		CoinTypes: []types.CoinType{types.NoCoinType},
-		RandMemberCheckerTypes: []types.RndMemberType{types.NonRandom, types.VRFPerCons,
-			types.KnownPerCons, types.VRFPerMessage},
 	}, baseMVOptions)
 
 	consTypes = []types.ConsType{types.MvCons2Type}
 
 	folderName := "all2all"
 
-	ct := rndBinAll2All
+	ct := mvAll2All
 	ct.StopOnCommit = types.Immediate
 	ct.IncludeProofs = false
 	ct.SleepCrypto = true
+	ct.WarmUpInstances = 1
+	ct.CPUProfile = false
+	ct.MvConsTimeout = 200
+
 	nxtID := genTO(1, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
 		optsSig, nil)
-	_ = nxtID
 
-	genGenSets(folderName, []parse.GenSet{parse.GenByNodeCount})
+	optsSig = cons.ReplaceNilFields(cons.OptionStruct{
+		RandMemberCheckerTypes: []types.RndMemberType{types.VRFPerCons,
+			types.KnownPerCons, types.VRFPerMessage},
+	}, optsSig)
+	ct.RndMemberCount = 10
+	ct.GenRandBytes = true
+	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
+		optsSig, nil)
+
+	genGenSets(folderName, []parse.GenSet{parse.GenPerNodeByRndMemberType})
 
 }

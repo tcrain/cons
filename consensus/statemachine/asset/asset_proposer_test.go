@@ -99,7 +99,7 @@ func testAssetProposer(initAssets []AssetInterface, newAssetInterfaceFunc func()
 		gc := &generalconfig.GeneralConfig{Stats: stats.GetStatsObject(types.MvCons2Type, false)}
 		mainChannels[i] = &testobjects.MockMainChannel{}
 		doneChans[i] = make(chan channelinterface.ChannelCloseType, 1)
-		proposers[i].Init(gc, types.ConsensusInt(endAfter), nil, mainChannels[i], doneChans[i])
+		proposers[i].Init(gc, types.ConsensusInt(endAfter), nil, mainChannels[i], doneChans[i], false)
 
 		proposers[i].StartInit(nil)
 

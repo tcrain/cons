@@ -61,6 +61,13 @@ var ByzMap = map[string]string{
 	"NonFaulty":        "N",
 }
 
+var RndMemberMap = map[string]string{
+	"NotRandom":     "NR",
+	"KnownPerCons":  "KPC",
+	"VRFPerCons":    "VPC",
+	"VRFPerMessage": "VPM",
+}
+
 var TrueFalseMap = map[string]string{
 	"true":  "Y",
 	"false": "N",
@@ -69,6 +76,13 @@ var TrueFalseMap = map[string]string{
 var ActTitle = "Time Per Decision (ms)"
 var MultiPlotTitles = map[string]int{ActTitle: 1, "BytesSent": 2, "MsgsSent": 3, "RoundDecide": 4}
 var SigMsgMap = map[string]string{"true": "y", "false": "n"}
+
+var GenPerNodeByRndMemberType = GenSet{
+	Name:             "RndMemberType",
+	BoolFilterFields: []FilterBoolField{PerProcFilter, TotalFilter},
+	GenItems: []GenItem{{VaryField: VaryField{VaryField: "ConsType"},
+		ExtraFields: []VaryField{{VaryField: "RndMemberType", NameMap: RndMemberMap}}}},
+}
 
 var GenPerNodeByCons = GenSet{
 	Name:             "NodeCount",

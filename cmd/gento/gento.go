@@ -23,6 +23,8 @@ This package outputs test options files to disk based on the variables.
 package main
 
 import (
+	"flag"
+	"github.com/tcrain/cons/consensus/utils"
 	"github.com/tcrain/cons/gento"
 )
 
@@ -194,5 +196,23 @@ func main() {
 	GenBinNormalCoinSigScaleOnce(true)
 	*/
 
-	gento.GenCoinTO()
+	var getType int
+	flag.IntVar(&getType, "i", -1, "set of test options to generate, -1 means generate all")
+	flag.Parse()
+
+	genTOFuncs := []func(){
+		gento.GenCoinTO,
+		gento.GenAll2AllSimple,
+	}
+
+	var genIdx []int
+	switch getType {
+	case -1:
+		genIdx = utils.GenList(len(genTOFuncs))
+	default:
+		genIdx = append(genIdx, getType)
+	}
+	for _, nxt := range genIdx {
+		genTOFuncs[nxt]()
+	}
 }
