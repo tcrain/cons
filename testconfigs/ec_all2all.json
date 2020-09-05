@@ -15,5 +15,6 @@
     "CheckDecisions": true,
     "BinConsPercentOnes": 50,
     "SharePubsRPC": true,
-    "SleepCrypto": true
+    "SleepCrypto": true,
+    "WarmUpInstances": 1
 }

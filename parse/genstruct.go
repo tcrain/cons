@@ -26,6 +26,7 @@ import (
 	"reflect"
 )
 
+// StatsNames is the list of statistics that will be used to create graphs
 var StatsNames = []string{
 	"Signed",
 	"Validated",
@@ -39,6 +40,11 @@ var StatsNames = []string{
 	"MsgsSent",
 	"BytesSent",
 	"BufferForwardTimeouts",
+	"ProposalCount",
+	"MemberCount",
+	"ProposalForwarded",
+	"ForwardState",
+	"ProgressTimeout",
 }
 
 // List of fields in the test options structure

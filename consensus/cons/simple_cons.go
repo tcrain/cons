@@ -136,7 +136,8 @@ func (sc *SimpleCons) Start() {
 // It returns sc.Index - 1, nil.
 // If false is returned then the next is started, but the current instance has no state machine created.
 func (sc *SimpleCons) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, canStartNext bool) {
-	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1), nil, nil, true
+	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1), nil,
+		nil, sc.GeneralConfig.AllowConcurrent > 0
 }
 
 // SetInitialState does noting for this algorithm.

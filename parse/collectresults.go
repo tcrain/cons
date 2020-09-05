@@ -330,6 +330,7 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 	var err error
 	for ct, res := range items {
 		for _, nxtRes := range res {
+
 			for _, nxt := range StatsNames {
 				minStr := "Min" + nxt
 				maxStr := "Max" + nxt
@@ -427,6 +428,32 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 			resultsMap[struct{ title, xIndex string }{nxtTitle, "ConsIndex"}] = append(
 				resultsMap[struct{ title, xIndex string }{nxtTitle, "ConsIndex"}], fileName)
 
+			// Graph by message id
+			nxtTitle = "MessageIDCount"
+			stats.SortMsgIDInfoCount(ms.MsgIDCount)
+			stats.SortMsgIDInfoCount(ms.MinMsgIDCount)
+			stats.SortMsgIDInfoCount(ms.MaxMsgIDCount)
+			fileName = ""
+			for i := range ms.MsgIDCount {
+				id := ms.MsgIDCount[i].ID
+				max, min := ms.MaxMsgIDCount[i].Count, ms.MinMsgIDCount[i].Count
+				avg := float64(ms.MsgIDCount[i].Count) / float64(nxtRes.MergedStats.RecordCount)
+				if avg == 0 {
+					continue
+				}
+				str := fmt.Sprintf("%v:%v", id.HeaderID, id.Round)
+				if fileName, err = writeLineStatsFile(folderPath, nxtTitle, "None", "None",
+					VaryField{VaryField: "MsgIDCount"}, str, append([]VaryField{varyField}, extraNames...),
+					avg, max, min, nxtRes, ct, includeConsType, 2); err != nil {
+
+					logging.Error(err)
+					return err
+				}
+			}
+			if fileName != "" {
+				resultsMap[struct{ title, xIndex string }{nxtTitle, "MsgID"}] = append(
+					resultsMap[struct{ title, xIndex string }{nxtTitle, "MsgID"}], fileName)
+			}
 		}
 	}
 	// Generate the graphs
@@ -456,9 +483,6 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 			joinedMultiPlotStrings = append(joinedMultiPlotStrings, strings.Join(nxtString, "; "))
 		}
 
-		//for _, nxt := range joinedMultiPlotStrings {
-		//	fmt.Println("\n\n!!!!!!!!!!!!!!!!!!11\n\n", nxt, "\n\n!!!!!!!!!!!!!!!!!!11\n\n")
-		// }
 		if err := GenMultiPlot(folderPath, MultiPlotGraphTypes, joinedMultiPlotStrings); err != nil {
 			logging.Error(err)
 			return err

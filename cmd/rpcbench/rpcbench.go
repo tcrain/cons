@@ -106,6 +106,9 @@ func main() {
 		logging.Printf("Set test ID to %v\n", to.TestID)
 	}
 
+	logging.Infof("Sanitizing TO")
+	to = to.SanitizeTO()
+
 	if to, err = to.CheckValid(to.ConsType, consgen.GetConsConfig(to).GetIsMV()); err != nil {
 		logging.Error("invalid config ", err)
 		panic(err)

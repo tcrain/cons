@@ -28,6 +28,7 @@ import (
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/types"
+	"sort"
 )
 
 // checkForward is called after a message is processed, it checks if a message should be fowarded
@@ -130,6 +131,21 @@ func sendForward(idx types.ConsensusIndex, memberCheckerState consinterface.Cons
 				messages.IsProposalHeader(msg.Index, msg.Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader),
 				false, forwardFunc, mc.MC.GetStats().IsRecordIndex())
 		}
+	}
+	return
+}
+
+// CheckForwardProposal is called by multivalue consensus. It keeps track of sorted proposals by their
+// VRFs and says the forward the ones with the minimum VRFs seen so far.
+func CheckForwardProposal(deser *channelinterface.DeserializedItem,
+	hashStr types.HashStr, decisionHash types.HashStr, sortedInitHashesIn DeserSortVRF,
+	items *consinterface.ConsInterfaceItems) (sortedInitHashes DeserSortVRF, shouldForward bool) {
+
+	sortedInitHashes = append(sortedInitHashesIn, deser)
+	sort.Sort(sortedInitHashes)
+	if hashStr == decisionHash || sortedInitHashes[0] == deser { // only forward if it is the most likely leader we have seen
+		shouldForward = true
+		items.MC.MC.GetStats().ProposalForward()
 	}
 	return
 }

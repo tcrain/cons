@@ -353,7 +353,7 @@ func (sc *MvCons2) GetProposalIndex() (prevIdx types.ConsensusIndex, ready bool)
 // If false is returned then the next is started, but the current instance has no state machine created. // TODO
 func (sc *MvCons2) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasInfo bool) {
 	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
-		nil, nil, true
+		nil, nil, sc.GeneralConfig.AllowConcurrent > 0
 }
 
 // HasReceivedProposal returns true if the cons has received a valid proposal.
@@ -446,15 +446,18 @@ func (sc *MvCons2) ProcessMessage(
 		// Store it in a map of the proposals
 		round := cons.GetMvMsgRound(deser)
 		hashStr := types.HashStr(types.GetHash(deser.Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader.(*messagetypes.MvInitMessage).Proposal))
+
 		initMsgsByRound := sc.initMessageByRound[round]
 		if len(initMsgsByRound) != 0 || sc.validatedInitHashes[hashStr] != nil {
 			// we still process this message because it may be the message we commit
 			logging.Info("Received multiple inits in mv index %v, round %v", sc.Index, round)
 		}
-		sc.initMessageByRound[round] = append(initMsgsByRound, deser)
 		sc.validatedInitHashes[hashStr] = deser
-		w := deser.Header.(*sig.MultipleSignedMessage)
+		var shouldForward bool
+		sc.initMessageByRound[round], shouldForward = cons.CheckForwardProposal(deser, hashStr, sc.decisionHash,
+			initMsgsByRound, sc.ConsItems)
 
+		w := deser.Header.(*sig.MultipleSignedMessage)
 		// sanity checks to ensure the init message comes from the coordinator
 		err := consinterface.CheckMemberCoord(sc.ConsItems.MC, round, w.SigItems[0], w) // sanity check
 		if err != nil {
@@ -466,7 +469,7 @@ func (sc *MvCons2) ProcessMessage(
 		sc.checkProgress(round, t, nmt, sc.MainChannel)
 		// send any recovers that migt have requested this init msg
 		sc.SendRecover(sc.validatedInitHashes, sc.InitHeaders, sc.ConsItems)
-		return true, true
+		return true, shouldForward
 	case messages.HdrMvEcho, messages.HdrMvCommit:
 		// check if we have enough echos to decide
 		round := cons.GetMvMsgRound(deser)
@@ -708,7 +711,7 @@ func (sc *MvCons2) checkProgressRound(round types.ConsensusRound, t, nmt int, ma
 			}
 			if sc.decisionHashBytes == nil {
 				logging.Infof("Deciding on round %v, index %v", round, sc.Index)
-				sc.ConsItems.MC.MC.GetStats().AddFinishRound(round, false)
+				sc.ConsItems.MC.MC.GetStats().AddFinishRound(round+1, false)
 				sc.decisionHashBytes = commitHash
 				sc.decisionRound = round
 				sc.decisionHash = types.HashStr(commitHash)

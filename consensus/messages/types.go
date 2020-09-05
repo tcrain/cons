@@ -50,6 +50,25 @@ type MsgIDInfo struct {
 	Extra    byte
 }
 
+func (a MsgIDInfo) Less(b MsgIDInfo) bool {
+	switch {
+	case a.HeaderID < b.HeaderID:
+		return true
+	case a.HeaderID > b.HeaderID:
+		return false
+	case a.Round < b.Round:
+		return true
+	case a.Round > b.Round:
+		return false
+	case a.Extra < b.Extra:
+		return true
+	case a.Extra > b.Extra:
+		return false
+	default:
+		return false
+	}
+}
+
 // BasicMsgID implements the MsgID interface as a HeaderID.
 // So every message header with the same HeaderID will have equal MsgIDs.
 type BasicMsgID HeaderID

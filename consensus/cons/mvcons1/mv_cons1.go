@@ -296,19 +296,16 @@ func (sc *MvCons1) ProcessMessage(
 			logging.Infof("Recived duplicate proposals from coord at index %v", sc.Index)
 		}
 		sc.validatedInitHashes[hashStr] = deser
-		sc.sortedInitHashes = append(sc.sortedInitHashes, deser)
-		sort.Sort(sc.sortedInitHashes)
-		var shouldFoward bool
-		if hashStr == sc.decisionHash || sc.sortedInitHashes[0] == deser { // only forward if it is the most likely leader we have seen
-			shouldFoward = true
-		}
+		var shouldForward bool
+		sc.sortedInitHashes, shouldForward = cons.CheckForwardProposal(deser, hashStr, sc.decisionHash,
+			sc.sortedInitHashes, sc.ConsItems)
 		logging.Info("Got an mv init message of len", len(w.GetBaseMsgHeader().(*messagetypes.MvInitMessage).Proposal))
 
 		sc.checkSendEcho()
 		sc.checkEchoState(t, nmt, sc.MainChannel)
 		// send any recovers that migt have requested this init msg
 		sc.SendRecover(sc.validatedInitHashes, sc.InitHeaders, sc.ConsItems)
-		return true, shouldFoward
+		return true, shouldForward
 	case messages.HdrMvEcho:
 		// check if we have enough echos to decide
 		sc.checkEchoState(t, nmt, sc.MainChannel)
@@ -551,7 +548,8 @@ func (sc *MvCons1) CanStartNext() bool {
 // It returns sc.Index - 1, nil.
 // If false is returned then the next is started, but the current instance has no state machine created.
 func (sc *MvCons1) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasNextInfo bool) {
-	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1), nil, nil, true
+	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1), nil,
+		nil, sc.GeneralConfig.AllowConcurrent > 0
 }
 
 // HasDecided should return true if this consensus item has reached a decision.

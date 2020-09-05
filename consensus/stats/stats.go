@@ -31,6 +31,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/pprof"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -86,20 +87,21 @@ type StatsInterface interface {
 	BroadcastProposal()                                     // BroadcastProposal is called when the node makes a proposal.
 	IsMember()                                              // Is member is called when the node finds out it is the member of the consensus.
 	MemberMsgID(id messages.MsgID)                          // MemberMsgID is called when the node is a member for the message ID.
-	MergeLocalStats(numCons int) (total MergedStats)
+	ProposalForward()                                       // Called when a proposal is forwarded
+	MergeLocalStats(to types.TestOptions, numCons int) (total MergedStats)
 	// Merge all stats is a static function that merges the list of stats, and returns the average stats per process, and the total summed stats.
-	MergeAllStats(items []MergedStats) (perProc, merge MergedStats)
+	MergeAllStats(to types.TestOptions, items []MergedStats) (perProc, merge MergedStats)
 
 	NwStatsInterface
 }
 
 // MergeStats calls `items[0].MergeAllStats(numCons, items)` if len(items) > 0
-func MergeStats(items []MergedStats) (perProc, merge MergedStats) {
+func MergeStats(to types.TestOptions, items []MergedStats) (perProc, merge MergedStats) {
 	switch len(items) {
 	case 0:
 		return
 	default:
-		perProc, merge = (&BasicStats{}).MergeAllStats(items)
+		perProc, merge = (&BasicStats{}).MergeAllStats(to, items)
 		return
 	}
 }
@@ -122,10 +124,12 @@ type globalStats struct {
 	doneRecording    bool
 }
 
+// DivStats are the ones that need to be divided by the number of nodes to get the per node value.
 var DivStats = map[string]bool{"RoundParticipation": true, "RoundDecide": true, "DiskStorage": true,
 	"Signed": true, "ThrshCreated": true, "Validated": true, "VRFCreated": true, "VRFValidated": true,
-	"CoinValidated": true, "CoinCreated": true,
-	"MsgsSent": true, "BytesSent": true, "MaxMsgsSent": true, "MaxBytesSent": true, "MinMsgsSent": true, "MinBytesSent": true}
+	"CoinValidated": true, "CoinCreated": true, "ForwardState": true,
+	"MsgsSent": true, "BytesSent": true, "MaxMsgsSent": true, "MaxBytesSent": true, "ProposalForwarded": true,
+	"MinMsgsSent": true, "MinBytesSent": true}
 
 type StatsObj struct {
 	StartTime          time.Time            // List of the times when consensus instances were started.
@@ -144,6 +148,7 @@ type StatsObj struct {
 	ProgressTimeout    uint64               // Number of times progress timeout happened.
 	ForwardState       uint64               // Number of times state was forwarded due to neighbor timeout.
 	Proposal           bool                 // Made a proposal
+	ProposalForwarded  uint64               // Number of proposals forwarded
 	Member             bool                 // Is a member
 	MsgIDMember        []messages.MsgIDInfo // Member for the message ids
 
@@ -165,23 +170,30 @@ type MergedStats struct {
 	MaxValidatedCoin, MaxCoinCreated, MaxDecidedNil, MaxDiskStorage, MaxSigned, MaxValidated, MaxVRFValidated, MaxVRFCreated, MaxRoundDecide, MaxRoundParticipation, MaxThrshCreated uint64
 	MinValidatedCoin, MinCoinCreated, MinDecidedNil, MinDiskStorage, MinSigned, MinValidated, MinVRFValidated, MinVRFCreated, MinRoundDecide, MinRoundParticipation, MinThrshCreated uint64
 	MaxProgressTimeout, MinProgressTimeout                                                                                                                                           uint64
-	MaxMember, MinMember                                                                                                                                                             uint64
-	MaxProposal, MinProposal                                                                                                                                                         uint64
+	MaxProposalForwarded, MinProposalForwarded                                                                                                                                       uint64
+	MaxForwardState, MinForwardState                                                                                                                                                 uint64
+	MaxMemberCount, MinMemberCount                                                                                                                                                   uint64
+	MaxProposalCount, MinProposalCount                                                                                                                                               uint64
 	ProposalCount, MemberCount                                                                                                                                                       uint64
-	ProposalCounts                                                                                                                                                                   []uint64
-	MemberCounts                                                                                                                                                                     []uint64
 
-	MsgIDCount, MinMsgID, MaxMsgID   []MsgIDInfoCount
-	MaxForwardState, MinForwardState uint64
-	RecordCount                      int
-	CpuProfile                       []byte
-	StartMemProfile                  []byte
-	EndMemProfile                    []byte
+	ProposalCounts                           []uint64
+	MemberCounts                             []uint64
+	MsgIDCount, MinMsgIDCount, MaxMsgIDCount []MsgIDInfoCount
+	RecordCount                              int
+	CpuProfile                               []byte
+	StartMemProfile                          []byte
+	EndMemProfile                            []byte
 }
 
 type MsgIDInfoCount struct {
 	ID    messages.MsgIDInfo
 	Count uint64
+}
+
+func SortMsgIDInfoCount(sli []MsgIDInfoCount) {
+	sort.Slice(sli, func(i, j int) bool {
+		return sli[i].ID.Less(sli[j].ID)
+	})
 }
 
 func MsgIDCountString(msgIDCount, minMsgID, maxMsgID []MsgIDInfoCount) string {
@@ -258,6 +270,11 @@ func (bs *BasicStats) IsRecordIndex() bool {
 // CombinedThresholdSig is called when a threshold signature is combined.
 func (bs *BasicStats) CombinedThresholdSig() {
 	bs.ThrshCreated++
+}
+
+// ProposalForwarded is called when a proposal is forwarded
+func (bs *BasicStats) ProposalForward() {
+	bs.ProposalForwarded++
 }
 
 // MemberMsgID is called when the node is a member for the message ID.
@@ -414,15 +431,15 @@ func mergeInternalAll(items []StatsObj, reTotal MergedStats) MergedStats {
 	if len(items) == 0 {
 		return reTotal
 	}
-	reTotal.MinMember = uint64(len(items[0].MemberIdxs))
-	reTotal.MinProposal = uint64(len(items[0].ProposalIdxs))
+	reTotal.MinMemberCount = uint64(len(items[0].MemberIdxs))
+	reTotal.MinProposalCount = uint64(len(items[0].ProposalIdxs))
 	for _, nxt := range items {
 		reTotal.ProposalCount += uint64(len(nxt.ProposalIdxs))
 		reTotal.MemberCount += uint64(len(nxt.MemberIdxs))
-		reTotal.MaxMember = utils.MaxU64Slice(reTotal.MaxMember, uint64(len(nxt.MemberIdxs)))
-		reTotal.MaxProposal = utils.MaxU64Slice(reTotal.MaxProposal, uint64(len(nxt.ProposalIdxs)))
-		reTotal.MinMember = utils.MinU64Slice(reTotal.MinMember, uint64(len(nxt.MemberIdxs)))
-		reTotal.MinProposal = utils.MinU64Slice(reTotal.MinProposal, uint64(len(nxt.ProposalIdxs)))
+		reTotal.MaxMemberCount = utils.MaxU64Slice(reTotal.MaxMemberCount, uint64(len(nxt.MemberIdxs)))
+		reTotal.MaxProposalCount = utils.MaxU64Slice(reTotal.MaxProposalCount, uint64(len(nxt.ProposalIdxs)))
+		reTotal.MinMemberCount = utils.MinU64Slice(reTotal.MinMemberCount, uint64(len(nxt.MemberIdxs)))
+		reTotal.MinProposalCount = utils.MinU64Slice(reTotal.MinProposalCount, uint64(len(nxt.ProposalIdxs)))
 
 		// TODO
 		// reTotal.MsgIDMemberIdxs = append(reTotal.MsgIDMemberIdxs, nxt.MsgIDMember)
@@ -431,13 +448,20 @@ func mergeInternalAll(items []StatsObj, reTotal MergedStats) MergedStats {
 	return reTotal
 }
 
-func mergeInternal(items []StatsObj) (reTotal MergedStats) {
+func mergeInternal(to types.TestOptions, local bool, items []StatsObj) (reTotal MergedStats) {
 	var setStart bool
-	var coinCreatedCounts, validateCoinCounts, decidedNil, diskStorage, roundDecides, roundParticipations, signedCounts, validatedCounts, VRFCreatedCounts, VRFValidatedCouts, thrshCreated []uint64
+	var coinCreatedCounts, validateCoinCounts, decidedNil, diskStorage, roundDecides, roundParticipations,
+		signedCounts, validatedCounts, VRFCreatedCounts, VRFValidatedCouts, thrshCreated, proposalForwarded []uint64
 	var progressTimeoutCounts, forwardStateCounts []uint64
 	var times []time.Duration
 
-	prevTime := items[0].StartTime
+	var prevTime time.Time
+	// For MvCons3 we measure from the start of the 3rd instance since were are measuring time per decision
+	if local && to.ConsType == types.MvCons3Type && len(items) > 3 {
+		prevTime = items[3].StartTime
+	} else {
+		prevTime = items[0].StartTime
+	}
 	for _, item := range items {
 
 		if !setStart || reTotal.StartTime.After(item.StartTime) {
@@ -495,6 +519,8 @@ func mergeInternal(items []StatsObj) (reTotal MergedStats) {
 		reTotal.ProgressTimeout += item.ProgressTimeout
 		progressTimeoutCounts = append(progressTimeoutCounts, item.ProgressTimeout)
 
+		reTotal.ProposalForwarded += item.ProposalForwarded
+		proposalForwarded = append(proposalForwarded, item.ProposalForwarded)
 	}
 
 	reTotal.ConsTimes = times
@@ -526,6 +552,8 @@ func mergeInternal(items []StatsObj) (reTotal MergedStats) {
 	reTotal.MaxForwardState = utils.MaxU64Slice(forwardStateCounts...)
 	reTotal.MinProgressTimeout = utils.MinU64Slice(progressTimeoutCounts...)
 	reTotal.MaxProgressTimeout = utils.MaxU64Slice(progressTimeoutCounts...)
+	reTotal.MinProposalForwarded = utils.MinU64Slice(proposalForwarded...)
+	reTotal.MaxProposalForwarded = utils.MaxU64Slice(proposalForwarded...)
 
 	return
 }
@@ -558,12 +586,13 @@ func mergeStatsObj(a, b StatsObj, includeTime bool) StatsObj {
 	a.CoinCreated += b.CoinCreated
 	a.ForwardState += b.ForwardState
 	a.ProgressTimeout += b.ProgressTimeout
+	a.ProposalForwarded += b.ProposalForwarded
 	return a
 }
 
 // Merge local stats merges the list of stats objects from a single node.
 // There is one stats object for each consensus instance.
-func (bs *BasicStats) MergeLocalStats(numCons int) (total MergedStats) {
+func (bs *BasicStats) MergeLocalStats(to types.TestOptions, numCons int) (total MergedStats) {
 
 	// Remove duplicates (can happen on fail and restart)
 	for i, nxt := range bs.stats {
@@ -613,7 +642,7 @@ func (bs *BasicStats) MergeLocalStats(numCons int) (total MergedStats) {
 	if len(items) != numCons {
 		panic(fmt.Sprintf("should have stats for each cons, %v, %v", len(items), numCons))
 	}
-	total = mergeInternal(items)
+	total = mergeInternal(to, true, items)
 	total = mergeInternalLocal(items, total)
 	total.RecordCount = numCons
 	total.BasicNwStats = bs.BasicNwStats
@@ -650,9 +679,18 @@ func mapToSlice(m map[messages.MsgIDInfo]uint64) (ret []MsgIDInfoCount) {
 	return
 }
 
+func getFirstSinceTime(to types.TestOptions, startTimes []time.Time) time.Time {
+	// For MvCons3 we measure from the start of the 3rd instance since were are measuring time per decision
+	if to.ConsType == types.MvCons3Type && len(startTimes) > 3 {
+		return startTimes[3]
+	} else {
+		return startTimes[0]
+	}
+}
+
 // MergeAllStats takes as input an item for each node that contains its set of merged stats which was the output
 // of MergeLocalStats called on the list of stats for each proc.
-func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals MergedStats) {
+func (bs *BasicStats) MergeAllStats(to types.TestOptions, sList []MergedStats) (perProc, totals MergedStats) {
 	if len(sList) == 0 {
 		return
 	}
@@ -673,9 +711,19 @@ func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals Merged
 	endTimes := make([][]time.Time, sList[0].RecordCount)
 	for _, nxt := range sList {
 
+		allMsgIDs := make(map[messages.MsgIDInfo]bool)
 		for i, msgIDs := range nxt.MsgIDMemberIdxs {
 			for _, msgID := range msgIDs {
 				memberMsgIds[i][msgID]++
+				allMsgIDs[msgID] = true
+			}
+		}
+		// Be sure each index has all message ids so we can calculate the minium correctly later
+		for _, msgMap := range memberMsgIds {
+			for msgID := range allMsgIDs {
+				if _, ok := msgMap[msgID]; !ok {
+					msgMap[msgID] = 0
+				}
 			}
 		}
 		for _, idx := range nxt.MemberIdxs {
@@ -720,17 +768,20 @@ func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals Merged
 		perProc.MaxProgressTimeout = utils.MaxU64Slice(perProc.MaxProgressTimeout, nxt.MaxProgressTimeout)
 		perProc.MinForwardState = utils.MinU64Slice(perProc.MinForwardState, nxt.MinForwardState)
 		perProc.MaxForwardState = utils.MaxU64Slice(perProc.MaxForwardState, nxt.MaxForwardState)
+		perProc.MinProposalForwarded = utils.MinU64Slice(perProc.MinProposalForwarded, nxt.MinProposalForwarded)
+		perProc.MaxProposalForwarded = utils.MaxU64Slice(perProc.MaxProposalForwarded, nxt.MaxProposalForwarded)
 
 		summedTime += nxt.ConsTime
 	}
-	perProc.MaxMember = utils.MaxU64Slice(memberCounts...)
-	perProc.MinMember = utils.MinU64Slice(memberCounts...)
-	perProc.MaxProposal = utils.MaxU64Slice(proposalCounts...)
-	perProc.MinProposal = utils.MinU64Slice(proposalCounts...)
+	perProc.MaxMemberCount = utils.MaxU64Slice(memberCounts...)
+	perProc.MinMemberCount = utils.MinU64Slice(memberCounts...)
+	perProc.MaxProposalCount = utils.MaxU64Slice(proposalCounts...)
+	perProc.MinProposalCount = utils.MinU64Slice(proposalCounts...)
 	perProc.ProposalCounts = proposalCounts
 	perProc.MemberCounts = memberCounts
 	perProc.MemberCount = utils.SumUint64(memberCounts...)
 	perProc.ProposalCount = utils.SumUint64(proposalCounts...)
+
 	msgIDCount := make(map[messages.MsgIDInfo]uint64)
 	maxMsgID := make(map[messages.MsgIDInfo]uint64)
 	minMsgID := make(map[messages.MsgIDInfo]uint64)
@@ -747,10 +798,10 @@ func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals Merged
 		}
 	}
 	perProc.MsgIDCount = mapToSlice(msgIDCount)
-	perProc.MaxMsgID = mapToSlice(maxMsgID)
-	perProc.MinMsgID = mapToSlice(minMsgID)
+	perProc.MaxMsgIDCount = mapToSlice(maxMsgID)
+	perProc.MinMsgIDCount = mapToSlice(minMsgID)
 
-	totals = mergeInternal(items)
+	totals = mergeInternal(to, false, items)
 	totals = mergeInternalAll(items, totals)
 	totals.ConsTime = summedTime
 	totals.RecordCount = perProc.RecordCount
@@ -785,7 +836,7 @@ func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals Merged
 		// the avg duration
 		totals.ConsTimes = append(totals.ConsTimes, endTime.Sub(startTime))
 	}
-	prevTime := totals.StartTimes[0]
+	prevTime := getFirstSinceTime(to, totals.StartTimes)
 	for _, nxt := range totals.FinishTimes {
 		totals.SinceTimes = append(totals.SinceTimes, nxt.Sub(prevTime))
 		prevTime = nxt
@@ -815,6 +866,7 @@ func (bs *BasicStats) MergeAllStats(sList []MergedStats) (perProc, totals Merged
 	perProc.DecidedNil /= uint64(len(items))
 	perProc.ForwardState /= uint64(len(items))
 	perProc.ProgressTimeout /= uint64(len(items))
+	perProc.ProposalForwarded /= uint64(len(items))
 
 	// Calculate as the value per consensus, instead of per node
 	perProc.MemberCount /= uint64(sList[0].RecordCount)
@@ -1040,7 +1092,8 @@ func (ms MergedStats) String() string {
 	return fmt.Sprintf("{#Cons: %v, AllTime: %v, TotalTimeDivNumCons: %v,\n\tTotalConsTime: %v, AvgConsTime: %v, MinTime: %v, MaxTime: %v, AvgRound: %v,\n\tMaxRound: %v, MinRound: %v, AvgStopRound: %v, MaxStopRound: %v, MinStopRound: %v, SigCount: %v, \n\tMinSigCount %v, MaxSigCount %v, ValidatedItem: %v, MinValidated %v, MaxValidated %v,\n\tVRFCreated: %v, MinVRFCreated %v, MaxVRFCreated %v, VRFValidated: %v, MinVRFValidated %v, \n\tMaxVRFValidated %v, ThrshSigs: %v, MinThrshSigs: %v, MaxThrshSigs %v, \n\tDiskStorage %v, MinDiskStorage %v, MaxDiskStorage %v, \n\tDecidedNil %v, MinDecidedNil %v, MaxDecidedNil %v, CoinCreated: %v, MinCoinCreated: %v, MaxCoinCreated: %v, "+
 		"\n\tCoinValidated: %v, MinCoinValidated: %v, MaxCoinValidated: %v,"+
 		"\n\tProgressTO: %v, MinProgressTO: %v, MaxProgressTO: %v, Proposals %v, MaxProposals %v, MinProposals %v,"+
-		"\n\tMembers: %v, MaxMembers: %v, MinMembers: %v"+
+		"\n\tMembers: %v, MaxMembers: %v, MinMembers: %v,"+
+		"\n\tProposalsFwd: %v, MaxPropFwd: %v, MinPropFwd: %v"+
 		"\n\tForwardState: %v, MinForwardState: %v, MaxForwardState: %v"+
 		"\n\t%v}",
 		ms.RecordCount, float64(ms.FinishTime.Sub(ms.StartTime))/float64(time.Millisecond),
@@ -1057,7 +1110,7 @@ func (ms MergedStats) String() string {
 		ms.DecidedNil, ms.MinDecidedNil, ms.MaxDecidedNil,
 		ms.CoinCreated, ms.MinCoinCreated, ms.MaxCoinCreated,
 		ms.CoinValidated, ms.MinValidatedCoin, ms.MaxValidatedCoin,
-		ms.ProgressTimeout, ms.MinProgressTimeout, ms.MaxProgressTimeout, ms.ProposalCount, ms.MaxProposal, ms.MinProposal,
-		ms.MemberCount, ms.MaxMember, ms.MinMember,
-		ms.ForwardState, ms.MinForwardState, ms.MaxForwardState, MsgIDCountString(ms.MsgIDCount, ms.MinMsgID, ms.MaxMsgID))
+		ms.ProgressTimeout, ms.MinProgressTimeout, ms.MaxProgressTimeout, ms.ProposalCount, ms.MaxProposalCount, ms.MinProposalCount,
+		ms.MemberCount, ms.MaxMemberCount, ms.MinMemberCount, ms.ProposalForwarded, ms.MaxProposalForwarded, ms.MinProposalForwarded,
+		ms.ForwardState, ms.MinForwardState, ms.MaxForwardState, MsgIDCountString(ms.MsgIDCount, ms.MinMsgIDCount, ms.MaxMsgIDCount))
 }

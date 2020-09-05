@@ -42,7 +42,17 @@ func GetYIndex(value string) string {
 var YIndexMap = map[string]string{"MsgsSent": "Messages Sent", "RoundDecide": "Decision Round", "BytesSent": "Bytes Sent"}
 
 var SocMap = map[string]string{"NextRound": "nr", "SendProof": "sp"}
-var RndCTMap = map[string]string{"BinConsRnd1": "BC:s1", "BinConsRnd2": "BC:ns1", "BinConsRnd3": "BC:s2", "BinConsRnd4": "BC:ns2", "BinConsRnd5": "BC:s3", "BinConsRnd6": "BC:ns3"}
+var RndCTMap = map[string]string{
+	"BinConsRnd1":   "BC:s1",
+	"BinConsRnd2":   "BC:ns1",
+	"BinConsRnd3":   "BC:s2",
+	"BinConsRnd4":   "BC:ns2",
+	"BinConsRnd5":   "BC:s3",
+	"BinConsRnd6":   "BC:ns3",
+	"MvCons2":       "MC3S",
+	"MvBinConsRnd2": "MC4S",
+	"MvCons3":       "MC2S",
+}
 var CoinMap = map[string]string{
 	"KnownCoin":       "kc",
 	"LocalCoin":       "lc",
@@ -78,10 +88,24 @@ var MultiPlotTitles = map[string]int{ActTitle: 1, "BytesSent": 2, "MsgsSent": 3,
 var SigMsgMap = map[string]string{"true": "y", "false": "n"}
 
 var GenPerNodeByRndMemberType = GenSet{
-	Name:             "RndMemberType",
+	Name:             "RandomMemberType",
 	BoolFilterFields: []FilterBoolField{PerProcFilter, TotalFilter},
-	GenItems: []GenItem{{VaryField: VaryField{VaryField: "ConsType"},
-		ExtraFields: []VaryField{{VaryField: "RndMemberType", NameMap: RndMemberMap}}}},
+	GenItems: []GenItem{{VaryField: VaryField{VaryField: "NodeCount"},
+		ExtraFields: []VaryField{
+			{VaryField: "ConsType", Title: "CT:", NameMap: RndCTMap},
+			{VaryField: "RndMemberType", Title: "RMT", NameMap: RndMemberMap},
+		}}},
+}
+
+var GenPerNodeByConsCoin = GenSet{
+	Name:             "NodeCount",
+	BoolFilterFields: []FilterBoolField{PerProcFilter, TotalFilter},
+	GenItems: []GenItem{{VaryField: VaryField{VaryField: "NodeCount"}, ExtraFields: []VaryField{
+		{VaryField: "ConsType", NameMap: RndCTMap},
+		// {VaryField: "StopOnCommit", Title: "SOC", NameMap: socMap},
+		// {VaryField: "NoSignatures", Title: "SM:", NameMap: SigMsgMap},
+		{VaryField: "CoinType", Title: "CI:", NameMap: CoinMap},
+	}}},
 }
 
 var GenPerNodeByCons = GenSet{
@@ -91,7 +115,20 @@ var GenPerNodeByCons = GenSet{
 		{VaryField: "ConsType", NameMap: RndCTMap},
 		// {VaryField: "StopOnCommit", Title: "SOC", NameMap: socMap},
 		// {VaryField: "NoSignatures", Title: "SM:", NameMap: SigMsgMap},
-		{VaryField: "CoinType", Title: "CI:", NameMap: CoinMap},
+		// {VaryField: "CoinType", Title: "CI:", NameMap: CoinMap},
+	}}},
+}
+
+var GenPerNodeByConsCB = GenSet{
+	Name:             "NodeCount",
+	BoolFilterFields: []FilterBoolField{PerProcFilter, TotalFilter},
+	GenItems: []GenItem{{VaryField: VaryField{VaryField: "NodeCount"}, ExtraFields: []VaryField{
+		//{VaryField: "ConsType", NameMap: RndCTMap},
+		{VaryField: "CollectBroadcast", Title: "CB:"},
+		{VaryField: "SigType", Title: "ST:"},
+		// {VaryField: "StopOnCommit", Title: "SOC", NameMap: socMap},
+		// {VaryField: "NoSignatures", Title: "SM:", NameMap: SigMsgMap},
+		// {VaryField: "CoinType", Title: "CI:", NameMap: CoinMap},
 	}}},
 }
 

@@ -118,7 +118,7 @@ func getStatsStringInternal(to types.TestOptions, msList []stats.MergedStats, sa
 
 	var ret strings.Builder
 
-	perProcMerged, mergedStats := stats.MergeStats(msList)
+	perProcMerged, mergedStats := stats.MergeStats(to, msList)
 	// perProcNw, mergedNwStats := stats.MergeNwStats(int(to.MaxRounds), nwStatsList)
 	ret.WriteString(fmt.Sprintf("\nMerged stats: %v,\n%v\n", mergedStats.String(), mergedStats.BasicNwStats.NwString()))
 	ret.WriteString(fmt.Sprintf("\nMerged stats (per proc): %v,\n%v\n", perProcMerged.String(), perProcMerged.BasicNwStats.NwString()))
@@ -1409,7 +1409,7 @@ func RunConsType(initItem consinterface.ConsItem,
 	if config.PrintStats {
 		msList := make([]stats.MergedStats, len(statsList))
 		for i, nxt := range statsList {
-			msList[i] = nxt.MergeLocalStats(int(types.ComputeNumRounds(to)))
+			msList[i] = nxt.MergeLocalStats(to, int(types.ComputeNumRounds(to)))
 			sString := fmt.Sprintf("Stats for proc %v: %v, %v", i, msList[i].String(), msList[i].NwString())
 			logging.Infof(sString)
 

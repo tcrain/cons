@@ -247,6 +247,28 @@ func GetOrderForSM(smt StateMachineType) OrderingType {
 	panic(smt)
 }
 
+// SanitizeTO will clean certain parts of the test configuration, so that it is valid.
+// Should only be used during benchmarks when using the same config for multiple
+// node counts.
+func (to TestOptions) SanitizeTO() (newTO TestOptions) {
+	newTO = to
+	switch newTO.RndMemberType {
+	case NonRandom:
+		if newTO.RndMemberCount != 0 {
+			logging.Printf("setting RndMemberCount to 0")
+			newTO.RndMemberCount = 0
+		}
+	}
+	switch newTO.NetworkType {
+	case AllToAll:
+		if newTO.FanOut != 0 {
+			logging.Printf("setting FanOut to 0")
+			newTO.FanOut = 0
+		}
+	}
+	return
+}
+
 // CheckValid returns an error if the generalconfig in invalid
 func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOptions, err error) {
 	newTo = to

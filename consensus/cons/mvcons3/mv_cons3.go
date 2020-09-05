@@ -117,7 +117,7 @@ type MvCons3 struct {
 	validatedInitHashes map[types.HashStr]*channelinterface.DeserializedItem // hashes of init messages that have been validated by the state machine
 
 	zeroHash      types.HashBytes // if we don't receive an init message after the timeout we just send a zero hash to let others know we didn't receive anything
-	includeProofs bool            // if true then we should include proofs with our echo/commit messages
+	includeProofs bool            // if true then we should include proofs with our echo/commit messages (init messages always contain proofs)
 }
 
 // SetInitialState sets the value that is supported by the inital index (1).

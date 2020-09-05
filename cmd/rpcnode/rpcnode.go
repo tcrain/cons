@@ -138,7 +138,7 @@ func (rc *RunningCons) GetResults(i int, res *rpcsetup.RpcResults) error {
 	if scs, ok = rc.running[i]; !ok {
 		return fmt.Errorf("missing index %v", i)
 	}
-	stats := scs.SCS.Stats.MergeLocalStats(int(types.ComputeNumRounds(scs.To)))
+	stats := scs.SCS.Stats.MergeLocalStats(scs.To, int(types.ComputeNumRounds(scs.To)))
 	res.Stats = &stats
 	res.SMStats = scs.SCS.ConsState.SMStats()
 	gob.Register(res.SMStats)

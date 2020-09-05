@@ -315,7 +315,7 @@ func (sc *MvBinConsRnd2) GetProposalIndex() (prevIdx types.ConsensusIndex, ready
 // If false is returned then the next is started, but the current instance has no state machine created. // TODO
 func (sc *MvBinConsRnd2) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasInfo bool) {
 	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
-		nil, nil, true
+		nil, nil, sc.GeneralConfig.AllowConcurrent > 0
 }
 
 // ProcessMessage is called on every message once it has been checked that it is a valid message (using the static method ConsItem.DerserializeMessage), that it comes from a member
@@ -371,14 +371,17 @@ func (sc *MvBinConsRnd2) ProcessMessage(
 			logging.Infof("Recived duplicate proposals from coord at index %v", sc.Index)
 		}
 		sc.validatedInitHashes[hashStr] = deser
-		sc.sortedInitHashes = append(sc.sortedInitHashes, deser)
+		var shouldForward bool
+		sc.sortedInitHashes, shouldForward = cons.CheckForwardProposal(deser, hashStr, sc.decisionHash,
+			sc.sortedInitHashes, sc.ConsItems)
+
 		logging.Info("Got an mv init message of len", len(
 			deser.Header.(messages.InternalSignedMsgHeader).GetBaseMsgHeader().(*messagetypes.MvInitMessage).Proposal))
 
 		sc.checkProgress(t, nmt, sc.MainChannel)
 		// send any recovers that migt have requested this init msg
 		sc.SendRecover(sc.validatedInitHashes, sc.InitHeaders, sc.ConsItems)
-		return true, true
+		return true, shouldForward
 	case messages.HdrMvEcho, messages.HdrMvCommit:
 		// check if we have enough echos to decide
 		if cons.GetMvMsgRound(deser) != 0 {

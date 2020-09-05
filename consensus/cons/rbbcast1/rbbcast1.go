@@ -260,7 +260,7 @@ func (sc *RbBcast1) GetProposalIndex() (prevIdx types.ConsensusIndex, ready bool
 // If false is returned then the next is started, but the current instance has no state machine created. // TODO
 func (sc *RbBcast1) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasInfo bool) {
 	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
-		nil, nil, true
+		nil, nil, sc.GeneralConfig.AllowConcurrent > 0
 }
 
 // ProcessMessage is called on every message once it has been checked that it is a valid message (using the static method ConsItem.DerserializeMessage), that it comes from a member

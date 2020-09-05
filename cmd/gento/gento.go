@@ -202,7 +202,8 @@ func main() {
 
 	genTOFuncs := []func(){
 		gento.GenCoinTO,
-		gento.GenAll2AllSimple,
+		gento.GenRandBenchTO,
+		gento.GenAll2All,
 	}
 
 	var genIdx []int
