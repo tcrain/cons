@@ -141,11 +141,14 @@ func CheckForwardProposal(deser *channelinterface.DeserializedItem,
 	hashStr types.HashStr, decisionHash types.HashStr, sortedInitHashesIn DeserSortVRF,
 	items *consinterface.ConsInterfaceItems) (sortedInitHashes DeserSortVRF, shouldForward bool) {
 
-	sortedInitHashes = append(sortedInitHashesIn, deser)
-	sort.Sort(sortedInitHashes)
-	if hashStr == decisionHash || sortedInitHashes[0] == deser { // only forward if it is the most likely leader we have seen
-		shouldForward = true
-		items.MC.MC.GetStats().ProposalForward()
+	if _, ok := deser.Header.(*sig.MultipleSignedMessage); !ok { // We are not using signatures
+	} else { // We are using signatures, forward by VRF score if enabled
+		sortedInitHashes = append(sortedInitHashesIn, deser)
+		sort.Sort(sortedInitHashes)
+		if hashStr == decisionHash || sortedInitHashes[0] == deser { // only forward if it is the most likely leader we have seen
+			shouldForward = true
+			items.MC.MC.GetStats().ProposalForward()
+		}
 	}
 	return
 }
