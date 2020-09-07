@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/tcrain/cons/consensus/logging"
+	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
@@ -430,6 +431,8 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 
 			// Graph by message id
 			nxtTitle = "MessageIDCount"
+			minStr := "Min" + nxtTitle
+			maxStr := "Max" + nxtTitle
 			stats.SortMsgIDInfoCount(ms.MsgIDCount)
 			stats.SortMsgIDInfoCount(ms.MinMsgIDCount)
 			stats.SortMsgIDInfoCount(ms.MaxMsgIDCount)
@@ -441,8 +444,8 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 				if avg == 0 {
 					continue
 				}
-				str := fmt.Sprintf("%v:%v", id.HeaderID, id.Round)
-				if fileName, err = writeLineStatsFile(folderPath, nxtTitle, "None", "None",
+				str := fmt.Sprintf("%v:%v", messages.HeaderID(id.HeaderID).StringShort(), id.Round)
+				if fileName, err = writeLineStatsFile(folderPath, nxtTitle, maxStr, minStr,
 					VaryField{VaryField: "MsgIDCount"}, str, append([]VaryField{varyField}, extraNames...),
 					avg, max, min, nxtRes, ct, includeConsType, 2); err != nil {
 
@@ -456,39 +459,64 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 			}
 		}
 	}
+	// write the header to the table file
+	if err = writeTableHeaders(folderPath); err != nil {
+		logging.Error(err)
+		return err
+	}
+
 	// Generate the graphs
-	var multiPlotStrings [][]string
+	multiPlotStrings := make([][][]string, len(AllMultiPlotTitles))
 	for title, fileNames := range resultsMap {
 		// remove duplicate fileNames
 		newFileNames := utils.RemoveDuplicatesSortCountString(fileNames)
 		// make the graph
-		var nxtMultiPlotString []string
+		var nxtMultiPlotString [][]string
+		multiPlotIDs := make([]int, len(AllMultiPlotTitles))
+		for i, nxt := range AllMultiPlotTitles {
+			multiPlotIDs[i] = nxt[title.title]
+		}
 		if nxtMultiPlotString, err = GenGraph(title.title, title.xIndex, title.title, folderPath, extraNames,
-			newFileNames, GraphTypes, MultiPlotTitles[title.title]); err != nil {
+			newFileNames, GraphTypes, multiPlotIDs, true); err != nil {
 			logging.Error(err)
 			return err
 		}
-		if len(nxtMultiPlotString) > 0 {
-			multiPlotStrings = append(multiPlotStrings, nxtMultiPlotString)
-		}
-	}
-	// Generate the multiplot strings
-	if len(multiPlotStrings) > 0 {
-		var joinedMultiPlotStrings []string
-		for i := range multiPlotStrings[0] {
-			var nxtString []string
-			for j := range multiPlotStrings {
-				nxtString = append(nxtString, multiPlotStrings[j][i])
+		for j, nxtMultiPlotStringIdx := range nxtMultiPlotString {
+			if len(nxtMultiPlotStringIdx) > 0 {
+				multiPlotStrings[j] = append(multiPlotStrings[j], nxtMultiPlotStringIdx)
 			}
-			joinedMultiPlotStrings = append(joinedMultiPlotStrings, strings.Join(nxtString, "; "))
-		}
-
-		if err := GenMultiPlot(folderPath, MultiPlotGraphTypes, joinedMultiPlotStrings); err != nil {
-			logging.Error(err)
-			return err
 		}
 	}
+	// write the table file footer
+	if err = writeTableFooters(folderPath); err != nil {
+		logging.Error(err)
+		return err
+	}
+	// build the pdfs for the tables
+	if err = buildTablePdfs(folderPath); err != nil {
+		logging.Error(err)
+		return err
+	}
 
+	// Generate the multiplot strings
+	for k := range multiPlotStrings {
+		if len(multiPlotStrings[k]) > 0 {
+			var joinedMultiPlotStrings []string
+			for i := range multiPlotStrings[k][0] {
+				var nxtString []string
+				for j := range multiPlotStrings[k] {
+					nxtString = append(nxtString, multiPlotStrings[k][j][i])
+				}
+				joinedMultiPlotStrings = append(joinedMultiPlotStrings, strings.Join(nxtString, "; "))
+			}
+
+			if err := GenMultiPlot(folderPath, AllMultipPlotFiles[k], MultiPlotGraphTypes,
+				joinedMultiPlotStrings); err != nil {
+				logging.Error(err)
+				return err
+			}
+		}
+	}
 	// Generate the profile graphs
 	for title, fileNames := range resultsMapProfile {
 		// remove duplicate fileNames
@@ -511,15 +539,15 @@ func makeStatsFile(folderPath, nxt, maxStr, minStr string, varyField VaryField, 
 	stV := reflect.ValueOf(nxtRes.MergedStats)
 	var val, max, min interface{}
 	val = stV.FieldByName(nxt).Interface().(uint64)
-	if stats.DivStats[nxt] {
+	if DivStats[nxt] {
 		val = float64(val.(uint64)) / float64(nxtRes.MergedStats.RecordCount)
 	}
 	max = stV.FieldByName(maxStr).Interface().(uint64)
-	if stats.DivStats[maxStr] {
+	if DivStats[maxStr] {
 		max = float64(max.(uint64)) / float64(nxtRes.MergedStats.RecordCount)
 	}
 	min = stV.FieldByName(minStr).Interface().(uint64)
-	if stats.DivStats[minStr] {
+	if DivStats[minStr] {
 		min = float64(min.(uint64)) / float64(nxtRes.MergedStats.RecordCount)
 	}
 

@@ -124,13 +124,6 @@ type globalStats struct {
 	doneRecording    bool
 }
 
-// DivStats are the ones that need to be divided by the number of nodes to get the per node value.
-var DivStats = map[string]bool{"RoundParticipation": true, "RoundDecide": true, "DiskStorage": true,
-	"Signed": true, "ThrshCreated": true, "Validated": true, "VRFCreated": true, "VRFValidated": true,
-	"CoinValidated": true, "CoinCreated": true, "ForwardState": true,
-	"MsgsSent": true, "BytesSent": true, "MaxMsgsSent": true, "MaxBytesSent": true, "ProposalForwarded": true,
-	"MinMsgsSent": true, "MinBytesSent": true}
-
 type StatsObj struct {
 	StartTime          time.Time            // List of the times when consensus instances were started.
 	FinishTime         time.Time            // List of the times where consensus instances finished.

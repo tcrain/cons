@@ -21,6 +21,7 @@ package messages
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Each message type is encoded in a 4 byte integer
@@ -181,4 +182,9 @@ func (hi HeaderID) String() string {
 		msg = "UnknownHeaderID"
 	}
 	return fmt.Sprintf("%s:%d:", msg, hi)
+}
+
+func (h HeaderID) StringShort() string {
+	str := h.String()
+	return strings.Split(str, ":")[0][3:]
 }

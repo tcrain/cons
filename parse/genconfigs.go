@@ -85,6 +85,9 @@ var TrueFalseMap = map[string]string{
 
 var ActTitle = "Time Per Decision (ms)"
 var MultiPlotTitles = map[string]int{ActTitle: 1, "BytesSent": 2, "MsgsSent": 3, "RoundDecide": 4}
+var MultiPlotFile = "./scripts/graphscripts/multiplotfile.gp"
+var AllMultiPlotTitles = []map[string]int{MultiPlotTitles}
+var AllMultipPlotFiles = []string{MultiPlotFile}
 var SigMsgMap = map[string]string{"true": "y", "false": "n"}
 
 var GenPerNodeByRndMemberType = GenSet{

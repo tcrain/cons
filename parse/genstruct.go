@@ -17,6 +17,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 */
 
+/*
+When adding new statistics, must add them to the StatsNames list in order for a graphs to be generated for that stat.
+If the stat should be divided by the number of nodes for the values graphed, then the name must also be added to
+DivStats.
+*/
+
 package parse
 
 import (
@@ -46,6 +52,13 @@ var StatsNames = []string{
 	"ForwardState",
 	"ProgressTimeout",
 }
+
+// DivStats are the ones that need to be divided by the number of nodes to get the per node value.
+var DivStats = map[string]bool{"RoundParticipation": true, "RoundDecide": true, "DiskStorage": true,
+	"Signed": true, "ThrshCreated": true, "Validated": true, "VRFCreated": true, "VRFValidated": true,
+	"CoinValidated": true, "CoinCreated": true, "ForwardState": true,
+	"MsgsSent": true, "BytesSent": true, "MaxMsgsSent": true, "MaxBytesSent": true, "ProposalForwarded": true,
+	"MinMsgsSent": true, "MinBytesSent": true}
 
 // List of fields in the test options structure
 var possibleVaryStringFields = []string{"NodeType"}
