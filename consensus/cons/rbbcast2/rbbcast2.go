@@ -398,7 +398,7 @@ func (sc *RbBcast2) checkProgress(t, nmt int, mainChannel channelinterface.MainC
 		}
 		if sc.decisionHashBytes == nil {
 			logging.Infof("Deciding index %v", sc.Index)
-			sc.ConsItems.MC.MC.GetStats().AddFinishRound(0, false)
+			sc.ConsItems.MC.MC.GetStats().AddFinishRound(1, false)
 			sc.decisionHashBytes = commitHash
 			sc.decisionHash = types.HashStr(commitHash)
 		}

@@ -23,15 +23,13 @@ set ylabel ylab1
 plot for [file in filenames1] file using 3:2:4:xtic(1) title word(system('head -1 '.file), 2)
 
 unset ylabel
-#set y2label ylab2
-set y2label "Kilobytes Sent"
-plot for [file in filenames2] file using ($3/1000):($3/1000):($3/1000):xtic(1) title word(system('head -1 '.file), 2)
+set y2label ylab2
+plot for [file in filenames2] file using 3:2:4:xtic(1) title word(system('head -1 '.file), 2)
 
 unset y2label
-#set ytics
 set xlabel xlab3
-set ylabel ylab3
-plot for [file in filenames3] file using 3:3:3:xtic(1) title word(system('head -1 '.file), 2)
+set ylabel "Kilobytes Sent"
+plot for [file in filenames3] file using ($3/1000):($3/1000):($3/1000):xtic(1) title word(system('head -1 '.file), 2)
 
 unset ylabel
 set xlabel xlab4

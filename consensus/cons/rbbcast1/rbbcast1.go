@@ -368,7 +368,7 @@ func (sc *RbBcast1) checkProgress(t, nmt int, mainChannel channelinterface.MainC
 		}
 		if sc.decisionHashBytes == nil {
 			logging.Infof("Deciding index %v", sc.Index)
-			sc.ConsItems.MC.MC.GetStats().AddFinishRound(0, false)
+			sc.ConsItems.MC.MC.GetStats().AddFinishRound(1, false)
 			sc.decisionHashBytes = commitHash
 			sc.decisionHash = types.HashStr(commitHash)
 		}
@@ -413,14 +413,10 @@ func (sc *RbBcast1) broadcastEcho(nmt int, proposalHash []byte,
 	newMsg := messagetypes.NewMvEchoMessage()
 	newMsg.ProposalHash = proposalHash
 
-	// if sc.CheckMemberLocalMsg(newMsg.GetMsgID()) { // only send the message if we are a participant of consensus
+	// see if we should broadcast directly to the next coordinator, or to all nodes
 	nxtCoordPub := cons.GetNextCoordPubCollectBroadcast(0, sc.ConsItems, sc.GeneralConfig)
 	sc.BroadcastFunc(nxtCoordPub, sc.ConsItems, newMsg, true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
 		mainChannel, sc.GeneralConfig, nil)
-
-	// BroadcastRbBcast1(nxtCoordPub, sc.ByzType, sc, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
-	//		newMsg, nil, mainChannel)
-	// }
 }
 
 // SetInitialState does noting for this algorithm.

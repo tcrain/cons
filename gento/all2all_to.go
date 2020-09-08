@@ -24,6 +24,8 @@ import (
 	"github.com/tcrain/cons/consensus/cons/mvbinconsrnd2"
 	"github.com/tcrain/cons/consensus/cons/mvcons2"
 	"github.com/tcrain/cons/consensus/cons/mvcons3"
+	"github.com/tcrain/cons/consensus/cons/rbbcast1"
+	"github.com/tcrain/cons/consensus/cons/rbbcast2"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/parse"
 )
@@ -41,10 +43,66 @@ func GenAll2All() {
 func GenAll2AllSimple() {
 
 	folderName := "all2all"
-	genAll2AllSimple(folderName, 1)
+	genAll2AllSimple(folderName, false, 1)
+
+	folderName = "all2all-sleep"
+	genAll2AllSimple(folderName, true, 1)
 }
 
-func genAll2AllSimple(folderName string, nxtID uint64) uint64 {
+func genAll2AllSimple(folderName string, sleepCrypto bool, nxtID uint64) uint64 {
+	var consTypes []types.ConsType
+	optsSig := cons.ReplaceNilFields(cons.OptionStruct{
+		SigTypes:           []types.SigType{types.EC},
+		CoinTypes:          []types.CoinType{types.NoCoinType},
+		MemberCheckerTypes: []types.MemberCheckerType{types.TrueMC},
+		RotateCoordTypes:   types.WithTrue,
+	}, baseMVOptions)
+	consTypes = []types.ConsType{types.MvCons2Type}
+
+	ct := mvAll2All
+	ct.MaxRounds = 10
+	ct.StopOnCommit = types.Immediate
+	ct.IncludeProofs = false
+	ct.SleepCrypto = sleepCrypto
+	ct.WarmUpInstances = 5
+	ct.CPUProfile = false
+	ct.MvConsTimeout = 10000
+	ct.RotateCord = true
+	ct.MCType = types.TrueMC
+
+	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
+		optsSig, nil)
+	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.RbBcast1Type}, []cons.ConfigOptions{rbbcast1.RbBcast1Config{}},
+		optsSig, nil)
+
+	ct.RotateCord = false
+	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.MvCons3Type}, []cons.ConfigOptions{mvcons3.MvCons3Config{}},
+		optsSig, nil)
+
+	ct.NoSignatures = true
+	ct.EncryptChannels = true
+	ct.RotateCord = true
+	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.RbBcast2Type}, []cons.ConfigOptions{rbbcast2.RbBcast2Config{}},
+		optsSig, nil)
+
+	consTypes = []types.ConsType{types.MvBinConsRnd2Type}
+	ct.StopOnCommit = types.NextRound
+	optsSig = cons.ReplaceNilFields(cons.OptionStruct{
+		CoinTypes: []types.CoinType{types.FlipCoinType},
+	}, optsSig)
+	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvbinconsrnd2.Config{}},
+		optsSig, nil)
+
+	genGenSets(folderName, []parse.GenSet{parse.GenPerNodeByCons})
+	return nxtID
+}
+
+func GenAll2AllSimpleRand() {
+
+	folderName := "all2all-rand"
+
+	nxtID := genAll2AllSimple(folderName, true, 1)
+
 	var consTypes []types.ConsType
 	optsSig := cons.ReplaceNilFields(cons.OptionStruct{
 		SigTypes:  []types.SigType{types.EC},
@@ -62,44 +120,6 @@ func genAll2AllSimple(folderName string, nxtID uint64) uint64 {
 
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
 		optsSig, nil)
-
-	consTypes = []types.ConsType{types.MvBinConsRnd2Type}
-	ct.NoSignatures = true
-	ct.EncryptChannels = true
-	ct.StopOnCommit = types.NextRound
-	optsSig = cons.ReplaceNilFields(cons.OptionStruct{
-		CoinTypes: []types.CoinType{types.FlipCoinType},
-	}, optsSig)
-	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvbinconsrnd2.Config{}},
-		optsSig, nil)
-
-	genGenSets(folderName, []parse.GenSet{parse.GenPerNodeByCons})
-	return nxtID
-}
-
-func GenAll2AllSimpleRand() {
-
-	folderName := "all2all-rand"
-
-	nxtID := genAll2AllSimple(folderName, 1)
-
-	var consTypes []types.ConsType
-	optsSig := cons.ReplaceNilFields(cons.OptionStruct{
-		SigTypes:  []types.SigType{types.EC},
-		CoinTypes: []types.CoinType{types.NoCoinType},
-	}, baseMVOptions)
-	consTypes = []types.ConsType{types.MvCons2Type}
-
-	ct := mvAll2All
-	ct.StopOnCommit = types.Immediate
-	ct.IncludeProofs = false
-	ct.SleepCrypto = true
-	ct.WarmUpInstances = 1
-	ct.CPUProfile = false
-	ct.MvConsTimeout = 200
-
-	//nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
-	//	optsSig, nil)
 
 	optsSig = cons.ReplaceNilFields(cons.OptionStruct{
 		RandMemberCheckerTypes: []types.RndMemberType{types.VRFPerCons,
@@ -147,7 +167,7 @@ func genAll2AllCollectBcast2s(folderName string, nxtID uint64) uint64 {
 
 	ct.SigType = types.TBLS
 	optsSig = cons.ReplaceNilFields(cons.OptionStruct{
-		CollectBroadcast: []types.CollectBroadcastType{types.Commit},
+		CollectBroadcast: []types.CollectBroadcastType{types.Full, types.Commit},
 		SigTypes:         []types.SigType{types.TBLS},
 	}, optsSig)
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons3.MvCons3Config{}},
@@ -181,7 +201,7 @@ func genAll2AllCollectBcast3s(folderName string, nxtID uint64) uint64 {
 
 	ct.SigType = types.TBLS
 	optsSig = cons.ReplaceNilFields(cons.OptionStruct{
-		CollectBroadcast: []types.CollectBroadcastType{types.EchoCommit, types.Commit},
+		CollectBroadcast: types.AllCollectBroadcast, // []types.CollectBroadcastType{types.EchoCommit, types.Commit},
 		SigTypes:         []types.SigType{types.TBLS},
 	}, optsSig)
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},

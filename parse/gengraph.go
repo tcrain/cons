@@ -210,18 +210,18 @@ func GenGraph(title, xLabel, yLabel, folderPath string, extraNames []VaryField, 
 	return
 }
 
-func GenMultiPlot(folderPath, gnuPlotFile string, properties []GraphProperties, args []string) error {
+func GenMultiPlot(idx int, folderPath, gnuPlotFile string, properties []GraphProperties, args []string) error {
 	for i, nxtP := range properties {
 
 		arg := args[i]
 		arg = fmt.Sprintf("%v; outputfile='%v'; width='%v'; height='%v'",
 			arg,
-			filepath.Join(folderPath, fmt.Sprintf("%v_multiplot.png", nxtP)),
+			filepath.Join(folderPath, fmt.Sprintf("%v%v_multiplot.png", nxtP, idx)),
 			nxtP.Width, nxtP.Height)
 
 		// Write the command to a file so we can rerun it
 		prtCmd := fmt.Sprintf("gnuplot -e \"%v\" %v", arg, gnuPlotFile)
-		cmdFileName := filepath.Join(folderPath, fmt.Sprintf("%v_multiplot.sh", nxtP))
+		cmdFileName := filepath.Join(folderPath, fmt.Sprintf("%v%v_multiplot.sh", nxtP, idx))
 		if err := ioutil.WriteFile(cmdFileName, []byte(prtCmd), os.ModePerm); err != nil {
 			return err
 		}

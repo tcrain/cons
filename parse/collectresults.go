@@ -375,6 +375,7 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 
 			// TotalConsTime
 			nxtTitle = "TotalConsTime"
+			printTitle = ConsTitle
 			consTime := float64(ms.ConsTime) / float64(time.Millisecond)
 			if fileName, err = intMakeStatsFile(folderPath, nxtTitle, "None", "None",
 				varyField, extraNames, consTime, 0, 0, nxtRes, ct, includeConsType); err != nil {
@@ -382,8 +383,8 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 				logging.Error(err)
 				return err
 			}
-			resultsMap[struct{ title, xIndex string }{nxtTitle, varyField.GetTitle()}] = append(
-				resultsMap[struct{ title, xIndex string }{nxtTitle, varyField.GetTitle()}], fileName)
+			resultsMap[struct{ title, xIndex string }{printTitle, varyField.GetTitle()}] = append(
+				resultsMap[struct{ title, xIndex string }{printTitle, varyField.GetTitle()}], fileName)
 
 			// TimePerCons
 			nxtTitle = "TimePerCons"
@@ -510,7 +511,7 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 				joinedMultiPlotStrings = append(joinedMultiPlotStrings, strings.Join(nxtString, "; "))
 			}
 
-			if err := GenMultiPlot(folderPath, AllMultipPlotFiles[k], MultiPlotGraphTypes,
+			if err := GenMultiPlot(k, folderPath, AllMultipPlotFiles[k], MultiPlotGraphTypes,
 				joinedMultiPlotStrings); err != nil {
 				logging.Error(err)
 				return err

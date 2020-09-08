@@ -52,6 +52,8 @@ var RndCTMap = map[string]string{
 	"MvCons2":       "MC3S",
 	"MvBinConsRnd2": "MC4S",
 	"MvCons3":       "MC2S",
+	"RbBcast1":      "RB2S",
+	"RbBcast2":      "RB3S",
 }
 var CoinMap = map[string]string{
 	"KnownCoin":       "kc",
@@ -84,10 +86,13 @@ var TrueFalseMap = map[string]string{
 }
 
 var ActTitle = "Time Per Decision (ms)"
+var ConsTitle = "Time Per Consensus (ms)"
 var MultiPlotTitles = map[string]int{ActTitle: 1, "BytesSent": 2, "MsgsSent": 3, "RoundDecide": 4}
+var MultiPlotTitles2 = map[string]int{ActTitle: 1, ConsTitle: 2, "BytesSent": 3, "MsgsSent": 4}
 var MultiPlotFile = "./scripts/graphscripts/multiplotfile.gp"
-var AllMultiPlotTitles = []map[string]int{MultiPlotTitles}
-var AllMultipPlotFiles = []string{MultiPlotFile}
+var MultiPlotFile2 = "./scripts/graphscripts/multiplotfile2.gp"
+var AllMultiPlotTitles = []map[string]int{MultiPlotTitles, MultiPlotTitles2}
+var AllMultipPlotFiles = []string{MultiPlotFile, MultiPlotFile2}
 var SigMsgMap = map[string]string{"true": "y", "false": "n"}
 
 var GenPerNodeByRndMemberType = GenSet{

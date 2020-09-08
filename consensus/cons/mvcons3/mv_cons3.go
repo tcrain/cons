@@ -511,6 +511,7 @@ func (sc *MvCons3) ProcessMessage(
 			panic("should have handled this in GotMsg")
 		}
 
+		sc.ConsItems.MC.MC.GetStats().ProposalForward()
 		logging.Infof("Got an mv init message of len %v, index %v",
 			len(w.GetBaseMsgHeader().(*messagetypes.MvInitSupportMessage).Proposal), sc.Index)
 		sc.checkProgress()
@@ -638,7 +639,7 @@ func (sc *MvCons3) addSupport(fromIndex, toIndex types.ConsensusInt, supportedHa
 							"we now support", sc.echoInitMsg.SupportedIndex, "depth", sc.supportDepth+1)
 					}
 					sc.ConsItems.MC.MC.GetStats().AddFinishRound(types.ConsensusRound(
-						supportIdxs[len(supportIdxs)-2]-sc.Index.Index.(types.ConsensusInt)), false)
+						supportIdxs[len(supportIdxs)-2]-sc.Index.Index.(types.ConsensusInt))+1, false)
 					//types.ConsensusRound(fromIndex - sc.Index.Index.(types.ConsensusInt) - 1))
 				}
 				sc.hasDecided = decidedValue // we decided a value
