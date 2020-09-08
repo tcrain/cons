@@ -7,15 +7,22 @@ instancetype="n1-standard-4" # instance type of the nodes
 branch="$GITBRANCH"
 singleZoneRegion="0"
 
-echo Running binary experiment
-toFolders="./testconfigs/all2all/"
+echo Running all to all
 nodesPerRegion=5
-nodesCount="25"
 
-launchNodes=1
+launchNodes=0
 shutdownNodes=0
+
+toFolders="./testconfigs/all2all/"
+nodesCount="5, 10, 15, 20, 25"
 echo bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
 bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
+
+launchNodes=0
+nodesCount="50, 100, 150, 200, 250"
+echo bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
+bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
+
 
 # echo Shutdown
 #bash ./scripts/cloudscripts/afterbench.sh "$regions"
