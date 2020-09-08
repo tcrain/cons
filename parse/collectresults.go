@@ -22,6 +22,7 @@ package parse
 import (
 	"bytes"
 	"fmt"
+	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
@@ -494,11 +495,12 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 		return err
 	}
 	// build the pdfs for the tables
-	if err = buildTablePdfs(folderPath); err != nil {
-		logging.Error(err)
-		return err
+	if config.BuildTablePDFs {
+		if err = buildTablePdfs(folderPath); err != nil {
+			logging.Error(err)
+			return err
+		}
 	}
-
 	// Generate the multiplot strings
 	for k := range multiPlotStrings {
 		if len(multiPlotStrings[k]) > 0 {

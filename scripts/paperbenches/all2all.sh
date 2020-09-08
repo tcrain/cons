@@ -1,7 +1,7 @@
 #regions="us-central1 us-east4 europe-north1 europe-west2"
 regions="us-east4 us-west1 europe-north1 europe-west2 australia-southeast1"
 homezone="us-central1-a"
-genimage=1 # Generate the image for building the benchmark
+genimage=0 # Generate the image for building the benchmark
 deleteimage=0 # Delete the generated image at the end of the benchmark
 instancetype="n1-standard-4" # instance type of the nodes
 branch="$GITBRANCH"

@@ -146,6 +146,9 @@ const (
 
 	Thrshn, Thrsht   = 10, 7 // For threshold signature tests
 	Thrshn2, Thrsht2 = 10, 4
+
+	// for benchmarks
+	BuildTablePDFs = false
 )
 
 var Encoding = binary.LittleEndian // encoding for marshalling
