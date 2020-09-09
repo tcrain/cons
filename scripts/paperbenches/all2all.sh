@@ -4,35 +4,28 @@ homezone="us-central1-a"
 genimage=0 # Generate the image for building the benchmark
 deleteimage=0 # Delete the generated image at the end of the benchmark
 instancetype="n1-standard-4" # instance type of the nodes
-branch="$GITBRANCH"
+branch="sca-tst"
 singleZoneRegion="0"
 
 echo Running all to all
 nodesPerRegion=5
 
-launchNodes=0
+launchNodes=1
 shutdownNodes=0
 
-#toFolders="./testconfigs/all2all/"
-#nodesCount="5, 10, 15, 20, 25"
-#echo bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
-#bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
+toFolders="./testconfigs/all2all/"
+nodesCount="5, 10, 15, 20, 25"
+echo bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
+bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
 
-launchNodes=1
+launchNodes=0
 toFolders="./testconfigs/all2all-sleep/"
 nodesCount="50, 100, 150, 200, 250"
 echo bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
 bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
 
-launchNodes=0
+shutdownNodes=1
 toFolders="./testconfigs/all2all-sleep/"
 nodesCount="400, 800, 1200, 1600, 2000"
 echo bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
 bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
-
-
-# echo Shutdown
-#bash ./scripts/cloudscripts/afterbench.sh "$regions"
-
-# Shutdown the image and the disk
-#go run ./cmd/instancesetup/instancesetup.go -sd -dd

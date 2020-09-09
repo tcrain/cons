@@ -116,6 +116,10 @@ Get the IPs of the benchmark nodes of a multi-region benchmark (places them in f
 
 ``bash scripts/cloudscripts/getips.sh --nlrz {benchmark-regions}``
 
+Or for single region benchmarks:
+
+``bash scripts/cloudscripts/getips.sh --lrz {benchmark-regions}``
+
 #### Some examples
 Some examples of benchmarks can be found in the
 [paperbenches](../scripts/paperbenches/) folder.

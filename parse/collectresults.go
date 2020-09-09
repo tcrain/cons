@@ -376,7 +376,6 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 
 			// TotalConsTime
 			nxtTitle = "TotalConsTime"
-			printTitle = ConsTitle
 			consTime := float64(ms.ConsTime) / float64(time.Millisecond)
 			if fileName, err = intMakeStatsFile(folderPath, nxtTitle, "None", "None",
 				varyField, extraNames, consTime, 0, 0, nxtRes, ct, includeConsType); err != nil {
@@ -384,11 +383,12 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 				logging.Error(err)
 				return err
 			}
-			resultsMap[struct{ title, xIndex string }{printTitle, varyField.GetTitle()}] = append(
-				resultsMap[struct{ title, xIndex string }{printTitle, varyField.GetTitle()}], fileName)
+			resultsMap[struct{ title, xIndex string }{nxtTitle, varyField.GetTitle()}] = append(
+				resultsMap[struct{ title, xIndex string }{nxtTitle, varyField.GetTitle()}], fileName)
 
 			// TimePerCons
 			nxtTitle = "TimePerCons"
+			printTitle = ConsTitle
 			timePerCons := float64(ms.ConsTime) / float64(ms.RecordCount) / float64(time.Millisecond)
 			minConsTime := float64(ms.MinConsTime) / float64(time.Millisecond)
 			maxConsTime := float64(ms.MaxConsTime) / float64(time.Millisecond)
@@ -398,8 +398,8 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 				logging.Error(err)
 				return err
 			}
-			resultsMap[struct{ title, xIndex string }{nxtTitle, varyField.GetTitle()}] = append(
-				resultsMap[struct{ title, xIndex string }{nxtTitle, varyField.GetTitle()}], fileName)
+			resultsMap[struct{ title, xIndex string }{printTitle, varyField.GetTitle()}] = append(
+				resultsMap[struct{ title, xIndex string }{printTitle, varyField.GetTitle()}], fileName)
 
 			// Graph by each cons
 			nxtTitle = "TimeBetweenDecisions"
