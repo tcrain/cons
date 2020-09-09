@@ -95,6 +95,27 @@ This will be sure the nodes are started, then restart the
 benchmark at the last configuration that finished successfully.
 This avoids having to restart the benchmark from scratch.
 
+#### Reboot benchmark nodes
+You may want to reboot nodes in case something goes wrong.
+For this run:
+
+``bash scripts/cloudscripts/remoteresetnodes.sh``
+
+#### Shutdown benchmark nodes
+If you have not set the benchmark to shut down the nodes automatically,
+you can run (note this does not shut down the benchmark coordinator node):
+
+``bash scripts/cloudscripts/remoteshutdown.sh``
+
+### Some other useful commands
+Get the IP of the benchmark coordinator node:
+
+``go run ./cmd/instancesetup/instancesetup.go -z {corrdinator-zone} -ii``
+
+Get the IPs of the benchmark nodes of a multi-region benchmark (places them in file benchIPfile):
+
+``bash scripts/cloudscripts/getips.sh --nlrz {benchmark-regions}``
+
 #### Some examples
 Some examples of benchmarks can be found in the
 [paperbenches](../scripts/paperbenches/) folder.

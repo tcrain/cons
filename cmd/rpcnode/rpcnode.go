@@ -174,9 +174,15 @@ func (rc *RunningCons) AllFinished(rpcsetup.None, *rpcsetup.None) error {
 	rc.mutex.Lock()
 	defer rc.mutex.Unlock()
 
+	var wg sync.WaitGroup
 	for _, scs := range rc.running {
-		rpcsetup.AllFinished(scs.SCS)
+		wg.Add(1)
+		go func(nxt *rpcsetup.SingleConsSetup) {
+			rpcsetup.AllFinished(nxt.SCS)
+			wg.Done()
+		}(scs)
 	}
+	wg.Wait()
 	return nil
 }
 

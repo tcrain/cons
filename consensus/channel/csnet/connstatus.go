@@ -677,7 +677,7 @@ func (cs *ConnStatus) removeSendConnectionInternal(pub sig.Pub, allowReconnectio
 		if allowReconnection {
 			// we add the connection back to the list after a second so we can reconnect
 			cs.consPendingReconnection[pubStr] = true
-			time.AfterFunc(1*time.Second, func() {
+			time.AfterFunc(config.RetryConnectionTimeout*time.Millisecond, func() {
 				cs.mutex.Lock()
 				defer cs.mutex.Unlock()
 				if cs.isClosed {
