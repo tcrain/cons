@@ -66,10 +66,12 @@ func genAll2AllSimple(folderName string, sleepCrypto bool, nxtID uint64) uint64 
 	ct.SleepCrypto = sleepCrypto
 	ct.WarmUpInstances = 5
 	ct.CPUProfile = false
+	ct.KeepPast = 1
+	ct.NumMsgProcessThreads = 3
 	// set large timeouts since we don't have any faults for this test
-	ct.MvConsTimeout = 20000
-	ct.MvConsRequestRecoverTimeout = 20000
-	ct.ProgressTimeout = 20000
+	ct.MvConsTimeout = 100000
+	ct.MvConsRequestRecoverTimeout = 100000
+	ct.ProgressTimeout = 100000
 	ct.RotateCord = true
 	ct.MCType = types.TrueMC
 
