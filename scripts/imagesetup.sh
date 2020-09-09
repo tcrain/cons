@@ -3,7 +3,7 @@ user=$1
 # sudo yum -y update
 
 echo Checking ulimit
-if [ "$(ulimit -n)" -eq 10000000 ]
+if [ "$(ulimit -n)" -eq 1000000 ]
 then
     echo "Already set ulimit"
     exit
@@ -11,10 +11,10 @@ fi
 
 echo Updating ulimit
 echo "
-$user soft nofile 10000000
-$user hard nofile 10000000
-root soft nofile 10000000
-root hard nofile 10000000
+$user soft nofile 1000000
+$user hard nofile 1000000
+root soft nofile 1000000
+root hard nofile 1000000
 " | sudo tee -a /etc/security/limits.conf
 
 # logout and back in
