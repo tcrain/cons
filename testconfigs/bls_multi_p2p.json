@@ -12,7 +12,7 @@
     "UsePubIndex": true,
     "SleepValidate": false,
     "MCType": 0,
-    "BufferForwarder": true,
+    "BufferForwardType": 2,
     "UseMultisig": true,
     "BlsMultiNew": true,
     "CheckDecisions": false,

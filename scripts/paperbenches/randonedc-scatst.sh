@@ -6,14 +6,24 @@ deleteimage=0 # Delete the generated image at the end of the benchmark
 instancetype="n1-highmem-4" # instance type of the nodes
 branch="sca-tst"
 singleZoneRegion="1"
-
-echo Running binary experiment
-#toFolders="./testconfigs/all2all-cbcast-sleep/"
-toFolders="./testconfigs/all2all-sleep/ ./testconfigs/all2all-cbcast-sleep/"
 nodesPerRegion=5
-nodesCount="400 800 1200"
+
+launchNodes=1
+shutdownNodes=0
+
+echo Running all to all experiment
+#toFolders="./testconfigs/all2all-cbcast-sleep/"
+toFolders="./testconfigs/all2all/ ./testconfigs/all2all-cbcast/"
+nodesCount="5 15 25"
+echo bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
+bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
 
 launchNodes=0
-shutdownNodes=0
+toFolders="./testconfigs/all2all-sleep/ ./testconfigs/all2all-cbcast-sleep/"
+nodesCount="50 150 250"
+echo bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
+bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
+
+nodesCount="400 800 1200"
 echo bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
 bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
