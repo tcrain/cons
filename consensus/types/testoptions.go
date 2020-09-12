@@ -396,6 +396,11 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		}
 	}
 
+	if to.ConnectionType == UDP && to.EncryptChannels {
+		err = fmt.Errorf("UDP and encrypted channels currently not supported")
+		return
+	}
+
 	if to.BufferForwardType != ThresholdBufferForward && to.AdditionalP2PNetworks > 0 {
 		err = fmt.Errorf("additional P2P networks not needed if buffer forwarder is being used")
 		return

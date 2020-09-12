@@ -74,11 +74,13 @@ func RunBasicTests(to types.TestOptions, consType types.ConsType, initItem consi
 	runIterTests(initItem, consConfigs, iter, toRun, t)
 
 	// run a single test with UDP
-	udpTO := to
-	udpTO.ConnectionType = types.UDP
-	iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, udpTO))
-	assert.Nil(t, err)
-	runIterTests(initItem, consConfigs, iter, []int{0}, t)
+	if to.EncryptChannels == false { // TODO UDP currently not supported encrypted channels
+		udpTO := to
+		udpTO.ConnectionType = types.UDP
+		iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, udpTO))
+		assert.Nil(t, err)
+		runIterTests(initItem, consConfigs, iter, []int{0}, t)
+	}
 
 	// Special test for currency state machine plus currency memberchecker.
 	if to.OrderingType == types.Total && checkCurrencySM(consConfigs) {
