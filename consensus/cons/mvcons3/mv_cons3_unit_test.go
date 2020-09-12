@@ -45,8 +45,9 @@ var mvConsTestProposal = []byte("This is a proposal")
 // var mvConsOtherTestProposal = []byte("This is a different proposal")
 
 var mvCons3UnitTestOptions = types.TestOptions{
-	NumTotalProcs: config.ProcCount,
-	IncludeProofs: false,
+	NumTotalProcs:    config.ProcCount,
+	IncludeProofs:    false,
+	CollectBroadcast: types.Commit,
 }
 
 type mvCons1TestItems struct {
