@@ -439,7 +439,12 @@ func (sc *MvCons3) GotProposal(hdr messages.MsgHeader, mainChannel channelinterf
 	}
 	sc.myInitMsg.Proposal = hdr.(*messagetypes.MvProposeMessage).Proposal
 	sc.myInitMsg.ByzProposal = hdr.(*messagetypes.MvProposeMessage).ByzProposal
-	sc.broadcastInit(sc.myInitMsg, sc.myProof, mainChannel)
+	// if we are using an all to all broadcat we dont include the proof
+	var proof messages.MsgHeader
+	if sc.GeneralConfig.CollectBroadcast != types.Full || sc.IncludeProofs {
+		proof = sc.myProof
+	}
+	sc.broadcastInit(sc.myInitMsg, proof, mainChannel)
 	logging.Info("support index ", sc.myInitMsg.SupportedIndex, " my index", sc.Index)
 
 	return nil

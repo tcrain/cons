@@ -42,6 +42,7 @@ var ErrTooManyAdditionalIndices = fmt.Errorf("message has too many additional in
 // member checker
 var ErrNotMember = fmt.Errorf("not a member")
 var ErrInvalidSig = fmt.Errorf("invalid sig")
+var ErrInvalidSigEncoding = fmt.Errorf("invalid sig encoding")
 var ErrWrongMemberChecker = fmt.Errorf("wrong member checker")
 var ErrMemCheckerNotReady = fmt.Errorf("memberchecker not ready")
 var ErrNoFixedCoord = fmt.Errorf("no fixed coord")

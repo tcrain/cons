@@ -127,13 +127,24 @@ var GenPerNodeByCons = GenSet{
 	}}},
 }
 
+var GenPerNodeByConsBuffFwd = GenSet{
+	Name:             "NodeCount",
+	BoolFilterFields: []FilterBoolField{PerProcFilter, TotalFilter},
+	GenItems: []GenItem{{VaryField: VaryField{VaryField: "NodeCount"}, ExtraFields: []VaryField{
+		{VaryField: "ConsType", NameMap: RndCTMap},
+		{VaryField: "BufferForwardType", Title: "BFT"},
+		// {VaryField: "NoSignatures", Title: "SM:", NameMap: SigMsgMap},
+		// {VaryField: "CoinType", Title: "CI:", NameMap: CoinMap},
+	}}},
+}
+
 var GenPerNodeByConsCB = GenSet{
 	Name:             "NodeCount",
 	BoolFilterFields: []FilterBoolField{PerProcFilter, TotalFilter},
 	GenItems: []GenItem{{VaryField: VaryField{VaryField: "NodeCount"}, ExtraFields: []VaryField{
-		//{VaryField: "ConsType", NameMap: RndCTMap},
-		{VaryField: "CollectBroadcast", Title: "CB:"},
-		{VaryField: "SigType", Title: "ST:"},
+		{VaryField: "ConsType", NameMap: RndCTMap},
+		{VaryField: "CollectBroadcast", Title: "CB"},
+		// {VaryField: "SigType", Title: "ST:"},
 		// {VaryField: "StopOnCommit", Title: "SOC", NameMap: socMap},
 		// {VaryField: "NoSignatures", Title: "SM:", NameMap: SigMsgMap},
 		// {VaryField: "CoinType", Title: "CI:", NameMap: CoinMap},

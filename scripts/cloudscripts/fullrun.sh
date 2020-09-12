@@ -90,14 +90,13 @@ printf -v key %q "${key}"
 printf -v project %q "${project}"
 printf -v credentialfile %q "${credentialfile}"
 
+echo Running rsync with inital instance
+bash ./scripts/cloudscripts/rsyncinit.sh "${inip}" "${user}" "${key}"
+
 # Run the bench
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$user"@"$inip" "
 bash --login -c \"
 cd ~/go/src/github.com/tcrain/cons/;
-git pull;
-echo Running: git checkout ${branch};
-git checkout ${branch};
-git pull;
 echo Running: bash ./scripts/cloudscripts/runcloudbench.sh ${inip} ${tofolders} ${singleZoneCmd} ${regions} ${nodesperregion} ${nodecounts} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${shutdownNodes};
 bash ./scripts/cloudscripts/runcloudbench.sh ${inip} ${tofolders} ${singleZoneCmd} ${regions} ${nodesperregion} ${nodecounts} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${shutdownNodes}\""
 

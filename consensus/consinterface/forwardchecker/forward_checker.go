@@ -101,6 +101,12 @@ func (fwd *absBufferForwarder) New(idx types.ConsensusIndex, participants, allPu
 	return f
 }
 
+// ConsDecided does nothing for this forwarder.
+func (fwd *absBufferForwarder) ConsDecided(stats.NwStatsInterface) {
+
+	return
+}
+
 // CheckForward is called each time a message is successfully processes by ConsState, sndRcvChan is the channel who sent the message, shouldForward is given by the consensus
 // object after the message is processesed, ConsItem, memberChecker, and messageState all correspond to the consensus instance this message is from.
 // It keeps track of the messages received so far based on messages.MsgID.
@@ -278,6 +284,12 @@ func (fwd *absDirectForwarder) New(idx types.ConsensusIndex, participants, allPu
 	return newDirectForwarder(fwd.internalForwardChecker.newInternal(idx, participants))
 }
 
+// ConsDecided does nothing for this forwarder.
+func (fwd *absDirectForwarder) ConsDecided(stats.NwStatsInterface) {
+
+	return
+}
+
 // CheckForward takes a successfully processes message and prepares it to be forwarded
 // if forwarding is enabled.
 // It expects GetNextForwardItem to be called before CheckForward is called again.
@@ -344,6 +356,12 @@ func (fwd *AllToAllForwarder) New(idx types.ConsensusIndex, participants, allPub
 	ret := NewAllToAllForwarder().(*AllToAllForwarder)
 	ret.pubs = participants
 	return ret
+}
+
+// ConsDecided does nothing for this forwarder.
+func (fwd *AllToAllForwarder) ConsDecided(stats.NwStatsInterface) {
+
+	return
 }
 
 func (fwd *AllToAllForwarder) NewForwardFunc() sig.PubList {
@@ -420,15 +438,17 @@ func (fwd *AllToAllForwarder) GetNoProgressForwardFunc() channelinterface.NewFor
 // If bufferForwarder is true, then it buffers messages before forwarding them as described in
 // the buffer forwarder functions.
 // If requestForwarder is true then this is being used for a local random member checker.
-func NewP2PForwarder(requestForwarder bool, fanOut int, bufferForwarder bool, forwardPubs []sig.PubList,
+func NewP2PForwarder(requestForwarder bool, fanOut int, forwardPubs []sig.PubList,
 	gc *generalconfig.GeneralConfig) consinterface.ForwardChecker {
-	if requestForwarder && bufferForwarder {
+	if requestForwarder && gc.BufferForwardType != types.NoBufferForward {
 		panic("can't have both requestForwarder and bufferForwarder")
 	}
-	p2p := newP2PForwarder(requestForwarder, fanOut, bufferForwarder, forwardPubs)
-	switch bufferForwarder {
-	case true:
+	p2p := newP2PForwarder(requestForwarder, fanOut, gc.BufferForwardType != types.NoBufferForward, forwardPubs)
+	switch gc.BufferForwardType {
+	case types.ThresholdBufferForward:
 		return newBufferForwarder(p2p, gc, rand.New(rand.NewSource(int64(gc.TestIndex))))
+	case types.FixedBufferForward:
+		return newFixedBufferForwarder(p2p, gc)
 	default:
 		return newDirectForwarder(p2p)
 	}
@@ -526,7 +546,7 @@ func (fwd *P2PForwarder) GetNoProgressForwardFunc() channelinterface.NewForwardF
 //
 /////////////////////////////////////////////////////////////////////////////////
 
-var rndFwdSeed int64 // for testing
+// var rndFwdSeed int64 // for testing
 
 // RandomForwarder will forward messages to a random set of nodes.
 type RandomForwarder struct {
@@ -540,13 +560,16 @@ type RandomForwarder struct {
 // NewRandomForwarder creates a new random forwarder.
 // If bufferForwarder is true, then it buffers messages before forwarding them as described in
 // the buffer forwarder functions.
-func NewRandomForwarder(bufferForwarder bool, fanOut int, gc *generalconfig.GeneralConfig) consinterface.ForwardChecker {
+func NewRandomForwarder(fanOut int, gc *generalconfig.GeneralConfig) consinterface.ForwardChecker {
 	randlocal := rand.New(rand.NewSource(int64(gc.TestIndex)))
-	switch bufferForwarder {
-	case true:
-		return newBufferForwarder(&RandomForwarder{
-			fanOut: fanOut,
-			rand:   randlocal}, gc, randlocal)
+	rndFwd := &RandomForwarder{
+		fanOut: fanOut,
+		rand:   randlocal}
+	switch gc.BufferForwardType {
+	case types.ThresholdBufferForward:
+		return newBufferForwarder(rndFwd, gc, randlocal)
+	case types.FixedBufferForward:
+		return newFixedBufferForwarder(rndFwd, gc)
 	default:
 		return &absDirectForwarder{
 			internalForwardChecker: &RandomForwarder{

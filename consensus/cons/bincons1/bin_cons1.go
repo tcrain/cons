@@ -231,7 +231,7 @@ func (sc *BinCons1) ProcessMessage(
 func (sc *BinCons1) SetInitialState([]byte) {}
 
 func (sc *BinCons1) checkDone(round types.ConsensusRound, nmt, t int) bool {
-	_ = t
+	_, _ = t, nmt
 	if sc.terminated {
 		return true
 	}

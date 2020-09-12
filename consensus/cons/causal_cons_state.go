@@ -416,7 +416,7 @@ func (cs *CausalConsState) checkProgress(idx types.ConsensusIndex) {
 		return
 	}
 
-	memC, _, _, err := cs.memberCheckerState.GetMemberChecker(idx)
+	memC, _, fwdChecker, err := cs.memberCheckerState.GetMemberChecker(idx)
 	if err != nil { // sanity check
 		panic(fmt.Sprint(err, idx, cs.memberCheckerState.LastDecided))
 	}
@@ -440,6 +440,11 @@ func (cs *CausalConsState) checkProgress(idx types.ConsensusIndex) {
 
 	// Update the member checker
 	updatedDec := cs.memberCheckerState.DoneIndex(idx, proposer, dec)
+
+	// Forward any additional items
+	fwdChecker.ConsDecided(memC.MC.GetStats())
+	sendForward(idx, cs.memberCheckerState, cs.mainChannel)
+
 	// Store the decided value
 	// Update the storage if we are not initializing
 	if !cs.isInStorageInit {

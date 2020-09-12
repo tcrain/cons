@@ -20,8 +20,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package csnet
 
 import (
+	"context"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/stats"
+	"github.com/tcrain/cons/consensus/utils"
 	"math/rand"
 	"sync"
 	"time"
@@ -31,6 +33,11 @@ import (
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/types"
 )
+
+type connDetailsConnected struct {
+	channelinterface.ConnDetails
+	isConnected bool
+}
 
 // Connstats tracks and maintains open connections to other nodes
 // Each node may use multiple addresses, in this case the addresses are stored as a list, where the first element of the list
@@ -45,11 +52,12 @@ import (
 // - When a NetConnection connection has an error (TCP only), the connection will be removed from either sendCons or recvCons
 type ConnStatus struct {
 	sendCons                []channelinterface.SendChannel                 // List of connections for sending messages to (created from this local node)
-	cons                    map[sig.PubKeyStr]channelinterface.ConnDetails // Map from a connected node's pub key to its addresses (for sendCons)
+	cons                    map[sig.PubKeyStr]connDetailsConnected         // Map from a connected node's pub key to its addresses (for sendCons)
 	consPendingReconnection map[sig.PubKeyStr]bool                         // Nodes that have been disconnected, but will be started as soon as a timer runs out
 	removedMap              map[sig.PubKeyStr]channelinterface.NetNodeInfo // Map from a non-connected node's public key to its addresses
 	// List of removed nodes addresses (should correspond to the values of removedMap). Theses nodes will be retired to connect in order of the list.
-	removed []channelinterface.NetNodeInfo
+	removed               []channelinterface.NetNodeInfo
+	activeSendConnections int // number of send connections successfully made
 
 	// Map of connections from external nodes that will send messages to this node (i.e. opposite of sendCons)
 	recvCons map[channelinterface.NetConInfo]*rcvConTime
@@ -60,6 +68,9 @@ type ConnStatus struct {
 	isClosed      bool                                   // used during closing
 	udpMsgCountID uint64                                 // we give each udp packet an incremented id
 	nwType        types.NetworkProtocolType              // TCP or UDP
+
+	ctx       context.Context    // context used to terminate pending TCP dial connections
+	ctxCancel context.CancelFunc // cancel function
 
 	udpMsgPool *udpMsgPool // used for allocating buffers to UDP connections
 }
@@ -75,12 +86,13 @@ func NewConnStatus(nwType types.NetworkProtocolType) *ConnStatus {
 	cs.nwType = nwType
 	cs.cond = sync.NewCond(&cs.mutex)
 	cs.closeChan = make(chan channelinterface.ChannelCloseType, 1)
-	cs.cons = make(map[sig.PubKeyStr]channelinterface.ConnDetails)
+	cs.cons = make(map[sig.PubKeyStr]connDetailsConnected)
 	cs.consPendingReconnection = make(map[sig.PubKeyStr]bool)
 	cs.recvCons = make(map[channelinterface.NetConInfo]*rcvConTime)
 	cs.removedMap = make(map[sig.PubKeyStr]channelinterface.NetNodeInfo)
 	cs.isClosed = false
 	cs.udpMsgPool = newUdpMsgPool()
+	cs.ctx, cs.ctxCancel = context.WithCancel(context.Background())
 
 	if cs.nwType == types.UDP {
 		go cs.checkKeepAliveLoop()
@@ -100,6 +112,7 @@ func (cs *ConnStatus) Close() {
 	cs.isClosed = true
 	cs.mutex.Unlock()
 
+	cs.ctxCancel()      // Unblock TCP connections in progress
 	close(cs.closeChan) // This will force the select to return in WaitUntilFewerSendCons
 	cs.cond.Broadcast()
 
@@ -299,7 +312,7 @@ func (cs *ConnStatus) WaitUntilAtLeastSendCons(n int) error {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
 
-	for len(cs.sendCons) < n {
+	for cs.activeSendConnections < n {
 		if cs.isClosed {
 			return types.ErrClosingTime
 		}
@@ -625,7 +638,7 @@ func (cs *ConnStatus) makeNextSendConnection(netMainChannel *NetMainChannel, bt 
 		}
 
 		logging.Info("Connecting to", item)
-		nsc, err := NewNetSendConnection(item, cs, netMainChannel)
+		nsc, err := NewNetSendConnection(item, cs.ctx, cs, netMainChannel)
 		if err != nil {
 			logging.Error("Invalid conn item ", item)
 			continue
@@ -645,7 +658,13 @@ func (cs *ConnStatus) addSendConnection(conInfo channelinterface.NetNodeInfo, co
 		panic(err)
 	}
 	if _, ok := cs.cons[pubStr]; !ok {
-		cs.cons[pubStr] = channelinterface.ConnDetails{Addresses: conInfo, Conn: conn}
+		if cs.nwType == types.UDP {
+			cs.activeSendConnections++
+			cs.cond.Broadcast()
+		}
+		cs.cons[pubStr] = connDetailsConnected{
+			isConnected: cs.nwType == types.UDP,
+			ConnDetails: channelinterface.ConnDetails{Addresses: conInfo, Conn: conn}}
 
 		cs.sendCons = append(cs.sendCons, conn)
 	} else {
@@ -663,6 +682,22 @@ func (cs *ConnStatus) checkConPending(pStr sig.PubKeyStr) bool {
 	return false
 }
 
+func (cs *ConnStatus) FinishedMakingConnection(pub sig.Pub) {
+	pubStr, err := pub.GetPubString()
+	utils.PanicNonNil(err)
+
+	cs.mutex.Lock()
+	defer cs.mutex.Unlock()
+
+	if itm, ok := cs.cons[pubStr]; ok {
+		if itm.isConnected {
+			panic("tried to set connected twice")
+		}
+		cs.activeSendConnections++
+		cs.cond.Broadcast()
+	}
+}
+
 func (cs *ConnStatus) removeSendConnectionInternal(pub sig.Pub, allowReconnection bool) (conn channelinterface.SendChannel, err error) {
 	pubStr, perr := pub.GetPubString()
 	if perr != nil {
@@ -673,6 +708,9 @@ func (cs *ConnStatus) removeSendConnectionInternal(pub sig.Pub, allowReconnectio
 		delete(cs.consPendingReconnection, pubStr)
 	}
 	if infos, ok := cs.cons[pubStr]; ok {
+		if infos.isConnected {
+			cs.activeSendConnections--
+		}
 		delete(cs.cons, pubStr)
 		if allowReconnection {
 			// we add the connection back to the list after a second so we can reconnect
@@ -759,7 +797,7 @@ func (cs *ConnStatus) checkKeepAliveLoop() {
 			for k, c := range cs.recvCons {
 				if time.Since(c.rcvTime) > config.RcvConUDPTimeout*time.Millisecond {
 					logging.Error("ending UDP rcv conn because have not heard from it")
-					c.con.Close(channelinterface.CloseDuringTest)
+					_ = c.con.Close(channelinterface.CloseDuringTest)
 					delete(cs.recvCons, k)
 				}
 			}

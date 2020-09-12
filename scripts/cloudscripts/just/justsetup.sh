@@ -7,7 +7,7 @@ nodecounts=${3:-4} # list of node counts to run each benchmark
 launchNodes=${4:-1} # Launch bench nodes
 genimage=${5:-0} # Generate the image for building the benchmark
 instancetype=${6:-n1-standard-1} # instance type of the nodes
-branch=${7:-$GITBRANCH} # git branch to use
+branch=${7:-$GITBRANCH} # git branch to use to generate the image
 singleZoneRegion=${8:-0} # run nodes in the same region in the same zone
 homezone=${9:-us-central1-a} # zone from where the benchmarks will be launched
 homeinstancetype=${10:-n1-standard-2} # instance type that will launch the benchmarks
@@ -40,15 +40,16 @@ then
   then
     # Launch the image that was set up
     inip=$(go run ./cmd/instancesetup/instancesetup.go $singleZoneCmd -p "$project" -c "$credentialfile" -i "$homeinstancetype" -z "$homezone" -li -im cons-image)
+
+    # wait for start
+    until ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -o ConnectTimeout=5 -i "$key" "$user"@"$inip" "exit"; do sleep 5; done
+    sleep 25
+
   fi
 else
   # The instance should already be started, just get the ip
   inip=$(go run ./cmd/instancesetup/instancesetup.go $singleZoneCmd -p "$project" -c "$credentialfile" -i "$homeinstancetype" -z "$homezone" -ii -im cons-image)
 fi
-
-# wait for start
-until ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -o ConnectTimeout=5 -i "$key" "$user"@"$inip" "exit"; do sleep 5; done
-sleep 25
 
 # Copy the key
 scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$credentialfile" "$inip":~/go/src/github.com/tcrain/cons/cloud.json
@@ -83,13 +84,13 @@ $credentialfile
 $singleZoneCmd" > .lastjustsetup
 
 
+echo Running rsync with inital instance
+bash ./scripts/cloudscripts/rsyncinit.sh "${inip}" "${user}" "${key}"
+
 # Run the setup
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$user"@"$inip" "
 bash --login -c \"
 cd ~/go/src/github.com/tcrain/cons/;
-git pull;
-git checkout ${branch};
-git pull;
 echo Running: bash ./scripts/cloudscripts/just/justcloudsetup.sh ${inip} ${singleZoneCmd} ${regions} ${nodesperregion} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes};
 bash ./scripts/cloudscripts/just/justcloudsetup.sh ${inip} ${singleZoneCmd} ${regions} ${nodesperregion} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes}\""
 

@@ -75,8 +75,11 @@ func (sig *Ecsig) Decode(reader io.Reader) (n int, err error) {
 	var v uint16
 	var nNxt int
 	v, n, err = utils.ReadUint16(reader)
+	if err != nil {
+		return
+	}
 	// TODO check max size before allocating
-	if v > 2048 {
+	if v > 75 {
 		return n, fmt.Errorf("signature too many bytes")
 	}
 	buf := make([]byte, v)

@@ -20,11 +20,11 @@ set multiplot layout 2,2 margins .15, .85, .2, .95
 set key at screen 0.5, 0.05 center vertical height 1 box maxrows 2
 
 set ylabel ylab1
-plot for [file in filenames1] file using 3:2:4:xtic(1) title word(system('head -1 '.file), 2)
+plot for [file in filenames1] file using 3:3:3:xtic(1) title word(system('head -1 '.file), 2)
 
 unset ylabel
 set y2label ylab2
-plot for [file in filenames2] file using 3:2:4:xtic(1) title word(system('head -1 '.file), 2)
+plot for [file in filenames2] file using 3:3:3:xtic(1) title word(system('head -1 '.file), 2)
 
 unset y2label
 set xlabel xlab3
@@ -34,4 +34,4 @@ plot for [file in filenames3] file using ($3/1000):($3/1000):($3/1000):xtic(1) t
 unset ylabel
 set xlabel xlab4
 set y2label ylab4
-plot for [file in filenames4] file using 3:2:4:xtic(1) title word(system('head -1 '.file), 2)
+plot for [file in filenames4] file using 3:3:3:xtic(1) title word(system('head -1 '.file), 2)

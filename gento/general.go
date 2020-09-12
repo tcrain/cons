@@ -122,7 +122,7 @@ var mvBuffForward = types.TestOptions{
 	UsePubIndex:           true,
 	MCType:                types.CurrentTrueMC,
 	StateMachineType:      types.CounterProposer,
-	BufferForwarder:       true,
+	BufferForwardType:     types.ThresholdBufferForward,
 	FanOut:                6,
 	RotateCord:            false,
 	AdditionalP2PNetworks: 2,

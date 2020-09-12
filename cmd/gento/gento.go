@@ -204,6 +204,7 @@ func main() {
 		gento.GenCoinTO,
 		gento.GenRandBenchTO,
 		gento.GenAll2All,
+		gento.GenP2PTO,
 	}
 
 	var genIdx []int

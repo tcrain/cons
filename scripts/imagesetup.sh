@@ -32,6 +32,11 @@ ulimit -n
 #net.core.netdev_max_backlog=5000
 #" | sudo tee -a /etc/sysctl.conf
 #
-#sudo sysctl -w net.ipv4.route.flush=1
-#sudo sysctl -p
+
+echo Increase TCP backlog
+echo "net.ipv4.tcp_max_syn_backlog=2048" | sudo tee -a /etc/sysctl.conf
+
+sudo sysctl -w net.ipv4.route.flush=1
+sudo sysctl -p
+cat /proc/sys/net/ipv4/tcp_max_syn_backlog
 #cat /proc/sys/net/ipv4/tcp_*mem

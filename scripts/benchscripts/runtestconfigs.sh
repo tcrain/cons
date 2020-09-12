@@ -1,3 +1,4 @@
+#!/bin/bash
 set -e
 set -o pipefail
 
@@ -55,6 +56,8 @@ do
 
     # Record that we finished this benchmark
     echo "${f}_${ctype}_$nc" >> ./benchresults/"$benchid"/finished
+
+    sleep 5
 
   done
 done

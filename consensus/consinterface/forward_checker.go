@@ -56,6 +56,9 @@ type ForwardChecker interface {
 	// New creates a new ForwardChecker for the consensus index. It will be always be called on an "initialForwardChecker" that is given as input to
 	// MemberCheckerState.Init. ParticipantCount is the number of nodes in the system.
 	New(idx types.ConsensusIndex, participants, allPubs sig.PubList) ForwardChecker
+	// ConsDecided is called when the consensus has decided, after this is called, GetNextForwardItem will be called until it returns nil.
+	// This should finish any items pending to be forwarded.
+	ConsDecided(stats.NwStatsInterface)
 }
 
 type AdditionalForwardCheckerOps interface {

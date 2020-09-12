@@ -12,8 +12,8 @@ inip=$(go run ./cmd/instancesetup/instancesetup.go -p "$project" -c "$credential
 
 echo Syncing files
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i $key $user@$inip "
-  rsync -arce \"ssh -o StrictHostKeyChecking=no -i ${key}\" ~/go/bin/dlv ${user}@${ip}:\"~/dlv\";
-  rsync -arce \"ssh -o StrictHostKeyChecking=no -i ${key}\" --include=\"*/\" --include=\"*.go\" --exclude=\"*\" ~/go/src/github.com/tcrain/cons/ ${user}@${ip}:\"~/go/src/github.com/tcrain/cons/\";
+  rsync -arce \"ssh -o StrictHostKeyChecking=no \" ~/go/bin/dlv ${user}@${ip}:\"~/dlv\";
+  rsync -arce \"ssh -o StrictHostKeyChecking=no \" --include=\"*/\" --include=\"*.go\" --exclude=\"*\" ~/go/src/github.com/tcrain/cons/ ${user}@${ip}:\"~/go/src/github.com/tcrain/cons/\";
 "
 
 echo Connecting to node $ip

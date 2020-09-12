@@ -42,6 +42,9 @@ func RunMainLoop(state ConsStateInterface, mc channelinterface.MainChannel) {
 			logging.Error(err)
 			continue
 		}
+		if rcvMsg == nil {
+			panic("should not be nil")
+		}
 
 		if rcvMsg.IsLocal { // process a local message
 			state.ProcessLocalMessage(rcvMsg)

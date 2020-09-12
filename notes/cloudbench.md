@@ -18,14 +18,11 @@ Each folder will contain a set of json files of encoded Testoptions
 objects each describing a benchmark. Each folder will also contain a
 `gensets` folder which will describe how the benchmark results graphs
 will be generated.
-
-The changes to the `gento.go` file must be committed to the
-git branch that will be used by the benchmarks, as the benchmark
-will run the main function in this file.
   
 ### Set environment variables
 Set the following environment variables:
-  - $GITBRANCH - Git branch to use for the benchmarks
+  - $GITBRANCH - Git branch to use for creating the image for the benchmarks (after the image is
+  created, the local source files will be synced using rsync with the remote nodes)
   - $KEYPATH - Path to ssh key file that will be used to connect to nodes **note this key will be copied to the image
   so be sure this key is just for the benchmarks**
   - $PROJECTID - Project ID of the Google cloud project
@@ -52,7 +49,7 @@ the following is the full list of ordered arguments
 - genimage - (0) Generate the image for building the benchmark
 - deleteimage - (0) Delete the generated image at the end of the benchmark
 - instancetype - (n1-standard-1) instance type of the nodes
-- branch - ($GITBRANCH) git branch to use
+- branch - ($GITBRANCH) git branch to use for creating the image
 - singleZoneRegion - (0) run nodes in the same region in the same zone
 - homezone - (us-central1-a) zone from where the benchmarks will be launched
 - homeinstancetype - (n1-standard-2) instance type that will launch the benchmarks
@@ -71,8 +68,8 @@ Note that this step only needs to be run once (following
 benchmarks can reuse this image).
 2. A instance using the created image is launched, call this
 instance the benchmark coordinator.
-3. The benchmark coordinator updates git and checks out the correct
-branch. Binaries are compiled.
+3. The local node's sorce files are synchronized withe the benchmark
+coordinator instance. Binaries are compiled.
 4. Instances that will run consensus are launched. Certain settings
 on these nodes are configured and the binaries are copied to these nodes.
 The command ```rpcbench``` is started on each node.
@@ -128,11 +125,24 @@ Some examples of benchmarks can be found in the
 Nodes running the benchmark can be attached to through
 the delve (https://github.com/go-delve/delve) debugger as follows:
 1. Before running the bechmark, uncomment the line ``flags=(-gcflags="all=-N -l")``
-in [buildgo.sh](../scripts/buildgo.sh), commit and push on git.
+in [buildgo.sh](../scripts/buildgo.sh).
 2. Run the benchark as normal.
 3. While a benchmark is running, run script
 ``bash ./scripts/cloudscripts/attachdebug.sh {ip}`` where {ip}
 is the IP address of the node to attach to.
+
+To attach to the log output of a node run:
+``bash ./scripts/cloudscripts/attachlog.sh {ip}`` where {ip}
+is the IP address of the node to attach to.
+
+#### Profiling
+
+First uncomment the lines needed to enable profiling (see (profile)[profile.md]).
+
+Now run the command:
+
+``bash scripts/cloudscripts/attachprofile.sh {ip} {profile-type}``
+Where `{profile-type}` is either `heap`, `profile` or `allocs`.
 
 # Running tests one at a time on Google Cloud Compute
 
@@ -146,6 +156,12 @@ bash scripts/cloudscripts/just/justsetup.sh "$regions" "$nodesPerRegion" "$nodes
 
 This will launch the set of nodes, update the files from git, and copy the binaries.
 The input options are similar to the ones described above.
+
+**Note that `$branch` is only used if making a new image.
+For the benchmark the files will be synched with the local node, and the binares will be
+built on the remote machine.**
+
+
 Note that the command stores the configuration for the test in the local file `.lastjustsetup`,
 so you can only run one configuration at a time.
 

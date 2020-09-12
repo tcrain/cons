@@ -73,6 +73,13 @@ func RunBasicTests(to types.TestOptions, consType types.ConsType, initItem consi
 	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, toRun, t)
 
+	// run a single test with UDP
+	udpTO := to
+	udpTO.ConnectionType = types.UDP
+	iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, udpTO))
+	assert.Nil(t, err)
+	runIterTests(initItem, consConfigs, iter, []int{0}, t)
+
 	// Special test for currency state machine plus currency memberchecker.
 	if to.OrderingType == types.Total && checkCurrencySM(consConfigs) {
 		fmt.Println("Running test with SimpleCurrencyTxProposer and Currency member checker")
@@ -365,7 +372,7 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 		runIterTests(initItem, consConfigs, iter, toRun, t)
 	}
 	fmt.Println("Running with multisigs and buffer forwarder")
-	to.BufferForwarder = true
+	to.BufferForwardType = types.ThresholdBufferForward
 	to.IncludeCurrentSigs = true
 	to.AdditionalP2PNetworks = 2
 	iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(SingleSMTest, to))
@@ -378,7 +385,7 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 	fmt.Println("Running with multisigs and less than 1/3 fail and recover from disk")
 	to.NumFailProcs = utils.GetOneThirdBottom(numMembers)
 	to.FailRounds = config.MaxRounds / 2
-	to.BufferForwarder = false
+	to.BufferForwardType = types.NoBufferForward
 	to.IncludeCurrentSigs = false
 	to.AdditionalP2PNetworks = 0
 
@@ -397,7 +404,7 @@ func RunP2pNwTests(to types.TestOptions, consType types.ConsType, initItem consi
 
 	to.MaxRounds = config.MaxRounds
 	to.NumNonMembers = config.NonMembers
-	to.NumTotalProcs = config.ProcCount
+	to.NumTotalProcs = 10 //config.ProcCount
 	to.ClearDiskOnRestart = false
 	to.NetworkType = types.P2p
 	to.FanOut = config.FanOut
@@ -415,15 +422,22 @@ func RunP2pNwTests(to types.TestOptions, consType types.ConsType, initItem consi
 	fmt.Println("Running with static P2P network")
 	iter, err := NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, to))
 	assert.Nil(t, err)
-
-	runIterTests(initItem, consConfigs, iter, toRun, t)
+	runIterTests(initItem, consConfigs, iter, []int{0}, t)
 
 	fmt.Println("Running with random P2P network")
 	to.NetworkType = types.Random
 	iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, to))
 	assert.Nil(t, err)
+	runIterTests(initItem, consConfigs, iter, []int{0}, t)
 
-	runIterTests(initItem, consConfigs, iter, toRun, t)
+	fmt.Println("Running with static P2P network and fixed buffer forward")
+	to.NetworkType = types.P2p
+	to.BufferForwardType = types.FixedBufferForward
+	to.ForwardTimeout = 10
+	to.ProgressTimeout = 100
+	iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, to))
+	assert.Nil(t, err)
+	runIterTests(initItem, consConfigs, iter, []int{0}, t)
 }
 
 // RunConsType runs a test for the given configuration and inputs.

@@ -28,14 +28,11 @@ bash ./scripts/killgo.sh
 ./runcmd -f "$ipfile" -k "$key" -u "$user" bash ~/go/src/github.com/tcrain/cons/scripts/killgo.sh
 ssh -o "StrictHostKeyChecking no" -i "${key}" "${user}"@"${pregip}" "bash ~/go/src/github.com/tcrain/cons/scripts/killgo.sh"
 
-#if [ "$dorsync" -eq 1 ]
-#then
-#    echo "Calling rsync"
-#    ./runcmd -f "$ipfile" -k "$key" -u "$user" -r ~/go/src/github.com/tcrain/cons/ "~/go/src/github.com/tcrain/cons/"
-#    echo "Done rsync"
-#fi
-pregoutfile=$(date +"%m-%d-%y_%T")"preg.out"
-rpcoutfile=$(date +"%m-%d-%y_%T")"preg.out"
+# pregoutfile=$(date +"%m-%d-%y_%T")"preg.out"
+# rpcoutfile=$(date +"%m-%d-%y_%T")"rpcnode.out"
+
+pregoutfile="preg.out"
+rpcoutfile="rpcnode.out"
 
 # start the participant register
 echo "Starting the participant register at $pregip"

@@ -68,7 +68,7 @@ var defaultTO = types.TestOptions{
 	SleepValidate:               true,
 	SleepCrypto:                 true,
 	MCType:                      types.CurrentTrueMC,
-	BufferForwarder:             false,
+	BufferForwardType:           types.NoBufferForward,
 	UseMultisig:                 false,
 	BlsMultiNew:                 true,
 	MemCheckerBitIDType:         types.BitIDSlice,

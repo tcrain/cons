@@ -35,7 +35,13 @@ func getMvConsStateMachineTypes() []types.StateMachineType {
 }
 
 func TestRbBcast1Basic(t *testing.T) {
-	cons.RunBasicTests(types.TestOptions{}, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, nil, t)
+	to := types.TestOptions{}
+	cons.RunBasicTests(to, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, []int{}, t)
+}
+
+func TestRbBcast1CollectBcast(t *testing.T) {
+	to := types.TestOptions{}
+	cons.RunBasicTests(to, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, []int{}, t)
 }
 
 func TestRbBcast1RandMC(t *testing.T) {

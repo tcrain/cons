@@ -387,7 +387,6 @@ func (bs *BasicStats) DoneRecording() {
 	}
 	// bs.VRFValidated = int(atomic.LoadInt32(&bs.VRFValidatedAtomic))
 	// bs.ValidatedItem = int(atomic.LoadInt32(&bs.ValidatedCountAtomic))
-	// bs.DoneRecordingNW()
 }
 
 func (bs *BasicStats) AddParticipationRound(r types.ConsensusRound) {

@@ -194,7 +194,7 @@ func (tp *AbsMainChannel) processLocalMsg(deser []*channelinterface.Deserialized
 		default:
 			logging.Error(err)
 			panic(err)
-			continue
+			// continue
 		}
 		tp.InternalChan <- &channelinterface.RcvMsg{CameFrom: 2, Msg: ret, SendRecvChan: nil, IsLocal: true}
 	}
@@ -235,7 +235,7 @@ func (tp *AbsMainChannel) ProcessMessage(msg *messages.Message, wasEncrypted boo
 }
 
 func (tp *AbsMainChannel) afterMessageProcess(items []*channelinterface.DeserializedItem, errs []error,
-	sndRcvChan *channelinterface.SendRecvChannel, isRepreocess bool, memberCheckerState consinterface.ConsStateInterface) (bool, []error) {
+	sndRcvChan *channelinterface.SendRecvChannel, isRepreocess bool, _ consinterface.ConsStateInterface) (bool, []error) {
 
 	// logging.Infof("Error unwraping message at connection %v: %v", sndRcvChan.ConnectionInfo, err)
 	for _, err := range errs {
@@ -327,7 +327,7 @@ func (tp *AbsMainChannel) Recv() (*channelinterface.RcvMsg, error) {
 				tp.MemberCheckerState.GetConsensusIndexFuncs(), types.LocalMessage, tp.ConsItem, tp.MemberCheckerState)
 			if errors != nil {
 				// Local message had an error, is ok?
-				logging.Warning("Error processing local message: ", errors)
+				logging.Info("Error processing local message: ", errors)
 				if len(items) == 0 {
 					continue
 				}

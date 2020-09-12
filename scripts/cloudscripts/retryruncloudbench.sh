@@ -13,8 +13,8 @@ user=${9:-$BENCHUSER}
 key=${10:-$KEYPATH}
 project=${11:-$PROJECTID}
 crednetialfile=${12:-$OAUTHPATH}
-launchNodes=${12:-1}
-shutdownNodes=${13:-1}
+launchNodes=${13:-1}
+shutdownNodes=${14:-1}
 
 # Build
 bash ./scripts/buildgo.sh 1

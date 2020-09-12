@@ -315,7 +315,7 @@ func GenerateForwardChecker(t assert.TestingT, pub sig.Pub, pubKeys sig.PubList,
 	switch to.NetworkType {
 	case types.P2p, types.RequestForwarder:
 		var pubCons []sig.PubList
-		if to.BufferForwarder {
+		if to.BufferForwardType != types.NoBufferForward {
 			pstr, err := pub.GetRealPubBytes()
 			if err != nil {
 				panic(err)
@@ -328,11 +328,11 @@ func GenerateForwardChecker(t assert.TestingT, pub sig.Pub, pubKeys sig.PubList,
 			}
 		}
 		return forwardchecker.NewP2PForwarder(to.NetworkType == types.RequestForwarder,
-			to.FanOut, to.BufferForwarder, pubCons, generalConfig)
+			to.FanOut, pubCons, generalConfig)
 	case types.AllToAll:
 		return forwardchecker.NewAllToAllForwarder()
 	case types.Random:
-		return forwardchecker.NewRandomForwarder(to.BufferForwarder, to.FanOut, generalConfig)
+		return forwardchecker.NewRandomForwarder(to.FanOut, generalConfig)
 	default:
 		panic("invalid nw type")
 	}

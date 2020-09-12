@@ -70,6 +70,7 @@ type GeneralConfig struct {
 	NodeChoiceVRFRelaxation     int                        // Additional chance to chose a node as a member when using VRF.
 	CoordChoiceVRF              int                        // Chance of each node being chosen as a coordinator when using VRF.
 	UseRandCoord                bool                       // If true round coordinators will be chosen using VRFs
+	BufferForwardType           types.BufferForwardType    // Type of buffer forwarder to use
 }
 
 type ExtraInitState interface {

@@ -97,10 +97,6 @@ func TestMvCons1MultiSigSleep(t *testing.T) {
 }
 
 func TestMvCons1P2p(t *testing.T) {
-	if !config.RunAllTests {
-		return
-	}
-
 	cons.RunP2pNwTests(types.TestOptions{}, types.MvBinCons1Type, &MvCons1{}, MvBinCons1Config{}, nil, t)
 }
 

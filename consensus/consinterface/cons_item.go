@@ -207,6 +207,7 @@ func CreateGeneralConfig(testId int, eis generalconfig.ExtraInitState,
 	gc.CoordChoiceVRF = to.CoordChoiceVRF
 	gc.RandForwardTimeout = to.RandForwardTimeout
 	gc.UseRandCoord = to.UseRandCoord
+	gc.BufferForwardType = to.BufferForwardType
 
 	return gc
 }
@@ -356,7 +357,7 @@ func FinishUnwrapMessage(isLocal types.LocalMessageType, w messages.MsgHeader, m
 					IsDeserialized: false,
 					Message:        msg}}, nil
 		}
-		logging.Warning("error getting member checker for index %v, err %v", idx.Index, err)
+		logging.Info("error getting member checker for index %v, err %v", idx.Index, err)
 		return nil, err // TODO should keep message in certain cases?
 	}
 
@@ -438,7 +439,7 @@ func internalCheckDeserializedMessage(di *channelinterface.DeserializedItem, ci 
 	// Check if you received this message already
 	ret, err := ms.GotMsg(ci.GetHeader, di, gc, mc)
 	if err != nil {
-		logging.Warning("Error with deserialized message: ", err, di.HeaderType, di.Index)
+		logging.Info("Error with deserialized message: ", err, di.HeaderType, di.Index)
 		return nil, err
 	}
 	return ret, nil

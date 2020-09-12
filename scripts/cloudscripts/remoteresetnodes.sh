@@ -53,7 +53,6 @@ printf -v remotekey %q "${remotekey}"
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$user"@"$inip" "
 bash --login -c \"
 cd ~/go/src/github.com/tcrain/cons/;
-git pull;
 echo Restarting nodes
 echo Running: ./runcmd -f benchIPfile -k ${remotekey} -u ${user} nohup ${cmd}
 ./runcmd -f benchIPfile -k ${remotekey} -u ${user} nohup ${cmd}\""

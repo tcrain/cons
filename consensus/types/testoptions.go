@@ -56,7 +56,7 @@ type TestOptions struct {
 	SleepValidate         bool                   // If true we dont validate sigs, just sleep
 	SleepCrypto           bool                   // If true all signature based crypto is done using sleeps
 	MCType                MemberCheckerType      // if TestMemberCheckers is false, then test a specific type
-	BufferForwarder       bool                   // Buffer several messages before forwarding them (in a gossip network)
+	BufferForwardType     BufferForwardType      // Buffer several messages before forwarding them (in a gossip network)
 	UseMultisig           bool                   // Use multi-signautres
 	BlsMultiNew           bool                   // Use the new type of BLS multi-signatures (see https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html)
 	MemCheckerBitIDType   BitIDType              // If using multi-sigs the type of bit ID to use in the member checker
@@ -128,7 +128,7 @@ func (to TestOptions) String() string {
 		"\n\t ProgressTimeout: %v, MVTimeout: %v, MVRecoverTimeout: %v, NodeVRFRelax: %v, CoordVRF: %v, TestID %v}",
 		to.ConsType, to.MaxRounds, to.FailRounds, to.NumTotalProcs, to.NumNonMembers, to.NumFailProcs,
 		to.ConnectionType, to.MsgDropPercent, to.NetworkType, to.FanOut, to.StorageType,
-		to.ClearDiskOnRestart, to.IncludeProofs, to.SigType, to.UseMultisig, to.UsePubIndex, to.BufferForwarder,
+		to.ClearDiskOnRestart, to.IncludeProofs, to.SigType, to.UseMultisig, to.UsePubIndex, to.BufferForwardType,
 		to.StateMachineType, to.AllowConcurrent, to.RotateCord, to.GenRandBytes, to.OrderingType, to.RndMemberType,
 		to.UseRandCoord, to.RndMemberCount, to.LocalRandMemberChange, to.AllowSupportCoin,
 		to.UseFullBinaryState, to.StorageBuffer, to.IncludeCurrentSigs, to.CPUProfile, to.MemProfile,
@@ -386,12 +386,22 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		}
 	}
 
-	if !to.BufferForwarder && to.AdditionalP2PNetworks > 0 {
+	if to.BufferForwardType != NoBufferForward {
+		switch to.NetworkType {
+		case P2p, Random:
+		// ok
+		default:
+			err = fmt.Errorf("buffer forward can only be used with p2p or random network type")
+			return
+		}
+	}
+
+	if to.BufferForwardType != ThresholdBufferForward && to.AdditionalP2PNetworks > 0 {
 		err = fmt.Errorf("additional P2P networks not needed if buffer forwarder is being used")
 		return
 	}
 
-	if to.BufferForwarder && !to.IncludeCurrentSigs {
+	if to.BufferForwardType == ThresholdBufferForward && !to.IncludeCurrentSigs {
 		err = fmt.Errorf("if using buffer forwarder must include current signatures")
 		return
 	}
@@ -530,7 +540,7 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		err = fmt.Errorf("cons type RbBcast does not support VRFPerCons or VRFPerMessage (because there will be differnt coordinators, and will block termination)")
 		return
 	}
-	if to.NetworkType == RequestForwarder && (to.RndMemberType != LocalRandMember || to.BufferForwarder) {
+	if to.NetworkType == RequestForwarder && (to.RndMemberType != LocalRandMember || to.BufferForwardType != NoBufferForward) {
 		err = fmt.Errorf("request forwarder and local random mebership must be used together, and without BufferForwarder")
 		return
 	}

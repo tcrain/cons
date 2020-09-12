@@ -25,6 +25,11 @@ fi
 # Make test options
 go run ./cmd/gento/gento.go
 
+echo "Calling rsync"
+./runcmd -f benchIPfile -k "$key" -u "$user" -r ~/go/src/github.com/tcrain/cons/rpcnode "~/go/src/github.com/tcrain/cons/rpcnode"
+./runcmd -f benchIPfile -k "$key" -u "$user" -r ~/go/src/github.com/tcrain/cons/scripts/ "~/go/src/github.com/tcrain/cons/scripts/"
+echo "Done rsync"
+
 bash ./scripts/setupnodes.sh "$user" benchIPfile "$key" "$pregip" 4534
 
 sleep 3

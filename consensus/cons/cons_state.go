@@ -463,7 +463,7 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 		cs.memberCheckerState.CheckProposalNeeded(nextIdx)
 		// Loop on any decided instances
 		for nextItem.HasDecided() {
-			memC, _, _, err := cs.memberCheckerState.GetMemberChecker(nextIdxItem)
+			memC, _, fwdChecker, err := cs.memberCheckerState.GetMemberChecker(nextIdxItem)
 			if err != nil { // sanity check
 				panic(fmt.Sprint(err, nextIdx, cs.memberCheckerState.LocalIndex))
 			}
@@ -500,6 +500,11 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 					}
 				}
 			}
+
+			// Forward any additional items
+			fwdChecker.ConsDecided(memC.MC.GetStats())
+			sendForward(types.SingleComputeConsensusIDShort(nextIdx), cs.memberCheckerState, cs.mainChannel)
+
 			// Store the decided value
 			// Update the storage if we are not initializing
 			if !cs.isInStorageInit {

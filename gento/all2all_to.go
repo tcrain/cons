@@ -64,7 +64,7 @@ func genAll2AllSimple(folderName string, sleepCrypto bool, nxtID uint64) uint64 
 	ct.StopOnCommit = types.Immediate
 	ct.IncludeProofs = false
 	ct.SleepCrypto = sleepCrypto
-	ct.WarmUpInstances = 5
+	ct.WarmUpInstances = 8
 	ct.CPUProfile = false
 	ct.KeepPast = 1
 	ct.NumMsgProcessThreads = 3
@@ -119,9 +119,12 @@ func GenAll2AllSimpleRand() {
 	ct.StopOnCommit = types.Immediate
 	ct.IncludeProofs = false
 	ct.SleepCrypto = true
-	ct.WarmUpInstances = 1
+	ct.WarmUpInstances = 8
 	ct.CPUProfile = false
-	ct.MvConsTimeout = 200
+	// set large timeouts since we don't have any faults for this test
+	ct.MvConsTimeout = 100000
+	ct.MvConsRequestRecoverTimeout = 100000
+	ct.ProgressTimeout = 100000
 
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
 		optsSig, nil)
@@ -146,6 +149,12 @@ func GenAll2AllCollectBcast() {
 
 	folderName = "all2all-cbcast3s"
 	genAll2AllCollectBcast3s(folderName, 1)
+
+	folderName = "all2all-cbcast"
+	genAll2AllCollectBcast(folderName, false, 1)
+
+	folderName = "all2all-cbcast-sleep"
+	genAll2AllCollectBcast(folderName, true, 1)
 }
 
 func genAll2AllCollectBcast2s(folderName string, nxtID uint64) uint64 {
@@ -162,9 +171,12 @@ func genAll2AllCollectBcast2s(folderName string, nxtID uint64) uint64 {
 	ct.StopOnCommit = types.Immediate
 	ct.IncludeProofs = false
 	ct.SleepCrypto = true
-	ct.WarmUpInstances = 4
+	ct.WarmUpInstances = 8
 	ct.CPUProfile = false
-	ct.MvConsTimeout = 200
+	// set large timeouts since we don't have any faults for this test
+	ct.MvConsTimeout = 100000
+	ct.MvConsRequestRecoverTimeout = 100000
+	ct.ProgressTimeout = 100000
 	ct.MCType = types.TrueMC
 
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons3.MvCons3Config{}},
@@ -196,9 +208,12 @@ func genAll2AllCollectBcast3s(folderName string, nxtID uint64) uint64 {
 	ct.StopOnCommit = types.Immediate
 	ct.IncludeProofs = false
 	ct.SleepCrypto = true
-	ct.WarmUpInstances = 4
+	ct.WarmUpInstances = 8
 	ct.CPUProfile = false
-	ct.MvConsTimeout = 200
+	// set large timeouts since we don't have any faults for this test
+	ct.MvConsTimeout = 100000
+	ct.MvConsRequestRecoverTimeout = 100000
+	ct.ProgressTimeout = 100000
 	ct.MCType = types.TrueMC
 
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
@@ -213,5 +228,49 @@ func genAll2AllCollectBcast3s(folderName string, nxtID uint64) uint64 {
 		optsSig, nil)
 
 	genGenSets(folderName, []parse.GenSet{parse.GenPerNodeByConsCB})
+	return nxtID
+}
+
+func genAll2AllCollectBcast(folderName string, sleepCrypto bool, nxtID uint64) uint64 {
+	var consTypes []types.ConsType
+	optsSig := cons.ReplaceNilFields(cons.OptionStruct{
+		SigTypes:           []types.SigType{types.TBLS},
+		CoinTypes:          []types.CoinType{types.NoCoinType},
+		CollectBroadcast:   []types.CollectBroadcastType{types.Commit},
+		MemberCheckerTypes: []types.MemberCheckerType{types.TrueMC},
+	}, baseMVOptions)
+	consTypes = []types.ConsType{types.MvCons3Type}
+
+	ct := mvAll2All
+	ct.CollectBroadcast = types.Commit
+	ct.SigType = types.TBLS
+	ct.StopOnCommit = types.Immediate
+	ct.IncludeProofs = false
+	ct.SleepCrypto = sleepCrypto
+	ct.WarmUpInstances = 8
+	ct.CPUProfile = false
+	// set large timeouts since we don't have any faults for this test
+	ct.MvConsTimeout = 100000
+	ct.MvConsRequestRecoverTimeout = 100000
+	ct.ProgressTimeout = 100000
+	ct.ForwardTimeout = 100000
+	ct.MCType = types.TrueMC
+
+	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons3.MvCons3Config{}},
+		optsSig, nil)
+
+	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.RbBcast1Type}, []cons.ConfigOptions{rbbcast1.RbBcast1Config{}},
+		optsSig, nil)
+
+	ct.CollectBroadcast = types.EchoCommit
+	optsSig = cons.ReplaceNilFields(cons.OptionStruct{
+		CollectBroadcast: []types.CollectBroadcastType{types.EchoCommit}, // types.EchoCommit, types.Commit},
+	}, optsSig)
+	consTypes = []types.ConsType{types.MvCons2Type}
+
+	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
+		optsSig, nil)
+
+	genGenSets(folderName, []parse.GenSet{parse.GenPerNodeByCons})
 	return nxtID
 }

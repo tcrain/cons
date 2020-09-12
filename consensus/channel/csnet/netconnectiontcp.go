@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package csnet
 
 import (
+	"context"
 	"fmt"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channel"
@@ -36,8 +37,8 @@ import (
 )
 
 // newNetConnectionTCP is called when we want to make a connection to an external node
-func newNetConnectionTCP(conInfo channelinterface.NetNodeInfo, connStatus *ConnStatus,
-	netMainChannel *NetMainChannel) (*NetConnectionTCP, error) {
+func newNetConnectionTCP(conInfo channelinterface.NetNodeInfo, ctx context.Context,
+	connStatus *ConnStatus, netMainChannel *NetMainChannel) (*NetConnectionTCP, error) {
 
 	nsc := &NetConnectionTCP{}
 	nsc.mutex.Lock()
@@ -58,7 +59,7 @@ func newNetConnectionTCP(conInfo channelinterface.NetNodeInfo, connStatus *ConnS
 
 	nsc.sendChan = make(chan []byte, config.InternalBuffSize)
 	nsc.conns = make([]net.Conn, len(nsc.nci))
-	err := nsc.connectSend()
+	err := nsc.connectSend(ctx)
 
 	return nsc, err
 }
@@ -161,7 +162,7 @@ func (nsc *NetConnectionTCP) loopRecv(conn net.Conn, connInfo channelinterface.N
 	var err error
 	defer func() {
 		nsc.netMainChannel.BehaviorTracker.GotError(err, connInfo)
-		logging.Warningf("Closing recv channel %v due to error %v", connInfo, err)
+		logging.Warningf("Closing (is recv connection %v) recv channel %v due to error %v", nsc.isRecvConn, connInfo, err)
 
 		nsc.wgTCPConn.Done()
 		err2 := nsc.Close(channelinterface.CloseDuringTest)
@@ -232,10 +233,10 @@ func (nsc *NetConnectionTCP) loopSend(conn net.Conn, connInfo channelinterface.N
 	var n int
 
 	defer func() {
+		nsc.wgTCPConn.Done()
 		if err != nil {
 			nsc.netMainChannel.BehaviorTracker.GotError(err, connInfo)
 			logging.Warning("Got a write error %v, wrote %v, for %v", err, n, connInfo)
-			nsc.wgTCPConn.Done()
 			err2 := nsc.Close(channelinterface.CloseDuringTest)
 			if err2 != nil {
 				logging.Warning(err2)
@@ -267,7 +268,7 @@ func (nsc *NetConnectionTCP) loopSend(conn net.Conn, connInfo channelinterface.N
 		buff, ok := <-nsc.sendChan
 		if !ok {
 			// closed
-			nsc.wgTCPConn.Done()
+			// nsc.wgTCPConn.Done()
 			return
 		}
 		// check if we should encrypt the message
@@ -301,7 +302,7 @@ func sendBytes(conn net.Conn, buff []byte) error {
 
 // connectSend is an internal function for TCP that tries to connect to the external node
 // it start the internal read and send loops
-func (nsc *NetConnectionTCP) connectSend() error {
+func (nsc *NetConnectionTCP) connectSend(ctx context.Context) error {
 	// UDP conns use the main listen channel
 	if nsc.isRecvConn {
 		panic("rcv conn sets up connections in NewNetSendConAlreadyConnected")
@@ -322,7 +323,10 @@ func (nsc *NetConnectionTCP) connectSend() error {
 			nsc.mutex.Unlock()
 
 			// we do this outside of the lock because someone might want to remove the connection in the meantime
-			conn, err := net.DialTimeout(nsc.nci[idx].Nw, nsc.nci[idx].Addr, config.TCPDialTimeout*time.Millisecond)
+			var d net.Dialer
+			ctx, _ = context.WithTimeout(ctx, config.TCPDialTimeout*time.Millisecond)
+			conn, err := d.DialContext(ctx, nsc.nci[idx].Nw, nsc.nci[idx].Addr)
+			// conn, err := net.DialTimeout(nsc.nci[idx].Nw, nsc.nci[idx].Addr, config.TCPDialTimeout*time.Millisecond)
 			nsc.mutex.Lock()
 			if nsc.closed {
 				if err == nil {
@@ -346,6 +350,7 @@ func (nsc *NetConnectionTCP) connectSend() error {
 				nsc.mutex.Unlock()
 				return
 			}
+			nsc.connStatus.FinishedMakingConnection(nsc.pub)
 			logging.Infof("Connected to %v", nsc.nci)
 			// loop the recv thread
 			nsc.wgTCPConn.Add(2)

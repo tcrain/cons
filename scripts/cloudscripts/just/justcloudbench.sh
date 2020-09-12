@@ -19,10 +19,19 @@ then
     # Get ips
     bash ./scripts/cloudscripts/getips.sh "$singleZoneCmd" "$regions" "$project" "$credentialPath"
 
+    echo "Calling rsync"
+    ./runcmd -f benchIPfile -k "$key" -u "$user" -r ~/go/src/github.com/tcrain/cons/rpcnode "~/go/src/github.com/tcrain/cons/rpcnode"
+    ./runcmd -f benchIPfile -k "$key" -u "$user" -r ~/go/src/github.com/tcrain/cons/scripts/ "~/go/src/github.com/tcrain/cons/scripts/"
+    echo "Done rsync"
+
     echo Running setup
     bash ./scripts/setupnodes.sh "$user" benchIPfile "$key" "$pregip" 4534
 
 fi
+
+sleep 2
+echo "Nodes started, press any key to start benchmark"
+read -n 1 -s -r
 
 echo
 echo "Running: ./rpcbench -o $config -f benchIPfile -p $pregip:4534" | tee -a "$logname"

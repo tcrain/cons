@@ -58,7 +58,6 @@ func TestBinCons1MemStore(t *testing.T) {
 	if !config.RunAllTests {
 		return
 	}
-
 	cons.RunMemstoreTest(binTO, types.BinCons1Type, &BinCons1{}, Config{}, nil, t)
 }
 

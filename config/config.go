@@ -89,7 +89,7 @@ const (
 	UDPConnCount           = 10                                              // number of udp open ports to use at each node
 	UDPMaxSendRate         = 100000                                          // maximum send rate of a single udp connection (in bytes/sec), set to 0 for no limit
 	UDPMovingAvgWindowSize = 20                                              // how many previous messages are used for tracking the moving average msg send size, which is then used to caluculate how much to sleep to not exceed UDPMaxSendRate
-	TCPDialTimeout         = 20000                                           // time in ms for TCP dial timeout
+	TCPDialTimeout         = 120000                                          // time in ms for TCP dial timeout
 	RetryConnectionTimeout = 5000                                            // milliseconds beore retrying to connect to a node
 
 	DefaultMsgProcesThreads = 10    // number of threads processing messages (deserialization/verification) before passing to the single consensus thread

@@ -91,7 +91,7 @@ func (rc *RunningCons) Reset(rpcsetup.None, *rpcsetup.None) error {
 	// perform a garbage collection
 	runtime.GC()
 
-	logging.Info("Num goroutines after reset: %v", runtime.NumGoroutine())
+	logging.Warning("Num goroutines after reset: %v", runtime.NumGoroutine())
 
 	return err
 }
