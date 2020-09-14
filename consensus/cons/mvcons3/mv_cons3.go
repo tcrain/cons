@@ -127,9 +127,8 @@ func (sc *MvCons3) SetInitialState(value []byte) {
 
 // GetCommitProof returns nil for MvCons3. It generates the proofs itself since it
 // piggybacks rounds with consensus instances.
-func (sc *MvCons3) GetCommitProof() []messages.MsgHeader {
-	// unused
-	return nil
+func (sc *MvCons3) GetCommitProof() (proof []messages.MsgHeader) {
+	return
 }
 
 // GetConsType returns the type of consensus this instance implements.
@@ -139,11 +138,18 @@ func (sc *MvCons3) GetConsType() types.ConsType {
 
 // GetPrevCommitProof returns a signed message header that counts at the commit message for the previous consensus.
 // This should only be called after DoneKeep has been called on this instance.
-func (sc *MvCons3) GetPrevCommitProof() []messages.MsgHeader {
+func (sc *MvCons3) GetPrevCommitProof() (coordPub sig.Pub, proof []messages.MsgHeader) {
 	if len(sc.supportItems) == 0 {
-		return nil
+		return
 	}
 
+	var err error
+	msg := messagetypes.NewMvInitSupportMessage()
+	_, coordPub, err = consinterface.CheckCoord(nil, sc.ConsItems.MC,
+		types.ConsensusRound(sc.Index.Index.(types.ConsensusInt)), msg.GetMsgID())
+	if err != nil {
+		panic(err)
+	}
 	// First go backwards to find the most recent decided
 	nxt := sc
 	for nxt.hasDecided != decidedValue {
@@ -164,8 +170,15 @@ func (sc *MvCons3) GetPrevCommitProof() []messages.MsgHeader {
 			panic("should have a proof")
 		}
 		nxt.myProof = proof
+		var err error
+		msg := messagetypes.NewMvInitSupportMessage()
+		_, coordPub, err = consinterface.CheckCoord(nil, nxt.ConsItems.MC,
+			types.ConsensusRound(nxt.Index.Index.(types.ConsensusInt)), msg.GetMsgID())
+		if err != nil {
+			panic(err)
+		}
 	}
-	return []messages.MsgHeader{nxt.myProof}
+	return coordPub, []messages.MsgHeader{nxt.myProof}
 }
 
 // Start allows GetProposalIndex to return true.

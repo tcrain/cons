@@ -201,6 +201,7 @@ func genAll2AllCollectBcast3s(folderName string, nxtID uint64) uint64 {
 		CoinTypes:          []types.CoinType{types.NoCoinType},
 		CollectBroadcast:   types.AllCollectBroadcast,
 		MemberCheckerTypes: []types.MemberCheckerType{types.TrueMC},
+		RotateCoordTypes:   types.WithTrue,
 	}, baseMVOptions)
 	consTypes = []types.ConsType{types.MvCons2Type}
 
@@ -215,6 +216,7 @@ func genAll2AllCollectBcast3s(folderName string, nxtID uint64) uint64 {
 	ct.MvConsRequestRecoverTimeout = 100000
 	ct.ProgressTimeout = 100000
 	ct.MCType = types.TrueMC
+	ct.RotateCord = true
 
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
 		optsSig, nil)
@@ -238,6 +240,7 @@ func genAll2AllCollectBcast(folderName string, sleepCrypto bool, nxtID uint64) u
 		CoinTypes:          []types.CoinType{types.NoCoinType},
 		CollectBroadcast:   []types.CollectBroadcastType{types.Commit},
 		MemberCheckerTypes: []types.MemberCheckerType{types.TrueMC},
+		RotateCoordTypes:   types.WithTrue,
 	}, baseMVOptions)
 	consTypes = []types.ConsType{types.MvCons3Type}
 
@@ -259,6 +262,7 @@ func genAll2AllCollectBcast(folderName string, sleepCrypto bool, nxtID uint64) u
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons3.MvCons3Config{}},
 		optsSig, nil)
 
+	ct.RotateCord = true
 	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.RbBcast1Type}, []cons.ConfigOptions{rbbcast1.RbBcast1Config{}},
 		optsSig, nil)
 

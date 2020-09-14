@@ -351,20 +351,22 @@ func (cs *ConnStatus) waitUntilFewerSendCons(n int) error {
 
 // SendTo sends the byte slice to the destination channel.
 // TODO should try to connect to on connection not existing?
-func (cs *ConnStatus) SendTo(buff []byte, dest channelinterface.SendChannel, stats stats.NwStatsInterface) {
+func (cs *ConnStatus) SendTo(buff []byte, dest channelinterface.SendChannel, stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface) {
 	if config.LatencySend > 0 {
 		time.AfterFunc(time.Millisecond*time.Duration(rand.Intn(config.LatencySend)), func() {
-			cs.internalSendTo(buff, dest, stats)
+			cs.internalSendTo(buff, dest, stats, consStats)
 		})
 	} else {
-		cs.internalSendTo(buff, dest, stats)
+		cs.internalSendTo(buff, dest, stats, consStats)
 	}
 }
 
 // SendToPub sends buff to the node associated with the public key (if it exists), it returns an error if pub is not found
 // in the list of connections.
 // TODO should try to connect to on connection not existing?
-func (cs *ConnStatus) SendToPub(buff []byte, pub sig.Pub, stats stats.NwStatsInterface) error {
+func (cs *ConnStatus) SendToPub(buff []byte, pub sig.Pub, stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface) error {
 	pStr, err := pub.GetPubString()
 	if err != nil {
 		return err
@@ -377,14 +379,15 @@ func (cs *ConnStatus) SendToPub(buff []byte, pub sig.Pub, stats stats.NwStatsInt
 	conn, ok := cs.cons[pStr]
 	cs.mutex.Unlock()
 	if ok {
-		cs.SendTo(buff, conn.Conn, stats)
+		cs.SendTo(buff, conn.Conn, stats, consStats)
 		return nil
 	}
 	return types.ErrPubNotFound
 }
 
 // SendToPubList sends buf to the list of pub keys if connections to them exist
-func (cs *ConnStatus) SendToPubList(buf []byte, pubList []sig.PubKeyStr, stats stats.NwStatsInterface) (errs []error) {
+func (cs *ConnStatus) SendToPubList(buf []byte, pubList []sig.PubKeyStr, stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface) (errs []error) {
 	var destList []channelinterface.SendChannel
 
 	cs.mutex.Lock()
@@ -402,7 +405,7 @@ func (cs *ConnStatus) SendToPubList(buf []byte, pubList []sig.PubKeyStr, stats s
 	}
 
 	cs.internalSendFunc(buf, destList, false, false,
-		channelinterface.FullSendRange, stats, false)
+		channelinterface.FullSendRange, stats, consStats, false)
 	cs.mutex.Unlock()
 	return errs
 }
@@ -415,7 +418,8 @@ func (cs *ConnStatus) SendToPubList(buf []byte, pubList []sig.PubKeyStr, stats s
 func (cs *ConnStatus) Send(buff []byte,
 	forwardChecker channelinterface.NewForwardFuncFilter,
 	allPubs []sig.Pub,
-	stats stats.NwStatsInterface) []sig.Pub {
+	stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface) []sig.Pub {
 
 	cs.mutex.Lock()
 	if cs.isClosed {
@@ -445,10 +449,10 @@ func (cs *ConnStatus) Send(buff []byte,
 		cs.mutex.Unlock()
 		// the func must take the lock itself later
 		time.AfterFunc(time.Millisecond*time.Duration(rand.Intn(config.LatencySend)), func() {
-			cs.internalSendFunc(buff, dests, sendToRcv, sendToSend, sendRange, stats, true)
+			cs.internalSendFunc(buff, dests, sendToRcv, sendToSend, sendRange, stats, consStats, true)
 		})
 	} else {
-		cs.internalSendFunc(buff, dests, sendToRcv, sendToSend, sendRange, stats, false)
+		cs.internalSendFunc(buff, dests, sendToRcv, sendToSend, sendRange, stats, consStats, false)
 		cs.mutex.Unlock()
 	}
 	return unknownPubs
@@ -459,7 +463,8 @@ func (cs *ConnStatus) Send(buff []byte,
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 // internalSendTo sends buf to dest
-func (cs *ConnStatus) internalSendTo(buff []byte, dest channelinterface.SendChannel, stats stats.NwStatsInterface) {
+func (cs *ConnStatus) internalSendTo(buff []byte, dest channelinterface.SendChannel, stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface) {
 
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
@@ -470,7 +475,7 @@ func (cs *ConnStatus) internalSendTo(buff []byte, dest channelinterface.SendChan
 
 	if dest.GetType() == types.UDP { // udp we send directly
 		sendUDP(buff, cs.udpMsgPool, []channelinterface.SendChannel{dest}, nil, nil,
-			&cs.udpMsgCountID, channelinterface.FullSendRange, stats)
+			&cs.udpMsgCountID, channelinterface.FullSendRange, stats, consStats)
 		return
 	}
 
@@ -484,6 +489,9 @@ func (cs *ConnStatus) internalSendTo(buff []byte, dest channelinterface.SendChan
 		if conn, ok := cs.cons[pstr]; ok { // otherwise for tcp we have to check if we are still connected to the address
 			if stats != nil {
 				stats.Send(len(buff))
+			}
+			if consStats != nil {
+				consStats.ConsSend(len(buff))
 			}
 			err := conn.Conn.Send(buff)
 			if err != nil {
@@ -511,6 +519,7 @@ func (cs *ConnStatus) internalSendFunc(buff []byte,
 	sendToSend bool,
 	sendRange channelinterface.SendRange,
 	stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface,
 	shouldLock bool) {
 
 	// check we actually have send destinations
@@ -539,7 +548,7 @@ func (cs *ConnStatus) internalSendFunc(buff []byte,
 		if sendToSend {
 			sendCons = cs.sendCons
 		}
-		sendUDP(buff, cs.udpMsgPool, destList, sendCons, conMap, &cs.udpMsgCountID, sendRange, stats)
+		sendUDP(buff, cs.udpMsgPool, destList, sendCons, conMap, &cs.udpMsgCountID, sendRange, stats, consStats)
 	} else {
 		var numSends int
 		if sendRange != channelinterface.FullSendRange && len(destList) > 0 {
@@ -589,6 +598,9 @@ func (cs *ConnStatus) internalSendFunc(buff []byte,
 		l := len(buff)
 		if stats != nil {
 			stats.Broadcast(l, numSends)
+		}
+		if consStats != nil {
+			consStats.ConsBroadcast(l, numSends)
 		}
 
 	}

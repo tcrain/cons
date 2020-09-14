@@ -640,7 +640,8 @@ func (sc *MvCons1) broadcastEcho(proposalHash []byte, mainChannel channelinterfa
 	if sc.CheckMemberLocalMsg(newMsg) { // Check if we are a member for this message type
 		logging.Info("bcast echo", sc.GeneralConfig.TestIndex, sc.Index, sc.ConsItems.MC.MC.GetMemberCount())
 
-		cordPub := cons.GetCoordPubCollectBroadcast(0, sc.ConsItems, sc.GeneralConfig)
+		// cordPub := cons.GetCoordPubCollectBroadcastEcho(0, sc.ConsItems, sc.GeneralConfig)
+		var cordPub sig.Pub // TODO collect broadcast
 		sc.BroadcastFunc(cordPub, sc.ConsItems, newMsg, true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
 			mainChannel, sc.GeneralConfig, nil)
 		// BroadcastMv(cordPub, sc.ByzType, sc, sc.ConsItems.FwdChecker.GetNewForwardListFunc(), newMsg, nil, mainChannel)

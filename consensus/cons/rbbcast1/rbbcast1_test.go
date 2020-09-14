@@ -41,6 +41,7 @@ func TestRbBcast1Basic(t *testing.T) {
 
 func TestRbBcast1CollectBcast(t *testing.T) {
 	to := types.TestOptions{}
+	to.CollectBroadcast = types.Commit
 	cons.RunBasicTests(to, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, []int{}, t)
 }
 

@@ -132,6 +132,15 @@ func (*MvCons2) GenerateNewItem(index types.ConsensusIndex,
 	return newItem
 }
 
+// GetPrevCommitProof returns a signed message header that counts at the commit message for the previous consensus.
+// This should only be called after DoneKeep has been called on this instance.
+// cordPub is the expected public key of the coordinator of the current round (used for collect broadcast)
+func (sc *MvCons2) GetPrevCommitProof() (cordPub sig.Pub, proof []messages.MsgHeader) {
+	cordPub = cons.GetCoordPubCollectBroadcastEnd(0, sc.ConsItems, sc.GeneralConfig)
+	_, proof = sc.AbsConsItem.GetPrevCommitProof()
+	return
+}
+
 // GetCommitProof returns a signed message header that counts at the commit message for this consensus.
 func (sc *MvCons2) GetCommitProof() []messages.MsgHeader {
 	t := sc.ConsItems.MC.MC.GetFaultCount()
@@ -828,7 +837,7 @@ func (sc *MvCons2) broadcastEcho(nmt int, proposalHash []byte, round types.Conse
 				panic(err) // we should always have a valid proof msg here
 			}
 		}
-		cordPub := cons.GetCoordPubCollectBroadcast(round, sc.ConsItems, sc.GeneralConfig)
+		cordPub := cons.GetCoordPubCollectBroadcastEcho(round, sc.ConsItems, sc.GeneralConfig)
 		sc.BroadcastFunc(cordPub, sc.ConsItems, newMsg, true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
 			mainChannel, sc.GeneralConfig, proofMsg)
 		// BroadcastMv2(cordPub, sc.ByzType, sc, sc.ConsItems.FwdChecker.GetNewForwardListFunc(), newMsg, proofMsg, mainChannel)

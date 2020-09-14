@@ -94,7 +94,7 @@ func (mmc *MockMainChannel) SendToSelf(deser []*channelinterface.DeserializedIte
 	return nil
 }
 func (mmc *MockMainChannel) SendHeader(headers []messages.MsgHeader, _, _ bool,
-	_ channelinterface.NewForwardFuncFilter, _ bool) {
+	_ channelinterface.NewForwardFuncFilter, _ bool, _ stats.ConsNwStatsInterface) {
 	for _, nxt := range headers {
 		if nxt != nil {
 			_, ok := nxt.(*messagetypes.ConsMessage)
@@ -105,14 +105,14 @@ func (mmc *MockMainChannel) SendHeader(headers []messages.MsgHeader, _, _ bool,
 	}
 }
 func (mmc *MockMainChannel) Send(buff []byte, _, toSelf bool,
-	_ channelinterface.NewForwardFuncFilter, _ bool) {
+	_ channelinterface.NewForwardFuncFilter, _ bool, _ stats.ConsNwStatsInterface) {
 
 	if toSelf {
 		mmc.msgs = append(mmc.msgs, buff)
 	}
 }
 func (mmc *MockMainChannel) SendAlways(buff []byte, toSelf bool, _ channelinterface.NewForwardFuncFilter,
-	_ bool) {
+	_ bool, _ stats.ConsNwStatsInterface) {
 
 	if toSelf {
 		mmc.msgs = append(mmc.msgs, buff)
@@ -121,11 +121,13 @@ func (mmc *MockMainChannel) SendAlways(buff []byte, toSelf bool, _ channelinterf
 func (mmc *MockMainChannel) ComputeDestinations(_ channelinterface.NewForwardFuncFilter) []channelinterface.SendChannel {
 	return nil
 }
-func (mmc *MockMainChannel) SendToPub(headers []messages.MsgHeader, _ sig.Pub, countStats bool) error {
-	mmc.SendHeader(headers, false, true, nil, countStats)
+func (mmc *MockMainChannel) SendToPub(headers []messages.MsgHeader, _ sig.Pub, countStats bool,
+	consStats stats.ConsNwStatsInterface) error {
+
+	mmc.SendHeader(headers, false, true, nil, countStats, consStats)
 	return nil
 }
-func (mmc *MockMainChannel) SendTo(_ []byte, _ channelinterface.SendChannel, _ bool) {
+func (mmc *MockMainChannel) SendTo(_ []byte, _ channelinterface.SendChannel, _ bool, _ stats.ConsNwStatsInterface) {
 }
 func (mmc *MockMainChannel) AddExternalNode(_ channelinterface.NetNodeInfo) {
 }

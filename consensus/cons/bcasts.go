@@ -60,15 +60,34 @@ func CheckIncludeEchoProofs(round types.ConsensusRound, ci *consinterface.ConsIn
 	return
 }
 
-// GetCoordPubCollectBroadcast is used to check if a message should be broadcast to all nodes,
+// GetCoordPubCollectBroadcastEcho is used to check if an echo message should be broadcast to all nodes,
 // or just to the next coordinator (see types.CollectBroadcast) for the CURRENT round/instance of consensus.
 // It returns a the expected coordinator of round if gc.CollectBroadcast
 // is types.EchoCommit, it returns nil otherwise.
-func GetCoordPubCollectBroadcast(round types.ConsensusRound, ci *consinterface.ConsInterfaceItems,
+func GetCoordPubCollectBroadcastEcho(round types.ConsensusRound, ci *consinterface.ConsInterfaceItems,
 	gc *generalconfig.GeneralConfig) sig.Pub {
 
 	var cordPub sig.Pub
 	if gc.CollectBroadcast == types.EchoCommit {
+		var err error
+		_, cordPub, err = consinterface.CheckCoord(nil, ci.MC, round, nil)
+		if err != nil {
+			logging.Error("could not calculate coordPub")
+			cordPub = nil
+		}
+	}
+	return cordPub
+}
+
+// GetCoordPubCollectBroadcastEnd is used to check if an message should be broadcast to all nodes,
+//or just to the next coordinator (see types.CollectBroadcast) at the very end of consensus.
+// It returns a the expected coordinator of round if gc.CollectBroadcast
+// is not types.Full, it returns nil otherwise.
+func GetCoordPubCollectBroadcastEnd(round types.ConsensusRound, ci *consinterface.ConsInterfaceItems,
+	gc *generalconfig.GeneralConfig) sig.Pub {
+
+	var cordPub sig.Pub
+	if gc.CollectBroadcast != types.Full {
 		var err error
 		_, cordPub, err = consinterface.CheckCoord(nil, ci.MC, round, nil)
 		if err != nil {
@@ -131,7 +150,7 @@ func DoConsBroadcast(nxtCoordPub sig.Pub, msg messages.InternalSignedMsgHeader, 
 		}
 		if nxtCoordPub != nil { // Only broadcast to the next coorindator
 			err = mainChannel.SendToPub(messages.AppendCopyMsgHeader(ci.ConsItem.GetPreHeader(), append(proofMsgs, sms)...), nxtCoordPub,
-				ci.MC.MC.GetStats().IsRecordIndex())
+				ci.MC.MC.GetStats().IsRecordIndex(), ci.MC.MC.GetStats())
 			if err != nil { // TODO what to do with non all to all connections?
 				logging.Warningf("Error sending message to next coord %v, index %v, will broadcast message instead", err,
 					ci.ConsItem.GetIndex())
@@ -145,7 +164,7 @@ func DoConsBroadcast(nxtCoordPub sig.Pub, msg messages.InternalSignedMsgHeader, 
 		}
 		mainChannel.SendHeader(messages.AppendCopyMsgHeader(ci.ConsItem.GetPreHeader(), append(proofMsgs, sms)...),
 			isProposal, true, forwardFunc,
-			ci.MC.MC.GetStats().IsRecordIndex())
+			ci.MC.MC.GetStats().IsRecordIndex(), ci.MC.MC.GetStats())
 	}
 }
 
@@ -202,7 +221,7 @@ func PartialBroadcastFunc(partialType types.PartialMessageType, abi consinterfac
 			panic(err)
 		}
 
-		mainChannel.SendTo(msg.GetBytes(), destinations[i], mc.MC.GetStats().IsRecordIndex())
+		mainChannel.SendTo(msg.GetBytes(), destinations[i], mc.MC.GetStats().IsRecordIndex(), mc.MC.GetStats())
 	}
 	return nil
 }

@@ -91,7 +91,7 @@ func runLoop(id int, tp MainChannel, numChannels, loops int, wg *sync.WaitGroup,
 			// except the last where we force it to wait for the timeout and send there
 			m := make([]byte, len(b))
 			copy(m, b)
-			tp.Send(m, false, true, ForwardAllPub, false)
+			tp.Send(m, false, true, ForwardAllPub, false, nil)
 		}
 
 		buffTo, err := messages.CreateMsg(hdrsTo)
@@ -114,7 +114,7 @@ func runLoop(id int, tp MainChannel, numChannels, loops int, wg *sync.WaitGroup,
 					// resend the message on timeout
 					m := make([]byte, len(b))
 					copy(m, b)
-					tp.Send(m, false, true, ForwardAllPub, false)
+					tp.Send(m, false, true, ForwardAllPub, false, nil)
 					continue
 				} else {
 					t.Error(err)
@@ -140,7 +140,7 @@ func runLoop(id int, tp MainChannel, numChannels, loops int, wg *sync.WaitGroup,
 						// rcvMsg.SendRecvChan.ReturnChan.SendReturn(messages.CreateMsg(i, newhdrs).GetBytes(), rcvMsg.SendRecvChan.ConnectionInfo)
 						mm, err := messages.CreateMsg(newhdrs)
 						assert.Nil(t, err)
-						rcvMsg.SendRecvChan.MainChan.SendTo(mm.GetBytes(), rcvMsg.SendRecvChan.ReturnChan, false)
+						rcvMsg.SendRecvChan.MainChan.SendTo(mm.GetBytes(), rcvMsg.SendRecvChan.ReturnChan, false, nil)
 					}
 				}
 

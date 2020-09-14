@@ -93,6 +93,7 @@ type StatsInterface interface {
 	MergeAllStats(to types.TestOptions, items []MergedStats) (perProc, merge MergedStats)
 
 	NwStatsInterface
+	ConsNwStatsInterface
 }
 
 // MergeStats calls `items[0].MergeAllStats(numCons, items)` if len(items) > 0
@@ -124,7 +125,7 @@ type globalStats struct {
 	doneRecording    bool
 }
 
-type StatsObj struct {
+type StatsObjBasic struct {
 	StartTime          time.Time            // List of the times when consensus instances were started.
 	FinishTime         time.Time            // List of the times where consensus instances finished.
 	Signed             uint64               // Number of signatures this node has made.
@@ -151,9 +152,15 @@ type StatsObj struct {
 	MsgIDMemberIdxs [][]messages.MsgIDInfo // indices per messageid
 }
 
+type StatsObj struct {
+	ConsNwStats
+	StatsObjBasic
+}
+
 type MergedStats struct {
 	MergedNwStats
-	StatsObj
+	ConsMergedNwStats
+	StatsObjBasic
 	StartTimes                                                                                                                                                                       []time.Time
 	FinishTimes                                                                                                                                                                      []time.Time
 	ConsTimes                                                                                                                                                                        []time.Duration
@@ -405,7 +412,7 @@ func (bs *BasicStats) AddFinishRound(r types.ConsensusRound, decidedNil bool) {
 	bs.AddParticipationRound(r)
 }
 
-func mergeInternalLocal(items []StatsObj, reTotal MergedStats) MergedStats {
+func mergeInternalLocal(items []StatsObjBasic, reTotal MergedStats) MergedStats {
 	for i, nxt := range items {
 		if nxt.Proposal {
 			reTotal.ProposalIdxs = append(reTotal.ProposalIdxs, i)
@@ -419,7 +426,7 @@ func mergeInternalLocal(items []StatsObj, reTotal MergedStats) MergedStats {
 	return reTotal
 }
 
-func mergeInternalAll(items []StatsObj, reTotal MergedStats) MergedStats {
+func mergeInternalAll(items []StatsObjBasic, reTotal MergedStats) MergedStats {
 	if len(items) == 0 {
 		return reTotal
 	}
@@ -440,7 +447,7 @@ func mergeInternalAll(items []StatsObj, reTotal MergedStats) MergedStats {
 	return reTotal
 }
 
-func mergeInternal(to types.TestOptions, local bool, items []StatsObj) (reTotal MergedStats) {
+func mergeInternal(to types.TestOptions, local bool, items []StatsObjBasic) (reTotal MergedStats) {
 	var setStart bool
 	var coinCreatedCounts, validateCoinCounts, decidedNil, diskStorage, roundDecides, roundParticipations,
 		signedCounts, validatedCounts, VRFCreatedCounts, VRFValidatedCouts, thrshCreated, proposalForwarded []uint64
@@ -625,10 +632,12 @@ func (bs *BasicStats) MergeLocalStats(to types.TestOptions, numCons int) (total 
 		}
 	}
 
-	var items []StatsObj
+	var items []StatsObjBasic
+	var nwConsItems []ConsNwStatsInterface
 	for _, nxt := range bs.stats {
 		if nxt != nil && nxt.(*BasicStats).RecordIndex && len(items) < numCons {
-			items = append(items, nxt.(*BasicStats).StatsObj)
+			items = append(items, nxt.(*BasicStats).StatsObjBasic)
+			nwConsItems = append(nwConsItems, &nxt.(*BasicStats).ConsNwStats)
 		}
 	}
 	if len(items) != numCons {
@@ -636,6 +645,8 @@ func (bs *BasicStats) MergeLocalStats(to types.TestOptions, numCons int) (total 
 	}
 	total = mergeInternal(to, true, items)
 	total = mergeInternalLocal(items, total)
+	totalNw, _ := (&ConsNwStats{}).ConsMergeAllNWStats(numCons, nwConsItems)
+	total.ConsMergedNwStats = totalNw
 	total.RecordCount = numCons
 	total.BasicNwStats = bs.BasicNwStats
 
@@ -688,8 +699,9 @@ func (bs *BasicStats) MergeAllStats(to types.TestOptions, sList []MergedStats) (
 	}
 	perProc = sList[0]
 
-	var items []StatsObj
-	var nwItems []BasicNwStats
+	var items []StatsObjBasic
+	var nwItems []NwStatsInterface
+	var consNWItems []ConsMergedNwStats
 	var summedTime time.Duration
 
 	memberCounts := make([]uint64, sList[0].RecordCount)
@@ -730,8 +742,9 @@ func (bs *BasicStats) MergeAllStats(to types.TestOptions, sList []MergedStats) (
 			endTimes[i] = append(endTimes[i], nxt.FinishTimes[i])
 		}
 
-		nwItems = append(nwItems, nxt.BasicNwStats)
-		items = append(items, nxt.StatsObj)
+		nwItems = append(nwItems, &nxt.BasicNwStats)
+		consNWItems = append(consNWItems, nxt.ConsMergedNwStats)
+		items = append(items, nxt.StatsObjBasic)
 		perProc.MinConsTime = utils.MinDuration(perProc.MinConsTime, nxt.MinConsTime)
 		perProc.MaxConsTime = utils.MaxDuration(perProc.MaxConsTime, nxt.MaxConsTime)
 		perProc.MinRoundDecide = utils.MinU64Slice(perProc.MinRoundDecide, nxt.MinRoundDecide)
@@ -797,7 +810,7 @@ func (bs *BasicStats) MergeAllStats(to types.TestOptions, sList []MergedStats) (
 	totals = mergeInternalAll(items, totals)
 	totals.ConsTime = summedTime
 	totals.RecordCount = perProc.RecordCount
-	perProc.StatsObj = totals.StatsObj
+	perProc.StatsObjBasic = totals.StatsObjBasic
 
 	perProc.EndMemProfile = nil
 	perProc.StartMemProfile = nil
@@ -869,6 +882,7 @@ func (bs *BasicStats) MergeAllStats(to types.TestOptions, sList []MergedStats) (
 		// perProc.MsgIDCount[i]
 	}
 
+	perProc.ConsMergedNwStats, totals.ConsMergedNwStats = ConsMergeMergedNWStats(perProc.RecordCount, consNWItems)
 	perProc.MergedNwStats, totals.MergedNwStats = (&BasicNwStats{}).MergeAllNWStats(perProc.RecordCount, nwItems)
 
 	return
@@ -911,7 +925,9 @@ func (bs *BasicStats) GetStartAndEndTimes() (startTimes, finishTimes []time.Time
 func (bs *BasicStats) New(index types.ConsensusIndex) StatsInterface {
 	ret := &BasicStats{globalStats: bs.globalStats,
 		RecordIndex: bs.globalStats.recording,
-		Index:       index.Index}
+		Index:       index.Index,
+	}
+	ret.ConsEncryptChannels = bs.EncryptChannels
 	bs.globalStats.stats = append(bs.globalStats.stats, ret)
 	return ret
 }

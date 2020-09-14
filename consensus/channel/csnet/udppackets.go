@@ -160,7 +160,7 @@ func generateUDPPackets(buff []byte, udpMsgCountID *uint64, npl *udpMsgPool) (sn
 // sendUDP constructs the packets of the message, then sends them out to nsc
 func sendUDP(buff []byte, npl *udpMsgPool, nsc []channelinterface.SendChannel, sendCons []channelinterface.SendChannel,
 	conMap map[channelinterface.NetConInfo]*rcvConTime, udpMsgCountID *uint64, sendRange channelinterface.SendRange,
-	stats stats.NwStatsInterface) {
+	stats stats.NwStatsInterface, consStats stats.ConsNwStatsInterface) {
 
 	var numSends int
 	pkts := generateUDPPackets(buff, udpMsgCountID, npl)
@@ -212,6 +212,9 @@ func sendUDP(buff []byte, npl *udpMsgPool, nsc []channelinterface.SendChannel, s
 	}
 	if stats != nil {
 		stats.Broadcast(len(buff), numSends)
+	}
+	if consStats != nil {
+		consStats.ConsBroadcast(len(buff), numSends)
 	}
 }
 

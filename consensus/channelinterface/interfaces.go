@@ -122,19 +122,31 @@ type MainChannel interface {
 	// For example if it returns the input list, then the send is a broadcast to all nodes
 	// IsProposal should be true if the message is a proposal message.
 	// This method is not concurrent safe.
-	Send(buff []byte, isProposal, toSelf bool, forwardChecker NewForwardFuncFilter, countStats bool)
+	// consStats is the statistics object of the specific consensus instance broadcasting the message
+	// or nil if there is none
+	Send(buff []byte, isProposal, toSelf bool, forwardChecker NewForwardFuncFilter, countStats bool,
+		consStats stats.ConsNwStatsInterface)
 	// SendHeader is the same as Send except it take a messasges.MsgHeader instead of a byte slice.
 	// This should be used in the consensus implementations.
 	// IsProposal should be true if the message is a proposal message.
-	SendHeader(headers []messages.MsgHeader, isProposal, toSelf bool, forwardChecker NewForwardFuncFilter, countStats bool)
+	// consStats is the statistics object of the specific consensus instance broadcasting the message
+	// or nil if there is none
+	SendHeader(headers []messages.MsgHeader, isProposal, toSelf bool, forwardChecker NewForwardFuncFilter,
+		countStats bool, consStats stats.ConsNwStatsInterface)
 	// SendAlways is the same as Send, except the message will be sent even if the consensus is in initialization.
 	// This is just used to request the state from neighbour nodes on initialization.
-	SendAlways(buff []byte, toSelf bool, forwardChecker NewForwardFuncFilter, countStats bool)
+	// consStats is the statistics object of the specific consensus instance broadcasting the message
+	// or nil if there is none
+	SendAlways(buff []byte, toSelf bool, forwardChecker NewForwardFuncFilter, countStats bool, consStats stats.ConsNwStatsInterface)
 	// SendTo sends buff to dest
-	SendTo(buff []byte, dest SendChannel, countStats bool)
+	// consStats is the statistics object of the specific consensus instance broadcasting the message
+	// or nil if there is none
+	SendTo(buff []byte, dest SendChannel, countStats bool, consStats stats.ConsNwStatsInterface)
 	// SendToPub sends buff to the node associated with the public key (if it exists), it returns an error if pub is not found
 	// in the list of connections
-	SendToPub(headers []messages.MsgHeader, pub sig.Pub, countStats bool) error
+	// consStats is the statistics object of the specific consensus instance broadcasting the message
+	// or nil if there is none
+	SendToPub(headers []messages.MsgHeader, pub sig.Pub, countStats bool, consStats stats.ConsNwStatsInterface) error
 	// HasProposal should be called by the state machine when it is ready with its proposal for the next round of consensus.
 	// It should be called after ProposalInfo object interface (package consinterface) method HasDecided had been called for the previous consensus instance.
 	HasProposal(*DeserializedItem)

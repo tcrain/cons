@@ -240,7 +240,7 @@ func (cs *ConsState) sendNoProgressMsg() {
 	if err != nil {
 		panic(err)
 	}
-	cs.mainChannel.SendAlways(mm.GetBytes(), false, forwardChecker.GetNoProgressForwardFunc(), true)
+	cs.mainChannel.SendAlways(mm.GetBytes(), false, forwardChecker.GetNoProgressForwardFunc(), true, nil)
 }
 
 // ProcessMessage should be called when a message sent from an external node is ready to be processed.
@@ -281,7 +281,7 @@ func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg 
 		}
 		// If we haven't made progress after a timeout, inform our neighbors
 		if time.Since(cs.localIndexTime) > cs.timeoutTime && !cs.isInStorageInit { //&& cs.memberCheckerState.LocalIndex <= cs.maxInstances {
-			cs.sendNoProgressMsg()
+			// cs.sendNoProgressMsg()
 		}
 	}()
 
@@ -538,8 +538,9 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 			}
 
 			// Give the next instance the CommitProof from the instance
+			var prf []messages.MsgHeader
 			if cs.generalConfig.CollectBroadcast != types.Full || cs.generalConfig.IncludeProofs {
-				prf := nextItem.GetCommitProof()
+				prf = nextItem.GetCommitProof()
 				if len(prf) > 0 {
 					newNextItem.SetCommitProof(prf)
 				}
@@ -576,9 +577,16 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 				(cs.generalConfig.CollectBroadcast != types.Full ||
 					(cs.generalConfig.IncludeProofs && cs.generalConfig.StopOnCommit == types.Immediate)) {
 
-				cs.mainChannel.SendHeader(messages.AppendCopyMsgHeader(nextItem.GetPreHeader(),
-					nextItem.GetPrevCommitProof()...), false, false, fwd.GetNewForwardListFunc(),
-					true)
+				nxtCoordPub, commitProof := nextItem.GetPrevCommitProof()
+				if cs.generalConfig.CollectBroadcast == types.Full { // we always broadcast
+					nxtCoordPub = nil
+				}
+				// only if we are the expected coordinator for the next round
+				if nxtCoordPub == nil || sig.CheckPubsEqual(mc.MC.GetMyPriv().GetPub(), nxtCoordPub) {
+					cs.mainChannel.SendHeader(messages.AppendCopyMsgHeader(nextItem.GetPreHeader(),
+						commitProof...), false, false, fwd.GetNewForwardListFunc(),
+						true, nil)
+				}
 			}
 
 			// Check if the index needs a proposal
@@ -649,16 +657,16 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 
 	for ; cs.futureMessagesMinIndex <= cs.memberCheckerState.StartedIndex+config.KeepFuture; cs.futureMessagesMinIndex++ {
 
-		futureMemberChecker, _, _, err := cs.memberCheckerState.GetMemberChecker(
-			types.SingleComputeConsensusIDShort(cs.futureMessagesMinIndex))
-		if err != nil {
-			panic(err)
-		}
-		// Process any future messages for that item
-		if !futureMemberChecker.MC.IsReady() {
-			break
-		}
 		if val, ok := cs.futureMessages[cs.futureMessagesMinIndex]; ok {
+			futureMemberChecker, _, _, err := cs.memberCheckerState.GetMemberChecker(
+				types.SingleComputeConsensusIDShort(cs.futureMessagesMinIndex))
+			if err != nil {
+				panic(err)
+			}
+			// Process any future messages for that item
+			if !futureMemberChecker.MC.IsReady() {
+				break
+			}
 			for _, rcvMsg := range val {
 				cs.mainChannel.ReprocessMessage(rcvMsg)
 			}

@@ -246,7 +246,6 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 			nxt.totalForwards++
 
 			info.WriteString(fmt.Sprintf("TotalForwards: %v\n", nxt.totalForwards))
-			// fmt.Println(info.String())
 
 			// get the forward function for the index
 			// TODO may want to send to different number of nodes for different ways of propogation

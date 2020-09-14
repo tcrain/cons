@@ -73,7 +73,7 @@ func RunMainLoop(state ConsStateInterface, mc channelinterface.MainChannel) {
 				}
 				// stats.Send(len(rmsg))
 				// rcvMsg.SendRecvChan.ReturnChan.SendReturn(rmsg, rcvMsg.SendRecvChan.ConnectionInfo)
-				rcvMsg.SendRecvChan.MainChan.SendTo(rmsg, rcvMsg.SendRecvChan.ReturnChan, true)
+				rcvMsg.SendRecvChan.MainChan.SendTo(rmsg, rcvMsg.SendRecvChan.ReturnChan, true, nil)
 			}
 		}
 		if rcvMsg.SendRecvChan == nil && len(returnMsgs) > 0 {

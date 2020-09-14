@@ -68,6 +68,15 @@ func (*RbBcast1) GenerateNewItem(index types.ConsensusIndex, items *consinterfac
 	return newItem
 }
 
+// GetPrevCommitProof returns a signed message header that counts at the commit message for the previous consensus.
+// This should only be called after DoneKeep has been called on this instance.
+// cordPub is the expected public key of the coordinator of the current round (used for collect broadcast)
+func (sc *RbBcast1) GetPrevCommitProof() (cordPub sig.Pub, proof []messages.MsgHeader) {
+	cordPub = cons.GetCoordPubCollectBroadcastEnd(0, sc.ConsItems, sc.GeneralConfig)
+	_, proof = sc.AbsConsItem.GetPrevCommitProof()
+	return
+}
+
 // GetCommitProof returns a signed message header that counts at the commit message for this consensus.
 func (sc *RbBcast1) GetCommitProof() []messages.MsgHeader {
 	t := sc.ConsItems.MC.MC.GetFaultCount()

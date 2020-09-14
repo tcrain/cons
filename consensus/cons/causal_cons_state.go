@@ -235,14 +235,14 @@ func (cs *CausalConsState) sendNoProgressMsg(idx types.ConsensusIndex, item *con
 	if err != nil {
 		panic(err)
 	}
-	cs.mainChannel.SendAlways(mm.GetBytes(), false, item.FwdChecker.GetNoProgressForwardFunc(), true)
+	cs.mainChannel.SendAlways(mm.GetBytes(), false, item.FwdChecker.GetNoProgressForwardFunc(), true, nil)
 
 	if !hasDecided {
 		bs, err := item.ConsItem.GetBinState(cs.generalConfig.NetworkType == types.RequestForwarder)
 		if err != nil {
 			panic(err) // TODO should Panic here?
 		}
-		cs.mainChannel.SendAlways(bs, false, item.FwdChecker.GetNoProgressForwardFunc(), true)
+		cs.mainChannel.SendAlways(bs, false, item.FwdChecker.GetNoProgressForwardFunc(), true, nil)
 	}
 }
 

@@ -46,6 +46,9 @@ var StatsNames = []string{
 	"MsgsSent",
 	"BytesSent",
 	"BufferForwardTimeouts",
+	"ConsMsgsSent",
+	"ConsBytesSent",
+	"ConsBufferForwardTimeouts",
 	"ProposalCount",
 	"MemberCount",
 	"ProposalForwarded",
@@ -58,7 +61,8 @@ var DivStats = map[string]bool{"RoundParticipation": true, "RoundDecide": true, 
 	"Signed": true, "ThrshCreated": true, "Validated": true, "VRFCreated": true, "VRFValidated": true,
 	"CoinValidated": true, "CoinCreated": true, "ForwardState": true,
 	"MsgsSent": true, "BytesSent": true, "MaxMsgsSent": true, "MaxBytesSent": true, "ProposalForwarded": true,
-	"MinMsgsSent": true, "MinBytesSent": true}
+	"MinMsgsSent": true, "MinBytesSent": true,
+	"ConsMsgsSent": true, "ConsBytesSent": true, "ConsProposalForwarded": true}
 
 // List of fields in the test options structure
 var possibleVaryStringFields = []string{"NodeType"}

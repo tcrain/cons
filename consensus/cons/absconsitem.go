@@ -83,8 +83,10 @@ func (sc *AbsConsItem) SetCommitProof(prf []messages.MsgHeader) {
 
 // GetPrevCommitProof returns a signed message header that counts at the commit message for the previous consensus.
 // This should only be called after DoneKeep has been called on this instance.
-func (sc *AbsConsItem) GetPrevCommitProof() []messages.MsgHeader {
-	return sc.CommitProof
+// cordPub is nil here, but should be overwritten with the expected public key of the coordinator of the current round
+// if the consensus supports collect broadcast
+func (sc *AbsConsItem) GetPrevCommitProof() (cordPub sig.Pub, proof []messages.MsgHeader) {
+	return nil, sc.CommitProof
 }
 
 // Start should be called once the consensus instance has started.
@@ -156,6 +158,7 @@ func GenerateAbsState(index types.ConsensusIndex, items *consinterface.ConsInter
 
 // ComputeDecidedValue returns decision.
 func (sc *AbsConsItem) ComputeDecidedValue(state []byte, decision []byte) []byte {
+	_ = state
 	return decision
 }
 

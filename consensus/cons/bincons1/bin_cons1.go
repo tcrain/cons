@@ -100,7 +100,9 @@ func (*BinCons1) GenerateNewItem(index types.ConsensusIndex,
 
 // GetCommitProof returns a signed message header that counts at the commit message for this consensus.
 func (sc *BinCons1) GetCommitProof() []messages.MsgHeader {
-	return GetBinConsCommitProof(messages.HdrAuxProof, sc, sc.getMsgState(), true, sc.ConsItems.MC)
+
+	return GetBinConsCommitProof(messages.HdrAuxProof, sc,
+		sc.getMsgState(), true, sc.ConsItems.MC)
 }
 
 // Start allows GetProposalIndex to return true.

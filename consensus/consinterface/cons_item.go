@@ -116,7 +116,8 @@ type ConsItem interface {
 	SetCommitProof(prf []messages.MsgHeader)
 	// GetPrevCommitProof returns a signed message header that counts at the commit message for the previous consensus.
 	// This should only be called after DoneKeep has been called on this instance.
-	GetPrevCommitProof() []messages.MsgHeader
+	// cordPub is the expected public key of the coordinator of the current round (used for collect broadcast)
+	GetPrevCommitProof() (cordPub sig.Pub, proof []messages.MsgHeader)
 	// Broadcast a value.
 	// If nextCoordPub is nil the message will only be sent to that node, otherwise it will be sent
 	// as normal (nextCoordPub is used when CollectBroadcast is true in test options).

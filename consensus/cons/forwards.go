@@ -129,7 +129,7 @@ func sendForward(idx types.ConsensusIndex, memberCheckerState consinterface.Cons
 			// send the message
 			mainChannel.Send(toSend.GetBytes(),
 				messages.IsProposalHeader(msg.Index, msg.Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader),
-				false, forwardFunc, mc.MC.GetStats().IsRecordIndex())
+				false, forwardFunc, mc.MC.GetStats().IsRecordIndex(), mc.MC.GetStats())
 		}
 	}
 	return

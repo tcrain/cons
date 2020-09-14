@@ -79,12 +79,12 @@ func NewDualNetMainChannel(
 // SendHeader calls SendHeader on the secondary channel if the message is a proposal,
 // on the main channel otherwise.
 func (tp *DualNetMainChannel) SendHeader(headers []messages.MsgHeader, isProposal, toSelf bool,
-	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool) {
+	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool, consStats stats.ConsNwStatsInterface) {
 	switch isProposal {
 	case true:
-		tp.Secondary.SendHeader(headers, isProposal, toSelf, forwardChecker, countStats)
+		tp.Secondary.SendHeader(headers, isProposal, toSelf, forwardChecker, countStats, consStats)
 	default:
-		tp.NetMainChannel.SendHeader(headers, isProposal, toSelf, forwardChecker, countStats)
+		tp.NetMainChannel.SendHeader(headers, isProposal, toSelf, forwardChecker, countStats, consStats)
 	}
 }
 
@@ -97,13 +97,13 @@ func (tp *DualNetMainChannel) SetMemberCheckerState(memberCheckerState consinter
 // on the main channel otherwise.
 func (tp *DualNetMainChannel) Send(buff []byte,
 	isProposal, toSelf bool,
-	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool) {
+	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool, consStats stats.ConsNwStatsInterface) {
 
 	switch isProposal {
 	case true:
-		tp.Secondary.Send(buff, isProposal, toSelf, forwardChecker, countStats)
+		tp.Secondary.Send(buff, isProposal, toSelf, forwardChecker, countStats, consStats)
 	default:
-		tp.NetMainChannel.Send(buff, isProposal, toSelf, forwardChecker, countStats)
+		tp.NetMainChannel.Send(buff, isProposal, toSelf, forwardChecker, countStats, consStats)
 	}
 }
 

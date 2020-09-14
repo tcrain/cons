@@ -113,3 +113,9 @@ an echo message to ensure the slow ones get enough messages.
   - **TO ADD:** Currently when using consensus and causal ordered, the statemachine
   is the same as with the broadcast where only proposals can only contain the values
   from the proposer, should allow internal signed transactions from multiple proposers.
+  
+- When using Collect broadcast types, and we use a state machine that has unpredictable
+next coordinator, we dont use the state machine to calculate the next coordinator
+(except only MVCons3 does this correctly since it allows speculative executions).
+This is also an issue in cons state line 577 where we broadcast the last
+set of messages to end the test).

@@ -47,9 +47,11 @@ func (sc *TestConsItem) Broadcast(nextCoordPub sig.Pub, msg messages.InternalSig
 	mainChannel channelinterface.MainChannel,
 	additionalMsgs ...messages.MsgHeader) {
 }
-func (sc *TestConsItem) GetCommitProof() []messages.MsgHeader                      { return nil }
-func (sc *TestConsItem) SetCommitProof([]messages.MsgHeader)                       {}
-func (sc *TestConsItem) GetPrevCommitProof() []messages.MsgHeader                  { return nil }
+func (sc *TestConsItem) GetCommitProof() []messages.MsgHeader { return nil }
+func (sc *TestConsItem) SetCommitProof([]messages.MsgHeader)  {}
+func (sc *TestConsItem) GetPrevCommitProof() (cordPub sig.Pub, proof []messages.MsgHeader) {
+	return nil, nil
+}
 func (sc *TestConsItem) CheckMemberLocalMsg(messages.InternalSignedMsgHeader) bool { return true }
 func (sc *TestConsItem) AddPreHeader(header messages.MsgHeader)                    {}
 func (*TestConsItem) GenerateNewItem(index types.ConsensusIndex, consItems *consinterface.ConsInterfaceItems,

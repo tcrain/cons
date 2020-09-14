@@ -119,7 +119,9 @@ func (tp *NetMainChannel) GetLocalNodeConnectionInfo() channelinterface.NetNodeI
 
 // SendToPub sends buff to the node associated with the public key (if it exists), it returns an error if pub is not found
 // in the list of connections
-func (tp *NetMainChannel) SendToPub(headers []messages.MsgHeader, pub sig.Pub, countStats bool) error {
+func (tp *NetMainChannel) SendToPub(headers []messages.MsgHeader, pub sig.Pub, countStats bool,
+	consStats stats.ConsNwStatsInterface) error {
+
 	if tp.IsInInit {
 		return nil
 	}
@@ -160,7 +162,7 @@ func (tp *NetMainChannel) SendToPub(headers []messages.MsgHeader, pub sig.Pub, c
 	}
 	tp.mutex.Unlock()
 
-	return tp.connStatus.SendToPub(buff, pub, nwStats)
+	return tp.connStatus.SendToPub(buff, pub, nwStats, consStats)
 }
 
 func (tp *NetMainChannel) RemoveConnections(pubs []sig.Pub) (errs []error) {
@@ -296,7 +298,8 @@ func (tp *NetMainChannel) MakeConnections(pubs []sig.Pub) (errs []error) {
 }
 
 // SendTo sends a message on the given SendChannel.
-func (tp *NetMainChannel) SendTo(buff []byte, dest channelinterface.SendChannel, countStats bool) {
+func (tp *NetMainChannel) SendTo(buff []byte, dest channelinterface.SendChannel, countStats bool,
+	consStats stats.ConsNwStatsInterface) {
 	if tp.IsInInit {
 		return
 	}
@@ -305,7 +308,7 @@ func (tp *NetMainChannel) SendTo(buff []byte, dest channelinterface.SendChannel,
 	if countStats {
 		nwStats = tp.Stats
 	}
-	tp.connStatus.SendTo(buff, dest, nwStats)
+	tp.connStatus.SendTo(buff, dest, nwStats, consStats)
 }
 
 // ComputeDestinations returns the list of destinations given the forward filter function.
@@ -323,13 +326,13 @@ func (tp *NetMainChannel) ComputeDestinations(forwardFunc channelinterface.NewFo
 
 // SendHeader serializes the header then calls Send.
 func (tp *NetMainChannel) SendHeader(headers []messages.MsgHeader, isProposal, toSelf bool,
-	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool) {
+	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool, consStats stats.ConsNwStatsInterface) {
 
 	sndMsg, err := messages.CreateMsg(headers)
 	if err != nil {
 		panic(err)
 	}
-	tp.Send(sndMsg.GetBytes(), isProposal, toSelf, forwardChecker, countStats)
+	tp.Send(sndMsg.GetBytes(), isProposal, toSelf, forwardChecker, countStats, consStats)
 }
 
 // Send sends a message to the outgoing connections,
@@ -340,26 +343,27 @@ func (tp *NetMainChannel) SendHeader(headers []messages.MsgHeader, isProposal, t
 // This method is not concurrent safe.
 func (tp *NetMainChannel) Send(buff []byte,
 	isProposal, toSelf bool,
-	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool) {
+	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool, consStats stats.ConsNwStatsInterface) {
 
 	_ = isProposal
 	if tp.IsInInit {
 		return
 	}
-	tp.sendInternal(buff, toSelf, forwardChecker, countStats)
+	tp.sendInternal(buff, toSelf, forwardChecker, countStats, consStats)
 }
 
 // SendAlways is the same as Send, except the message will be sent even if the consensus is in initialization.
 // This is just used to request the state from neighbour nodes on initialization.
 func (tp *NetMainChannel) SendAlways(buff []byte, toSelf bool,
-	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool) {
+	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool, consStats stats.ConsNwStatsInterface) {
 
-	tp.sendInternal(buff, toSelf, forwardChecker, countStats)
+	tp.sendInternal(buff, toSelf, forwardChecker, countStats, consStats)
 }
 
 func (tp *NetMainChannel) sendInternal(buff []byte,
 	toSelf bool,
-	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool) {
+	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool,
+	consStats stats.ConsNwStatsInterface) {
 
 	if toSelf {
 		// n := atomic.AddInt32(&sndtoself, 1)
@@ -373,7 +377,7 @@ func (tp *NetMainChannel) sendInternal(buff []byte,
 		nwStats = tp.Stats
 	}
 	tp.mutex.Lock()
-	unknownPubs := tp.connStatus.Send(buff, forwardChecker, tp.nodePubList, nwStats)
+	unknownPubs := tp.connStatus.Send(buff, forwardChecker, tp.nodePubList, nwStats, consStats)
 	tp.mutex.Unlock()
 	if len(unknownPubs) > 0 {
 		tp.MakeConnections(unknownPubs) // TODO how to remove connections added here

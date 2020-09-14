@@ -717,7 +717,7 @@ func (sc *BinConsRnd3) BroadcastCoin(coinMsg messages.MsgHeader,
 	mainChannel.SendHeader(messages.AppendCopyMsgHeader(sc.PreHeaders, coinMsg),
 		messages.IsProposalHeader(sc.Index, coinMsg.(messages.InternalSignedMsgHeader).GetBaseMsgHeader()),
 		true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
-		sc.ConsItems.MC.MC.GetStats().IsRecordIndex())
+		sc.ConsItems.MC.MC.GetStats().IsRecordIndex(), sc.ConsItems.MC.MC.GetStats())
 }
 
 // GenerateMessageState generates a new message state object given the inputs.

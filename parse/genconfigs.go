@@ -49,11 +49,11 @@ var RndCTMap = map[string]string{
 	"BinConsRnd4":   "BC:ns2",
 	"BinConsRnd5":   "BC:s3",
 	"BinConsRnd6":   "BC:ns3",
-	"MvCons2":       "MC3S",
-	"MvBinConsRnd2": "MC4S",
-	"MvCons3":       "MC2S",
-	"RbBcast1":      "RB2S",
-	"RbBcast2":      "RB3S",
+	"MvCons2":       "MC:3S",
+	"MvBinConsRnd2": "MC:4S",
+	"MvCons3":       "MC:2S",
+	"RbBcast1":      "RB:2S",
+	"RbBcast2":      "RB:3S",
 }
 var CoinMap = map[string]string{
 	"KnownCoin":       "kc",
@@ -88,7 +88,7 @@ var TrueFalseMap = map[string]string{
 var ActTitle = "Time Per Decision (ms)"
 var ConsTitle = "Time Per Consensus (ms)"
 var MultiPlotTitles = map[string]int{ActTitle: 1, "BytesSent": 2, "MsgsSent": 3, "RoundDecide": 4}
-var MultiPlotTitles2 = map[string]int{ActTitle: 1, ConsTitle: 2, "BytesSent": 3, "MsgsSent": 4}
+var MultiPlotTitles2 = map[string]int{ActTitle: 1, ConsTitle: 2, "ConsBytesSent": 3, "ConsMsgsSent": 4}
 var MultiPlotFile = "./scripts/graphscripts/multiplotfile.gp"
 var MultiPlotFile2 = "./scripts/graphscripts/multiplotfile2.gp"
 var AllMultiPlotTitles = []map[string]int{MultiPlotTitles, MultiPlotTitles2}
