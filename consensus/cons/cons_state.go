@@ -281,7 +281,7 @@ func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg 
 		}
 		// If we haven't made progress after a timeout, inform our neighbors
 		if time.Since(cs.localIndexTime) > cs.timeoutTime && !cs.isInStorageInit { //&& cs.memberCheckerState.LocalIndex <= cs.maxInstances {
-			// cs.sendNoProgressMsg()
+			cs.sendNoProgressMsg()
 		}
 	}()
 

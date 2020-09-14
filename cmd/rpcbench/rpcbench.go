@@ -251,7 +251,7 @@ func main() {
 		}(i)
 	}
 	wg.Wait()
-	logging.Print("Done consensus at all nodes")
+	logging.Print("Done consensus at all nodes, waiting for nodes to perform garbage collection")
 
 	for i := 0; i < maxServer; i++ {
 		wg.Add(1)
@@ -276,6 +276,7 @@ func main() {
 
 	var sm consinterface.StateMachineInterface
 	if to.CheckDecisions {
+		logging.Printf("Checking decided values")
 
 		// check the decided values are valid for the state machine
 		pi, err := preg.GetAllParticipants(0)
@@ -344,6 +345,7 @@ func main() {
 				roots, decs[0].OrderedDecisions)
 		}
 	}
+	logging.Printf("Collecting results")
 	results := make([]rpcsetup.RpcResults, to.NumTotalProcs)
 	for i := 0; i < to.NumTotalProcs; i++ {
 		wg.Add(1)
@@ -419,6 +421,7 @@ func main() {
 	}
 
 	// Reset the servers
+	logging.Printf("Shutting down connections to nodes")
 	for i, ip := range ips {
 		wg.Add(1)
 		go func(ip string, idx int) {
