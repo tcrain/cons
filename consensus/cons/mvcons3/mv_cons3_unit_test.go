@@ -97,6 +97,7 @@ func createMvConsTestItems(privKeys []sig.Priv, pubKeys []sig.Pub, privKeyIdx in
 
 var initialState = []byte("some init state")
 var initialHash = types.GetHash(initialState)
+var zeroHash = types.GetHash(make([]byte, types.GetHashLen()))
 
 func createMvSendItems(hdrType messages.HeaderID, idx types.ConsensusIndex, proposal []byte,
 	supportHeaderSigMsg *sig.MultipleSignedMessage, bct cons.ConsTestItems, t *testing.T) []*deserialized.DeserializedItem {
@@ -124,13 +125,15 @@ func createMvSendItems(hdrType messages.HeaderID, idx types.ConsensusIndex, prop
 			w.Proposal = proposal
 			w.SupportedIndex = supportIndex
 			w.SupportedHash = supportHash
+			w.RandHash = zeroHash
 			hdr = w
 			dser = messagetypes.NewMvInitSupportMessage()
-		case messages.HdrMvEcho:
-			w := messagetypes.NewMvEchoMessage()
+		case messages.HdrMvEchoHash:
+			w := messagetypes.NewMvEchoHashMessage()
 			w.ProposalHash = supportHash
+			w.RandHash = zeroHash
 			hdr = w
-			dser = messagetypes.NewMvEchoMessage()
+			dser = messagetypes.NewMvEchoHashMessage()
 		default:
 			panic("invalid type")
 		}
@@ -211,7 +214,7 @@ func TestMvCons3UnitGotMsg(t *testing.T) {
 	// Non member
 	privKeys2, pubKeys2 := cons.MakeKeys(to)
 	bctInvalid := createMvConsTestItems(privKeys2, pubKeys2, 0, idx, to)
-	echoItemsInvalid := createMvSendItems(messages.HdrMvEcho, idx, mvConsTestProposal,
+	echoItemsInvalid := createMvSendItems(messages.HdrMvEchoHash, idx, mvConsTestProposal,
 		nil, bctInvalid.ConsTestItems, t)
 	cons.MergeSigsForTest(echoItemsInvalid)
 	_, err = bct[0].msgState.GotMsg(bct[0].bcons.GetHeader, echoItemsInvalid[0], bct[0].gc, bct[0].memberChecker)
@@ -220,7 +223,7 @@ func TestMvCons3UnitGotMsg(t *testing.T) {
 	}
 
 	// valid echo
-	echoItems := createMvSendItems(messages.HdrMvEcho, idx, nil,
+	echoItems := createMvSendItems(messages.HdrMvEchoHash, idx, nil,
 		initItems[0].Header.(*sig.MultipleSignedMessage), bct[0].ConsTestItems, t)
 	cons.MergeSigsForTest(echoItems)
 	_, err = bct[0].msgState.GotMsg(bct[0].bcons.GetHeader, echoItems[0], bct[0].gc, bct[0].memberChecker)
@@ -315,7 +318,7 @@ func TestMvCons3UnitDecide(t *testing.T) {
 		}
 		prevSupport = initItems[i-1].Header.(*sig.MultipleSignedMessage)
 		progress, forward = bct[i-1].bcons.ProcessMessage(initItems[i-1], false, nil)
-		if !progress || !forward {
+		if !progress {
 			t.Error("should have valid message")
 		}
 		if bct[i-1].bcons.HasDecided() {
@@ -337,7 +340,7 @@ func TestMvCons3UnitDecide(t *testing.T) {
 		testobjects.CheckEchoMessage(bct2[i-1].mainChannel, i, 0, prevSupport.Hash, t)
 
 		// send the echo
-		echoItems := createMvSendItems(messages.HdrMvEcho, types.SingleComputeConsensusIDShort(i),
+		echoItems := createMvSendItems(messages.HdrMvEchoHash, types.SingleComputeConsensusIDShort(i),
 			nil, prevSupport, bct[i-1].ConsTestItems, t)
 		cons.MergeSigsForTest(echoItems)
 		_, err = bct[i-1].msgState.GotMsg(bct[i-1].bcons.GetHeader, echoItems[0], bct[i-1].gc, bct[i-1].memberChecker)
@@ -448,7 +451,7 @@ func TestMvCons3UnitDecideMissing(t *testing.T) {
 			}
 			testobjects.CheckEchoMessage(bct[i-1].mainChannel, i, 0, prevSupport.Hash, t)
 
-			echoItems := createMvSendItems(messages.HdrMvEcho, types.SingleComputeConsensusIDShort(i),
+			echoItems := createMvSendItems(messages.HdrMvEchoHash, types.SingleComputeConsensusIDShort(i),
 				nil, prevSupport, bct[i-1].ConsTestItems, t)
 			cons.MergeSigsForTest(echoItems)
 			_, err = bct[i-1].msgState.GotMsg(bct[i-1].bcons.GetHeader, echoItems[0], bct[i-1].gc, bct[i-1].memberChecker)
@@ -542,7 +545,7 @@ func TestMvCons3UnitDecideSkip(t *testing.T) {
 			testobjects.CheckEchoMessage(bct[i-1].mainChannel, i, 0, prevSupport.Hash, t)
 		}
 
-		echoItems := createMvSendItems(messages.HdrMvEcho, types.SingleComputeConsensusIDShort(i), nil, prevSupport, bct[i-1].ConsTestItems, t)
+		echoItems := createMvSendItems(messages.HdrMvEchoHash, types.SingleComputeConsensusIDShort(i), nil, prevSupport, bct[i-1].ConsTestItems, t)
 		cons.MergeSigsForTest(echoItems)
 		_, err = bct[i-1].msgState.GotMsg(bct[i-1].bcons.GetHeader, echoItems[0], bct[i-1].gc, bct[i-1].memberChecker)
 		if err != nil {

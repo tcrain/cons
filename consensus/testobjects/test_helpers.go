@@ -69,7 +69,7 @@ func CheckEchoMessage(mmc *MockMainChannel, index types.ConsensusInt, round type
 		if sigMsg.Index.Index != index {
 			t.Error("Sent msg with invalid index", sigMsg.Index)
 		}
-		echoMsg := sigMsg.GetBaseMsgHeader().(*messagetypes.MvEchoMessage)
+		echoMsg := sigMsg.GetBaseMsgHeader().(*messagetypes.MvEchoHashMessage)
 		if !bytes.Equal(echoMsg.ProposalHash, hash) || echoMsg.Round != round {
 			t.Error("Sent invalid echo msg: ", echoMsg)
 		}
