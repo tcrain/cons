@@ -22,6 +22,7 @@ package consinterface
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
 	"github.com/tcrain/cons/consensus/types"
@@ -45,14 +46,14 @@ type ForwardChecker interface {
 	// The input memberChecker correspond to the consensus instance this message is from.
 	// The forward checker should then keep this message if it should be forwarded later, messages are only forwarded when they are returned from GetNextForwardItem
 	// Is propose message should be true if the message is a proposal message.
-	CheckForward(sndRcvChan *channelinterface.SendRecvChannel, msg *channelinterface.DeserializedItem, shouldForward bool,
+	CheckForward(sndRcvChan *channelinterface.SendRecvChannel, msg *deserialized.DeserializedItem, shouldForward bool,
 		isProposalMessage bool, endThreshold, maxPossible, sigCount int,
 		msgID messages.MsgID, memberChecker *MemCheckers)
 	// GetNextForward item is called by ConsState after a consensus message is successfully processed and after a timeout.
 	// If there is a message to be forwareded, it should return that.
 	// It will be called in a loop until msg is nil. The forwardFunc function takes the list of nodes the node is connected to and returns the set
 	// of nodes to forward the message to. The returned message and function are used as input to MainChannel.Send.
-	GetNextForwardItem(stats.NwStatsInterface) (msg []*channelinterface.DeserializedItem, forwardFunc channelinterface.NewForwardFuncFilter)
+	GetNextForwardItem(stats.NwStatsInterface) (msg []*deserialized.DeserializedItem, forwardFunc channelinterface.NewForwardFuncFilter)
 	// New creates a new ForwardChecker for the consensus index. It will be always be called on an "initialForwardChecker" that is given as input to
 	// MemberCheckerState.Init. ParticipantCount is the number of nodes in the system.
 	New(idx types.ConsensusIndex, participants, allPubs sig.PubList) ForwardChecker

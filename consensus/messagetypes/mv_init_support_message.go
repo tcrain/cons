@@ -36,6 +36,7 @@ type MvInitSupportMessage struct {
 	ByzProposal    []byte             // Alternative proposal for byzantine nodes
 	SupportedIndex types.ConsensusInt // the index supported by this init
 	SupportedHash  types.HashBytes    // the hash of the init message supported
+	RandHash       types.HashBytes
 }
 
 // NewMvInitMessage creates a new mv init message
@@ -47,7 +48,8 @@ func NewMvInitSupportMessage() *MvInitSupportMessage {
 func (mvi *MvInitSupportMessage) ShallowCopy() messages.InternalSignedMsgHeader {
 	return &MvInitSupportMessage{Proposal: mvi.Proposal,
 		SupportedIndex: mvi.SupportedIndex,
-		SupportedHash:  mvi.SupportedHash}
+		SupportedHash:  mvi.SupportedHash,
+		RandHash:       mvi.RandHash}
 }
 
 // GetSignType returns types.NormalSignature
@@ -100,6 +102,14 @@ func (mvi *MvInitSupportMessage) SerializeInternal(m *messages.Message) (bytesWr
 	bytesWritten += v
 	signEndOffset += v
 
+	if len(mvi.RandHash) != types.GetHashLen() {
+		err = types.ErrInvalidHash
+		return
+	}
+	v, signEndOffset = (*messages.MsgBuffer)(m).AddBytes(mvi.RandHash)
+	bytesWritten += v
+	signEndOffset += v
+
 	// End of signed message
 	return
 }
@@ -128,6 +138,13 @@ func (mvi *MvInitSupportMessage) DeserializeInternal(m *messages.Message) (bytes
 	// Get the hash
 	hashLen := types.GetHashLen()
 	mvi.SupportedHash, err = (*messages.MsgBuffer)(m).ReadBytes(hashLen)
+	if err != nil {
+		return
+	}
+	bytesRead += hashLen
+
+	// Get the rand hash
+	mvi.RandHash, err = (*messages.MsgBuffer)(m).ReadBytes(hashLen)
 	if err != nil {
 		return
 	}

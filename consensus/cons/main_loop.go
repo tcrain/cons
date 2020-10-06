@@ -29,6 +29,7 @@ import (
 // Messages are taken from the netowrk, then processesed sequentially by ConsState.
 func RunMainLoop(state ConsStateInterface, mc channelinterface.MainChannel) {
 	// stats := mc.GetStats()
+	state.Start()
 	for true {
 		// Get a message from the network.
 		rcvMsg, err := mc.Recv()

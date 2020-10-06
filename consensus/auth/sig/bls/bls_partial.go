@@ -44,8 +44,8 @@ func (priv *PartPriv) Clean() {
 // Shallow copy makes a copy of the object without following pointers.
 func (priv *PartPriv) ShallowCopy() sig.Priv {
 	newPriv := *priv
-	newPriv.partPub = priv.partPub.ShallowCopy().(*PartPub)
-	newPriv.sharedPub = priv.sharedPub.ShallowCopy().(*SharedPub)
+	newPriv.blsPriv = priv.blsPriv.ShallowCopy().(*Blspriv)
+	newPriv.BlsThrsh = priv.BlsThrsh.ShallowCopy()
 	return &newPriv
 }
 

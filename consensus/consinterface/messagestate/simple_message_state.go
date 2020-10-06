@@ -23,8 +23,8 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/tcrain/cons/consensus/auth/bitid"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/types"
 	"sync"
@@ -309,8 +309,8 @@ func (sms *SimpleMessageState) New(idx types.ConsensusIndex) consinterface.Messa
 // number of signatures for the MsgID of the message (see messages.MsgID).
 // If the message is not a signed type message (not type *sig.MultipleSignedMessage then (0, 0, nil) is returned).
 func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
-	deser *channelinterface.DeserializedItem, gc *generalconfig.GeneralConfig,
-	mc *consinterface.MemCheckers) ([]*channelinterface.DeserializedItem, error) {
+	deser *deserialized.DeserializedItem, gc *generalconfig.GeneralConfig,
+	mc *consinterface.MemCheckers) ([]*deserialized.DeserializedItem, error) {
 
 	if !deser.IsDeserialized {
 		panic("should be deserialized")
@@ -368,7 +368,7 @@ func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 
 			sms.addToMsgList(deser)
 
-			ret := []*channelinterface.DeserializedItem{deser}
+			ret := []*deserialized.DeserializedItem{deser}
 			if cm != nil { // we reconstructed a partial message
 
 				// create a signed message from the new combined message
@@ -398,7 +398,7 @@ func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 			if err == nil {
 				sms.addToMsgList(deser)
 
-				return []*channelinterface.DeserializedItem{deser}, nil
+				return []*deserialized.DeserializedItem{deser}, nil
 			}
 			return nil, err
 		}
@@ -465,13 +465,13 @@ func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 		if err == nil {
 			sms.addToMsgList(deser)
 
-			return []*channelinterface.DeserializedItem{deser}, nil
+			return []*deserialized.DeserializedItem{deser}, nil
 		}
 		return nil, err
 
 	default:
 		// We only track signed messages
-		return []*channelinterface.DeserializedItem{deser}, nil
+		return []*deserialized.DeserializedItem{deser}, nil
 	}
 }
 
@@ -491,7 +491,7 @@ func (sms *SimpleMessageState) checkIndex(idx types.ConsensusIndex) error {
 	return nil
 }
 
-func (sms *SimpleMessageState) addToMsgList(deser *channelinterface.DeserializedItem) {
+func (sms *SimpleMessageState) addToMsgList(deser *deserialized.DeserializedItem) {
 	if sms.gc.UseFullBinaryState {
 		sms.Lock()
 		// for our message state, TODO remove messages state?

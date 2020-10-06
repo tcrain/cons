@@ -51,6 +51,7 @@ func (pub *PartPub) GetMsgID() messages.MsgID {
 // Shallow copy makes a copy of the object without following pointers.
 func (pub *PartPub) ShallowCopy() sig.Pub {
 	newPub := *pub
+	newPub.edPub = pub.edPub.ShallowCopy().(*Edpub)
 	return &newPub
 }
 
@@ -300,8 +301,8 @@ func (priv *PartialPriv) ComputeSharedSecret(pub sig.Pub) [32]byte {
 // Shallow copy makes a copy of the object without following pointers.
 func (priv *PartialPriv) ShallowCopy() sig.Priv {
 	newPriv := *priv
-	newPriv.sharedPub = priv.sharedPub.ShallowCopy().(*Edpub)
-	newPriv.partPub = priv.partPub.ShallowCopy().(*PartPub)
+	newPriv.edPriv = priv.edPriv.ShallowCopy().(*Edpriv)
+	newPriv.EdCoinThresh = priv.EdCoinThresh.ShallowCopy()
 	return &newPriv
 }
 

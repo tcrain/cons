@@ -24,6 +24,7 @@ package testobjects
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/stats"
 	"time"
@@ -35,8 +36,8 @@ import (
 var mci = []channelinterface.NetConInfo{{"nw", "mock"}}
 
 type MockMainChannel struct {
-	selfMsgs   []*channelinterface.DeserializedItem
-	proposals  []*channelinterface.DeserializedItem
+	selfMsgs   []*deserialized.DeserializedItem
+	proposals  []*deserialized.DeserializedItem
 	msgs       [][]byte
 	msgHeaders []messages.MsgHeader
 }
@@ -63,13 +64,13 @@ func (mmc *MockMainChannel) GetMessages() [][]byte {
 	return mmc.msgs
 }
 
-func (mmc *MockMainChannel) GetProposals() []*channelinterface.DeserializedItem {
+func (mmc *MockMainChannel) GetProposals() []*deserialized.DeserializedItem {
 	ret := mmc.proposals
 	mmc.proposals = nil
 	return ret
 }
 
-func (mmc *MockMainChannel) GetSelfMessages() []*channelinterface.DeserializedItem {
+func (mmc *MockMainChannel) GetSelfMessages() []*deserialized.DeserializedItem {
 	return mmc.selfMsgs
 }
 
@@ -85,7 +86,7 @@ func (mmc *MockMainChannel) ClearSelfMessages() {
 	mmc.selfMsgs = nil
 }
 
-func (mmc *MockMainChannel) SendToSelf(deser []*channelinterface.DeserializedItem, timeout time.Duration) channelinterface.TimerInterface {
+func (mmc *MockMainChannel) SendToSelf(deser []*deserialized.DeserializedItem, timeout time.Duration) channelinterface.TimerInterface {
 	if timeout > 0 {
 		// TODO why no concurrency safety here?
 		return time.AfterFunc(timeout, func() { mmc.selfMsgs = append(mmc.selfMsgs, deser...) })
@@ -136,7 +137,7 @@ func (mmc *MockMainChannel) RemoveExternalNode(_ channelinterface.NetNodeInfo) {
 func (mmc *MockMainChannel) MakeConnections([]sig.Pub) (errs []error)            { return }
 func (mmc *MockMainChannel) RemoveConnections([]sig.Pub) (errs []error)          { return }
 func (mmc *MockMainChannel) MakeConnectionsCloseOthers([]sig.Pub) (errs []error) { return }
-func (mmc *MockMainChannel) HasProposal(p *channelinterface.DeserializedItem) {
+func (mmc *MockMainChannel) HasProposal(p *deserialized.DeserializedItem) {
 	mmc.proposals = append(mmc.proposals, p)
 }
 func (mmc *MockMainChannel) Recv() (*channelinterface.RcvMsg, error) {
@@ -162,6 +163,7 @@ func (mmc *MockMainChannel) EndInit() {
 }
 func (mmc *MockMainChannel) ReprocessMessage(*channelinterface.RcvMsg) {
 }
+func (mmc *MockMainChannel) ReprocessMessageBytes(msg []byte) {}
 func (mmc *MockMainChannel) GetBehaviorTracker() channelinterface.BehaviorTracker {
 	return nil
 }

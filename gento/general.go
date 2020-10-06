@@ -55,7 +55,7 @@ var baseMVOptions = cons.OptionStruct{
 	SigTypes:               []types.SigType{types.EC},
 	UsePubIndexTypes:       types.WithTrue,
 	IncludeProofsTypes:     types.WithFalse,
-	MemberCheckerTypes:     []types.MemberCheckerType{types.CurrentTrueMC},
+	MemberCheckerTypes:     []types.MemberCheckerType{types.TrueMC},
 	RandMemberCheckerTypes: []types.RndMemberType{types.NonRandom},
 	RotateCoordTypes:       types.WithFalse,
 	AllowSupportCoinTypes:  types.WithFalse,

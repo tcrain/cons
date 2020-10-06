@@ -53,12 +53,14 @@ const (
 	HdrCoinProof                        // A proof for a coin.
 	HdrAuxProofTimeout                  // A round timeout in binary consensus
 	HdrMvInitTimeout                    // An init message timeout in multivalue consensus
+	HdrMvInitVRFTimeout                 // An init message timeout in multivalue consensus
 	HdrMvEchoTimeout                    // An echo message timeout in multivalue consensus
 	HdrMvCommitTimeout                  // A commit message timeout in multivalue consensus
 	HdrMvInit                           // A multivalue consensus init message
 	HdrMvMultiInit                      // A multivalue consensus init message with multiple proposals
 	HdrMvInitSupport                    // A multivalue consensus init message with pointers to a previous init message
 	HdrMvEcho                           // A multivalue consensus echo message
+	HdrMvEchoHash                       // A multivalue consensus echo message with an additional hash
 	HdrMvCommit                         // A multivalue consensus commit message
 	HdrMvRecoverTimeout                 // A multivalue consensus recovery timeout message
 	HdrMvRequestRecover                 // A multivalue consensus message requesting the decided value
@@ -146,6 +148,8 @@ func (hi HeaderID) String() string {
 		msg = "HdrAuxProofTimeout"
 	case HdrMvInitTimeout:
 		msg = "HdrMvInitTimeout"
+	case HdrMvInitVRFTimeout:
+		msg = "HdrMvInitVRFTimeout"
 	case HdrMvEchoTimeout:
 		msg = "HdrMvEchoTimeout"
 	case HdrMvCommitTimeout:

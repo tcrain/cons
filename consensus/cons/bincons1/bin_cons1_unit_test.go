@@ -200,7 +200,7 @@ func TestBinCons1UnitProcessMsg1(t *testing.T) {
 	if !bct.bcons.HasDecided() {
 		t.Error("should have decided")
 	}
-	_, decision, _ := bct.bcons.GetDecision()
+	_, decision, _, _ := bct.bcons.GetDecision()
 	if !bytes.Equal(decision, []byte{1}) {
 		t.Errorf("should have decided 1, but decided %v", decision)
 	}
@@ -310,7 +310,7 @@ func TestBinCons1UnitProcessMsg0(t *testing.T) {
 	if !bct.bcons.HasDecided() {
 		t.Error("should have decided")
 	}
-	_, decision, _ := bct.bcons.GetDecision()
+	_, decision, _, _ := bct.bcons.GetDecision()
 	if !bytes.Equal(decision, []byte{0}) {
 		t.Errorf("should have decided 0, but decided %v", decision)
 	}

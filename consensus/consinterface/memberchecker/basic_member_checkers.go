@@ -72,9 +72,11 @@ func (mc *TrueMemberChecker) IsReady() bool {
 // UpdateState does nothing since the members do not change.
 // func (mc *TrueMemberChecker) UpdateState(prevDec []byte, prevSM consinterface.StateMachineInterface, prevMember MemberChecker) []sig.Pub {
 func (mc *TrueMemberChecker) UpdateState(fixedCoord sig.Pub, prevDec []byte, randBytes [32]byte,
-	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface) (newMemberPubs,
-	newAllPubs []sig.Pub) {
+	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface,
+	futureFixed types.ConsensusID) (newMemberPubs,
+	newAllPubs []sig.Pub, changedMembers bool) {
 
+	_ = futureFixed
 	if len(prevDec) > 0 && !prevSM.GetDecided() {
 		panic("should have updated the SM first")
 	}
@@ -142,9 +144,11 @@ func (mc *CurrentTrueMemberChecker) IsReady() bool {
 // UpdateState does nothing since the members do not change.
 // func (mc *CurrentTrueMemberChecker) UpdateState(prevDec []byte, prevSM consinterface.StateMachineInterface, prevMember MemberChecker) []sig.Pub {
 func (mc *CurrentTrueMemberChecker) UpdateState(fixedCoord sig.Pub, prevDec []byte, randBytes [32]byte,
-	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface) (newMemberPubs,
-	newAllPubs []sig.Pub) {
+	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface,
+	futureFixed types.ConsensusID) (newMemberPubs,
+	newAllPubs []sig.Pub, changedMembers bool) {
 
+	_ = futureFixed
 	if !prevSM.GetDecided() {
 		panic("should have updated the SM first")
 	}

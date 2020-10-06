@@ -236,6 +236,9 @@ func (bid *UvarintBitID) Encode(writer io.Writer) (n int, err error) {
 	return
 }
 func (bid *UvarintBitID) construct() error {
+	// newArr := make([]byte, len(bid.arr))
+	// copy(newArr, bid.arr)
+	// bid.arr = newArr
 	buff := bytes.NewBuffer(bid.arr)
 	var n int
 	prev := -1

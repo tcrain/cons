@@ -79,7 +79,9 @@ func (pub *multiPub) GetIndex() sig.PubKeyIndex {
 
 // Clone returns a new Blspub only containing the points (no bitid), should be called before merging the first set of keys with MergePubPartial
 func (pub *multiPub) Clone() sig.MultiPub {
-	return pub.New().(sig.MultiPub)
+	ret := pub.ShallowCopy().(*multiPub)
+	ret.bitID = nil
+	return ret
 }
 
 func (pub *multiPub) ShallowCopy() sig.Pub {

@@ -46,8 +46,8 @@ type absRandMemberInterface interface {
 	GotVrf(pub sig.Pub, isProposal bool, msgID messages.MsgID, proof sig.VRFProof) error
 	// getMyVRF returns the VRFProof for the local node and message type for this consensus.
 	getMyVRF(isProposal bool, id messages.MsgID) sig.VRFProof
-	// getRnd returns the random value given by gotRnd.
-	getRnd() [32]byte
+	// GetRnd returns the random value given by gotRnd.
+	GetRnd() [32]byte
 	// newRndMC is called to generate a new random member checker for the given index. It should be called on the
 	// initial random member checker.
 	newRndMC(index types.ConsensusIndex, stats stats.StatsInterface) absRandMemberInterface

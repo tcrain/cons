@@ -22,8 +22,8 @@ package mvcons1
 import (
 	"bytes"
 	"github.com/stretchr/testify/assert"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/stats"
 	"testing"
@@ -106,8 +106,8 @@ func createMvConsTestItems(idx types.ConsensusIndex, to types.TestOptions) *mvCo
 		mainChannel:    mmc}
 }
 
-func createMvSendItems(hdrType messages.HeaderID, idx types.ConsensusIndex, proposal []byte, bct cons.ConsTestItems, t *testing.T) []*channelinterface.DeserializedItem {
-	ret := make([]*channelinterface.DeserializedItem, len(bct.PrivKeys))
+func createMvSendItems(hdrType messages.HeaderID, idx types.ConsensusIndex, proposal []byte, bct cons.ConsTestItems, t *testing.T) []*deserialized.DeserializedItem {
+	ret := make([]*deserialized.DeserializedItem, len(bct.PrivKeys))
 	hash := types.GetHash(proposal)
 
 	for i := range bct.PrivKeys {
@@ -150,7 +150,7 @@ func createMvSendItems(hdrType messages.HeaderID, idx types.ConsensusIndex, prop
 			t.Error(err)
 		}
 
-		ret[i] = &channelinterface.DeserializedItem{
+		ret[i] = &deserialized.DeserializedItem{
 			Index:          idx,
 			HeaderType:     hdrType,
 			Header:         smd,
@@ -317,7 +317,7 @@ func TestMvCons1UnitProcessMsg1(t *testing.T) {
 	if !bct.bcons.HasDecided() {
 		t.Error("should have decided")
 	}
-	_, decision, _ := bct.bcons.GetDecision()
+	_, decision, _, _ := bct.bcons.GetDecision()
 	if !bytes.Equal(decision, mvConsTestProposal) {
 		t.Errorf("should have decided %v, but decided %v", mvConsTestProposal, decision)
 	}
@@ -413,7 +413,7 @@ func TestMvCons1UnitProcessMsgNoProposal(t *testing.T) {
 	if !bct.bcons.HasDecided() {
 		t.Error("should have decided")
 	}
-	_, decision, _ := bct.bcons.GetDecision()
+	_, decision, _, _ := bct.bcons.GetDecision()
 	if !bytes.Equal(decision, mvConsTestProposal) {
 		t.Errorf("should have decided %v, but decided %v", mvConsTestProposal, decision)
 	}
@@ -426,7 +426,7 @@ func TestMvCons1UnitProcessMsg0(t *testing.T) {
 
 	// No proposal
 	// Just the echo timeout
-	deser := &channelinterface.DeserializedItem{
+	deser := &deserialized.DeserializedItem{
 		Index:          idx,
 		HeaderType:     messages.HdrMvEchoTimeout,
 		IsLocal:        types.LocalMessage,
@@ -477,7 +477,7 @@ func TestMvCons1UnitProcessMsg0(t *testing.T) {
 	// should have not sent
 	testobjects.CheckNoSend(bct.mainChannel, t)
 
-	_, decision, _ := bct.bcons.GetDecision()
+	_, decision, _, _ := bct.bcons.GetDecision()
 	if len(decision) != 0 {
 		t.Errorf("should have decided len 0, but decided %v", decision)
 	}

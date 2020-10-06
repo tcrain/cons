@@ -53,6 +53,13 @@ type AbsRandLocalKnownMemberChecker struct {
 	cidrand *absRandCoordByID
 }
 
+func (arm *AbsRandLocalKnownMemberChecker) GetRnd() (ret [32]byte) {
+	if arm.cidrand != nil {
+		return arm.cidrand.GetRnd()
+	}
+	return
+}
+
 func initAbsRandLocalKnownMemberChecker(rnd *rand.Rand, priv sig.Priv,
 	localRandChangeFrequency types.ConsensusInt, stats stats.StatsInterface,
 	gc *generalconfig.GeneralConfig) *AbsRandLocalKnownMemberChecker {

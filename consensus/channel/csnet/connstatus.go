@@ -353,6 +353,7 @@ func (cs *ConnStatus) waitUntilFewerSendCons(n int) error {
 // TODO should try to connect to on connection not existing?
 func (cs *ConnStatus) SendTo(buff []byte, dest channelinterface.SendChannel, stats stats.NwStatsInterface,
 	consStats stats.ConsNwStatsInterface) {
+	buff = utils.CopyBuf(buff)
 	if config.LatencySend > 0 {
 		time.AfterFunc(time.Millisecond*time.Duration(rand.Intn(config.LatencySend)), func() {
 			cs.internalSendTo(buff, dest, stats, consStats)
@@ -367,6 +368,7 @@ func (cs *ConnStatus) SendTo(buff []byte, dest channelinterface.SendChannel, sta
 // TODO should try to connect to on connection not existing?
 func (cs *ConnStatus) SendToPub(buff []byte, pub sig.Pub, stats stats.NwStatsInterface,
 	consStats stats.ConsNwStatsInterface) error {
+
 	pStr, err := pub.GetPubString()
 	if err != nil {
 		return err
@@ -389,6 +391,8 @@ func (cs *ConnStatus) SendToPub(buff []byte, pub sig.Pub, stats stats.NwStatsInt
 func (cs *ConnStatus) SendToPubList(buf []byte, pubList []sig.PubKeyStr, stats stats.NwStatsInterface,
 	consStats stats.ConsNwStatsInterface) (errs []error) {
 	var destList []channelinterface.SendChannel
+
+	buf = utils.CopyBuf(buf)
 
 	cs.mutex.Lock()
 	if cs.isClosed {
@@ -421,6 +425,8 @@ func (cs *ConnStatus) Send(buff []byte,
 	stats stats.NwStatsInterface,
 	consStats stats.ConsNwStatsInterface) []sig.Pub {
 
+	// we copy the buf because
+	buff = utils.CopyBuf(buff)
 	cs.mutex.Lock()
 	if cs.isClosed {
 		cs.mutex.Unlock()

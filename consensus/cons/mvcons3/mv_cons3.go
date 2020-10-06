@@ -30,6 +30,7 @@ import (
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -99,25 +100,31 @@ type MvCons3 struct {
 	sentEchoHash       types.HashBytes    // the hash sent in the echo
 	sentEchoSupportIdx types.ConsensusInt // the index supported by the echo
 
-	hasDecided          decisionType                                         // if this index has decided or not
-	echoHash            types.HashStr                                        // the hash of the decided init msg
-	echoHashBytes       types.HashBytes                                      // the hash of the decided init msg
-	echoHashSupport     types.ConsensusInt                                   // the index that the sent echo supports
-	echoInitMsg         *messagetypes.MvInitSupportMessage                   // the actual decided value (should be same as proposal if nonfaulty coord)
-	echoInitProposer    sig.Pub                                              // the public key of the echoInitMsg signer
-	myInitMsg           *messagetypes.MvInitSupportMessage                   // my proposal
-	myProof             messages.MsgHeader                                   // proof for my proposal
-	initTimeOutState    cons.TimeoutState                                    // the timeouts concerning the init message
-	initTimer           channelinterface.TimerInterface                      // timer for the init message for the current round
-	prevTimeoutState    cons.TimeoutState                                    // state of the timer of the previous consensus index
-	prevItem            *MvCons3                                             // previous consensus index
-	nextItem            *MvCons3                                             // next consensus index
-	initialHash         types.HashBytes                                      // the initial hash
-	supportIndexHasInit bool                                                 // set to true once the index we support has received its init message
-	validatedInitHashes map[types.HashStr]*channelinterface.DeserializedItem // hashes of init messages that have been validated by the state machine
+	hasDecided          decisionType                       // if this index has decided or not
+	echoHash            types.HashStr                      // the hash of the decided init msg
+	echoHashBytes       types.HashBytes                    // the hash of the decided init msg
+	echoHashSupport     types.ConsensusInt                 // the index that the sent echo supports
+	echoInitMsg         *messagetypes.MvInitSupportMessage // the actual decided value (should be same as proposal if nonfaulty coord)
+	echoInitProposer    sig.Pub                            // the public key of the echoInitMsg signer
+	myInitMsg           *messagetypes.MvInitSupportMessage // my proposal
+	myProof             messages.MsgHeader                 // proof for my proposal
+	prevItem            *MvCons3                           // previous consensus index
+	nextItem            *MvCons3                           // next consensus index
+	collected           bool
+	initialHash         types.HashBytes                                  // the initial hash
+	supportIndexHasInit bool                                             // set to true once the index we support has received its init message
+	validatedInitHashes map[types.HashStr]*deserialized.DeserializedItem // hashes of init messages that have been validated by the state machine
+	sortedInitHashes    cons.DeserSortVRF                                // valid init messages sorted by VRFID, used when random member selection is enabled
 
 	zeroHash      types.HashBytes // if we don't receive an init message after the timeout we just send a zero hash to let others know we didn't receive anything
 	includeProofs bool            // if true then we should include proofs with our echo/commit messages (init messages always contain proofs)
+
+	prevTimeoutState    cons.TimeoutState               // state of the timer of the previous consensus index
+	initTimeOutState    cons.TimeoutState               // the timeouts concerning the init message
+	initTimer           channelinterface.TimerInterface // timer for the init message for the current round
+	initVRFTimeOutState cons.TimeoutState               // the timeouts concerning the init message
+	initVRFTimer        channelinterface.TimerInterface // timer for the init message for the current round
+
 }
 
 // SetInitialState sets the value that is supported by the inital index (1).
@@ -143,14 +150,14 @@ func (sc *MvCons3) GetPrevCommitProof() (coordPub sig.Pub, proof []messages.MsgH
 		return
 	}
 
-	var err error
-	msg := messagetypes.NewMvInitSupportMessage()
-	_, coordPub, err = consinterface.CheckCoord(nil, sc.ConsItems.MC,
-		types.ConsensusRound(sc.Index.Index.(types.ConsensusInt)), msg.GetMsgID())
-	if err != nil {
-		panic(err)
-	}
-	// First go backwards to find the most recent decided
+	/*	var err error
+		msg := messagetypes.NewMvInitSupportMessage()
+		_, coordPub, err = consinterface.CheckCoord(nil, sc.ConsItems.MC,
+			types.ConsensusRound(sc.Index.Index.(types.ConsensusInt)), msg.GetMsgID())
+		if err != nil {
+			panic(err)
+		}
+	*/ // First go backwards to find the most recent decided
 	nxt := sc
 	for nxt.hasDecided != decidedValue {
 		nxt = nxt.prevItem
@@ -170,6 +177,8 @@ func (sc *MvCons3) GetPrevCommitProof() (coordPub sig.Pub, proof []messages.MsgH
 			panic("should have a proof")
 		}
 		nxt.myProof = proof
+	}
+	if sc.CollectBroadcast != types.Full {
 		var err error
 		msg := messagetypes.NewMvInitSupportMessage()
 		_, coordPub, err = consinterface.CheckCoord(nil, nxt.ConsItems.MC,
@@ -272,6 +281,7 @@ func (sc *MvCons3) passTimer() {
 			sc.nextItem.prevTimeoutPassed()
 		}
 	}
+	sc.initVRFTimeOutState = cons.TimeoutPassed
 }
 
 func (sc *MvCons3) prevTimeoutPassed() {
@@ -283,6 +293,11 @@ func (sc *MvCons3) prevTimeoutPassed() {
 
 // SetNextConsItem gives a pointer to the next consensus item at the next consensus instance, it is called when the next instance is created
 func (sc *MvCons3) SetNextConsItem(next consinterface.ConsItem) {
+	if next == nil {
+		sc.nextItem = nil
+		sc.NextItem = nil
+		return
+	}
 	sc.nextItem = next.(*MvCons3)
 	sc.NextItem = next
 	if sc.initTimeOutState == cons.TimeoutPassed {
@@ -315,7 +330,7 @@ func (*MvCons3) GenerateNewItem(index types.ConsensusIndex, items *consinterface
 	newItem.includeProofs = gc.Eis.(cons.ConsInitState).IncludeProofs
 	newItem.zeroHash = types.GetZeroBytesHashLength()
 
-	newItem.validatedInitHashes = make(map[types.HashStr]*channelinterface.DeserializedItem)
+	newItem.validatedInitHashes = make(map[types.HashStr]*deserialized.DeserializedItem)
 	newItem.InitAbsMVRecover(index, gc)
 
 	return newItem
@@ -332,6 +347,10 @@ func (sc *MvCons3) stopTimers() {
 	if sc.initTimer != nil {
 		sc.initTimer.Stop()
 		sc.initTimer = nil
+	}
+	if sc.initVRFTimer != nil {
+		sc.initVRFTimer.Stop()
+		sc.initVRFTimer = nil
 	}
 	sc.StopRecoverTimeout()
 }
@@ -364,7 +383,7 @@ func (sc *MvCons3) GetProposeHeaderID() messages.HeaderID {
 // The messages are:
 // (1) HdrMvInitSupport returns 0, 0 if generalconfig.MvBroadcastInitForBufferForwarder is true (meaning don't forward the message)
 //     otherwise returns 1, 1 (meaning forward the message right away)
-// (2) HdrMvEcho returns n-t, n for the thresholds.
+// (2) HdrMvEchoHash returns n-t, n for the thresholds.
 func (sc *MvCons3) GetBufferCount(hdr messages.MsgIDHeader, _ *generalconfig.GeneralConfig,
 	memberChecker *consinterface.MemCheckers) (int, int, messages.MsgID, error) {
 	switch hdr.GetID() {
@@ -373,7 +392,7 @@ func (sc *MvCons3) GetBufferCount(hdr messages.MsgIDHeader, _ *generalconfig.Gen
 			return 1, 1, nil, types.ErrDontForwardMessage
 		}
 		return 1, 1, hdr.GetMsgID(), nil // otherwise we propagate it through gossip
-	case messages.HdrMvEcho:
+	case messages.HdrMvEchoHash:
 		memCount := memberChecker.MC.GetMemberCount()
 		return memCount - memberChecker.MC.GetFaultCount(), memCount, hdr.GetMsgID(), nil
 	case messages.HdrPartialMsg:
@@ -387,7 +406,7 @@ func (sc *MvCons3) GetBufferCount(hdr messages.MsgIDHeader, _ *generalconfig.Gen
 }
 
 // GetHeader return blank message header for the HeaderID, this object will be used to deserialize a message into itself (see consinterface.DeserializeMessage).
-// The valid headers are HdrMvInitSupport, HdrMvEcho, HdrMvCommit, HdrMvRequestRecover.
+// The valid headers are HdrMvInitSupport, HdrMvEchoHash, HdrMvCommit, HdrMvRequestRecover.
 func (*MvCons3) GetHeader(emptyPub sig.Pub, gc *generalconfig.GeneralConfig, headerType messages.HeaderID) (messages.MsgHeader, error) {
 	switch headerType {
 	case messages.HdrMvInitSupport:
@@ -399,8 +418,8 @@ func (*MvCons3) GetHeader(emptyPub sig.Pub, gc *generalconfig.GeneralConfig, hea
 			internalMsg = messagetypes.NewCombinedMessage(internalMsg)
 		}
 		return sig.NewMultipleSignedMsg(types.ConsensusIndex{}, emptyPub, internalMsg), nil
-	case messages.HdrMvEcho:
-		return sig.NewMultipleSignedMsg(types.ConsensusIndex{}, emptyPub, messagetypes.NewMvEchoMessage()), nil
+	case messages.HdrMvEchoHash:
+		return sig.NewMultipleSignedMsg(types.ConsensusIndex{}, emptyPub, messagetypes.NewMvEchoHashMessage()), nil
 	case messages.HdrMvRequestRecover:
 		return messagetypes.NewMvRequestRecoverMessage(), nil
 	case messages.HdrPartialMsg:
@@ -432,15 +451,25 @@ func (sc *MvCons3) HasDecided() bool {
 	panic("invalid decisionType")
 }
 
-// GetDecision returns the decided value as a byte slice.
-func (sc *MvCons3) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
+// GetDecision should return the decided value of the consensus. It should only be called after HasDecided returns true.
+// Proposer it the node that proposed the decision, prvIdx is the index of the decision that preceeded this decision
+// (for MvCons3 this is the previous index that the decided proposal points to),
+// futureDependent is the first larger index that this decision does not depend on
+// (for MvCons3 this is at least the index that is supported by 3 steps of proposals + 2).
+func (sc *MvCons3) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
 	switch sc.hasDecided {
 	case decidedNil:
 		// TODO: return a default value?
-		return nil, nil, types.ConsensusIndex{}
+		return nil, nil, types.ConsensusIndex{}, types.ConsensusIndex{}
 	case decidedValue:
 		return sc.echoInitProposer, sc.echoInitMsg.Proposal,
-			types.SingleComputeConsensusIDShort(sc.echoInitMsg.SupportedIndex)
+			types.SingleComputeConsensusIDShort(sc.echoInitMsg.SupportedIndex),
+			// futureDependent is the index of after the future item that allows us to decide,
+			// which is 2 indecies from the end of our support items plus 1
+			// We go an additional +3 because we use that index to generate the proofs.
+			// Note that this can be any constant + c > 1, it just means membership changes will
+			// not take effect until that index
+			types.SingleComputeConsensusIDShort(sc.supportItems[len(sc.supportItems)-2] + 1 + config.FixedMemberFuture)
 	}
 	panic("should have decided")
 }
@@ -471,11 +500,11 @@ func (sc *MvCons3) GotProposal(hdr messages.MsgHeader, mainChannel channelinterf
 // The following are the valid message types:
 // messages.HdrMvInitSupport is the leader proposal, once this is received an echo is sent containing the hash, and starts the echo timeoutout.
 // messages.HdrMvInitTimeout the init timeout is started in GotProposal, if we don't receive a hash before the timeout, we support 0 in bin cons.
-// messages.HdrMvEcho is the echo message, when these are received we run CheckEchoState.
+// messages.HdrMvEchoHash is the echo message, when these are received we run CheckEchoState.
 // messages.HdrMvRequestRecover a node terminated bin cons with 1, but didn't get the init message, so if we have it we send it.
 // messages.HdrMvRecoverTimeout if a node terminated bin cons with 1, but didn't get the init message this timeout is started, once it runs out, we ask other nodes to send the init message.
 func (sc *MvCons3) ProcessMessage(
-	deser *channelinterface.DeserializedItem,
+	deser *deserialized.DeserializedItem,
 	isLocal bool,
 	senderChan *channelinterface.SendRecvChannel) (bool, bool) {
 
@@ -497,14 +526,20 @@ func (sc *MvCons3) ProcessMessage(
 				sc.ConsItems)
 		}
 		return true, false
+	case messages.HdrMvInitVRFTimeout:
+		if !isLocal {
+			panic("should be local")
+		}
+		logging.Infof("Got init VRF timeout for index %v", sc.Index)
+		sc.initVRFTimeOutState = cons.TimeoutPassed
+		sc.checkProgress()
+		return true, false
 	case messages.HdrMvInitTimeout:
-		// mvc.initTimeOutState = cons.TimeoutPassed
 		if !isLocal {
 			panic("should be local")
 		}
 		sc.passTimer()
 		logging.Infof("Got init timeout for index %v", sc.Index)
-		// Start echo timeout
 		sc.checkProgress()
 		return true, false
 	case messages.HdrMvInitSupport:
@@ -516,9 +551,12 @@ func (sc *MvCons3) ProcessMessage(
 		// hashStr := messages.HashStr(messages.GetSignedHash(nxt.Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader.(*messagetypes.MvInitSupportMessage).Proposal))
 		if len(sc.validatedInitHashes) > 0 {
 			// we still process this message because it may be the message we commit
-			logging.Warningf("Received multiple inits in mv index %v, round %v", sc.Index, round)
+			logging.Infof("Received multiple inits in mv index %v, round %v", sc.Index, round)
 		}
 		sc.validatedInitHashes[hashStr] = deser
+		var shouldForward bool
+		sc.sortedInitHashes, shouldForward = cons.CheckForwardProposal(deser, hashStr, sc.echoHash,
+			sc.sortedInitHashes, sc.ConsItems)
 
 		// initMsg := w.GetBaseMsgHeader().(*messagetypes.MvInitSupportMessage)
 		// sanity checks to ensure the init message comes from the coordinator
@@ -535,8 +573,8 @@ func (sc *MvCons3) ProcessMessage(
 		sc.checkProgress()
 		// send any recovers that migt have requested this init msg
 		sc.SendRecover(sc.validatedInitHashes, sc.InitHeaders, sc.ConsItems)
-		return true, true
-	case messages.HdrMvEcho:
+		return true, shouldForward
+	case messages.HdrMvEchoHash:
 		// check if we have enough echos to decide
 		sc.checkProgress()
 		return true, true
@@ -563,7 +601,8 @@ func (sc *MvCons3) startCons() error {
 	// TODO fix way of getting coordpub
 	if sc.CheckMemberLocal() {
 		initMsg := messagetypes.NewMvInitSupportMessage()
-		_, _, err := consinterface.CheckCoord(sc.ConsItems.MC.MC.GetMyPriv().GetPub(), sc.ConsItems.MC,
+		var err error
+		_, _, err = consinterface.CheckCoord(sc.ConsItems.MC.MC.GetMyPriv().GetPub(), sc.ConsItems.MC,
 			types.ConsensusRound(sc.Index.Index.(types.ConsensusInt)-1), initMsg.GetMsgID())
 		if err == nil {
 			logging.Info("I am coordinator")
@@ -576,6 +615,8 @@ func (sc *MvCons3) startCons() error {
 			sc.supportIndexHasInit = supportIndexHasInit
 			initMsg.SupportedIndex = supportIndex
 			initMsg.SupportedHash = supportHash
+			rnd := sc.ConsItems.MC.MC.GetRnd()
+			initMsg.RandHash = types.GetHash(rnd[:])
 			if supportIndex != sc.Index.Index.(types.ConsensusInt)-1 {
 				logging.Warningf("Have to skip an init support, supporting %v, at index %v", supportIndex, sc.Index)
 			}
@@ -587,9 +628,16 @@ func (sc *MvCons3) startCons() error {
 	if sc.initTimeOutState == cons.TimeoutNotSent {
 		// Start the init timer
 		prvIdx, _, _, _ := sc.getMostRecentSupport(false) // TODO better way to decide timeout duration?
-		sc.initTimer = cons.StartInitTimer(types.ConsensusRound(sc.Index.Index.(types.ConsensusInt)-prvIdx),
-			sc.ConsItems, sc.MainChannel)
+		// the timerRound depends on how long ago the last item was commited
+		timerRound := types.ConsensusRound(sc.Index.Index.(types.ConsensusInt) - prvIdx)
+		sc.initTimer = cons.StartInitTimer(timerRound, sc.ConsItems, sc.MainChannel)
 		sc.initTimeOutState = cons.TimeoutSent
+
+		// If we have random members we add a timeout for the VRF of the init messages
+		if consinterface.ShouldWaitForRndCoord(sc.ConsItems.MC.MC.RandMemberType(), sc.GeneralConfig) {
+			sc.initVRFTimer = cons.StartInitVRFTimer(timerRound, sc.ConsItems, sc.MainChannel)
+			sc.initVRFTimeOutState = cons.TimeoutSent
+		}
 	}
 	return nil
 }
@@ -661,6 +709,7 @@ func (sc *MvCons3) addSupport(fromIndex, toIndex types.ConsensusInt, supportedHa
 					//types.ConsensusRound(fromIndex - sc.Index.Index.(types.ConsensusInt) - 1))
 				}
 				sc.hasDecided = decidedValue // we decided a value
+				// fmt.Println("decided", supportIdxs, sc.Index.Index, "my id:", sc.GeneralConfig.TestIndex)
 			}
 			// bc.supportedBy[fromIndex] = depth
 			sc.supportDepth = depth
@@ -736,16 +785,6 @@ func (sc *MvCons3) NeedsConcurrent() types.ConsensusInt {
 	return 20
 }
 
-func (sc *MvCons3) getInitMessages() []*sig.MultipleSignedMessage {
-
-	ret := make([]*sig.MultipleSignedMessage, 0, len(sc.validatedInitHashes))
-	for _, deser := range sc.validatedInitHashes {
-		// ret = append(ret, deser.Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader.(*messagetypes.MvInitSupportMessage))
-		ret = append(ret, deser.Header.(*sig.MultipleSignedMessage))
-	}
-	return ret
-}
-
 // recSentEcho is called when we send an echo, and sets it so any lower indecies will not send an echo.
 // TODO fix excesive recursive calls
 func (sc *MvCons3) recSentEcho() {
@@ -758,27 +797,24 @@ func (sc *MvCons3) recSentEcho() {
 // checkProgress checks if we should perform an action
 func (sc *MvCons3) checkProgress() {
 
-	// if mvc.HasDecided() {
-	//return
-	//}
-	// t := mvc.MemberChecker.MC.GetFaultCount()
-	// nmt := mvc.MemberChecker.MC.GetMemberCount() - t
-
 	msgState := sc.ConsItems.MsgState.(*MessageState)
 	if sc.Index.Index == types.ConsensusInt(1) && sc.prevTimeoutState != cons.TimeoutPassed { // sanity check
 		panic("prev timeout should always be passed for index 1")
 	}
 	// we only send the echo once the previous index is done
-	if !sc.sentEcho && sc.prevTimeoutState == cons.TimeoutPassed {
-		for _, initMsg := range sc.getInitMessages() {
+	randCoord := consinterface.ShouldWaitForRndCoord(sc.ConsItems.MC.MC.RandMemberType(), sc.GeneralConfig)
+	if !sc.sentEcho && sc.prevTimeoutState == cons.TimeoutPassed && (!randCoord || sc.initVRFTimeOutState == cons.TimeoutPassed) {
+		for _, nxt := range sc.sortedInitHashes { // sc.getInitMessages() {
 			// TODO don't create proofs in loop
+			initMsg := nxt.Header.(*sig.MultipleSignedMessage)
 			mostRecentSupportIndex, mostRecentHash, proof, _ := sc.getMostRecentSupport(sc.includeProofs)
 			initSupportMsg := initMsg.InternalSignedMsgHeader.(*messagetypes.MvInitSupportMessage)
 			if mostRecentSupportIndex == initSupportMsg.SupportedIndex && bytes.Equal(mostRecentHash, initSupportMsg.SupportedHash) {
 				if mostRecentSupportIndex != types.ConsensusInt(0) && proof == nil && sc.includeProofs {
 					panic("should have a proof")
 				}
-				logging.Infof("Got a valid init msg to support, sending echo for index %v, supporting index %v", sc.Index, mostRecentSupportIndex)
+				logging.Infof("Got a valid init msg to support, sending echo for index %v, supporting index %v",
+					sc.Index, mostRecentSupportIndex)
 				sc.sentEcho = true
 				sc.sentEchoHash = initMsg.GetSignedHash()
 				sc.sentEchoSupportIdx = initSupportMsg.SupportedIndex
@@ -786,6 +822,7 @@ func (sc *MvCons3) checkProgress() {
 				// we don't want to send any echos for instances with lower indecies
 				sc.recSentEcho()
 				sc.broadcastEcho(initMsg.Hash, proof, sc.MainChannel)
+				break
 			} else {
 				logging.Infof("Got an invalid init message because of support, most recent index %v, msg support index %v, most recent hash %v, msg support hash %v",
 					mostRecentSupportIndex, initSupportMsg.SupportedIndex, mostRecentHash, initSupportMsg.SupportedHash)
@@ -801,9 +838,7 @@ func (sc *MvCons3) checkProgress() {
 		} else {
 			sc.echoHashBytes = echoHash
 			sc.echoHash = types.HashStr(echoHash)
-
 			// let the instances that support us know if they are valid or not
-
 		}
 	}
 
@@ -815,7 +850,7 @@ func (sc *MvCons3) checkProgress() {
 		if initMsg := sc.validatedInitHashes[sc.echoHash]; initMsg == nil {
 			// we haven't yet received the init message for the hash, so we request it from other nodes after a timeout
 			if sc.hasDecided == decidedValue {
-				sc.StartRecoverTimeout(sc.Index, sc.MainChannel)
+				sc.StartRecoverTimeout(sc.Index, sc.MainChannel, sc.ConsItems.MC)
 			}
 		} else {
 			// we have the init message so we let others know who we support
@@ -871,15 +906,15 @@ func (sc *MvCons3) broadcastInit(initMsg *messagetypes.MvInitSupportMessage, pro
 func (sc *MvCons3) broadcastEcho(proposalHash []byte, proofMsg messages.MsgHeader,
 	mainChannel channelinterface.MainChannel) {
 
-	newMsg := messagetypes.NewMvEchoMessage()
+	newMsg := messagetypes.NewMvEchoHashMessage()
 	newMsg.ProposalHash = proposalHash
+	rndHash := sc.ConsItems.MC.MC.GetRnd()
+	newMsg.RandHash = types.GetHash(rndHash[:])
 
 	// the next coordinator
 	var coordPub sig.Pub
 	var err error
-	if sc.ConsItems.MC.MC.RandMemberType() != types.NonRandom { // TODO support membership changes for MVCons3??
-		logging.Error("rand members not supported for MvCons3")
-		err = types.ErrNotMember
+	if sc.ConsItems.MC.MC.RandMemberType() != types.NonRandom {
 	} else {
 		if sc.GeneralConfig.CollectBroadcast != types.Full { // we broadcast to the parent
 			msg := messagetypes.NewMvInitSupportMessage()
@@ -892,8 +927,6 @@ func (sc *MvCons3) broadcastEcho(proposalHash []byte, proofMsg messages.MsgHeade
 	}
 	sc.BroadcastFunc(coordPub, sc.ConsItems, newMsg, true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
 		mainChannel, sc.GeneralConfig, proofMsg)
-
-	// BroadcastMv3(coordPub, sc.ByzType, sc, sc.ConsItems.FwdChecker.GetNewForwardListFunc(), newMsg, proofMsg, mainChannel)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -911,4 +944,7 @@ func (sc *MvCons3) Collect() {
 	sc.AbsConsItem.Collect()
 	sc.stopTimers()
 	sc.StopRecoverTimeout()
+	sc.nextItem = nil
+	sc.prevItem = nil
+	sc.collected = true
 }

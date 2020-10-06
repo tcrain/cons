@@ -21,6 +21,7 @@ package cons
 
 import (
 	"fmt"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/types"
 	"strconv"
@@ -183,7 +184,7 @@ func (sc *SimpleCons) GotProposal(_ messages.MsgHeader, mainChannel channelinter
 // It returns true in first position if made progress towards decision, or false if already decided, and return true in second position if the message should be forwarded.
 // It tracks from which nodes we have received the SimpleConsMessage so far, and once n are recieved, the "consensus" is finished.
 func (sc *SimpleCons) ProcessMessage(
-	deser *channelinterface.DeserializedItem,
+	deser *deserialized.DeserializedItem,
 	isLocal bool,
 	senderChan *channelinterface.SendRecvChannel) (bool, bool) {
 
@@ -276,12 +277,13 @@ func (sc *SimpleCons) CanStartNext() bool {
 }
 
 // GetDecision returns the decided value which is []byte(fmt.Sprintf("simpleCons%v", sc.Index)).
-func (sc *SimpleCons) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
+func (sc *SimpleCons) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
 	if !sc.decided {
 		panic("should have decided")
 	}
 	return nil, []byte(fmt.Sprintf("simpleCons%v", sc.Index.Index)),
-		types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1)
+		types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
+		types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) + 1)
 }
 
 // HasDecided should return true if this consensus item has reached a decision.

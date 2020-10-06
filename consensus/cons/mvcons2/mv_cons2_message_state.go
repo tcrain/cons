@@ -22,9 +22,9 @@ package mvcons2
 import (
 	"bytes"
 	"fmt"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/types"
 	"sync"
@@ -102,8 +102,8 @@ func (sms *MessageState) getSupportedCommitHash(round types.ConsensusRound) type
 // (3) HdrMvCommit - commit messages
 // (4) HdrMvRequestRecover - unsigned message asking for the init message received for a given hash
 func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
-	deser *channelinterface.DeserializedItem, gc *generalconfig.GeneralConfig,
-	mc *consinterface.MemCheckers) ([]*channelinterface.DeserializedItem, error) {
+	deser *deserialized.DeserializedItem, gc *generalconfig.GeneralConfig,
+	mc *consinterface.MemCheckers) ([]*deserialized.DeserializedItem, error) {
 
 	if !deser.IsDeserialized {
 		// Only track deserialzed messages
@@ -193,7 +193,7 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 	case messages.HdrMvRequestRecover:
 		// we handle this in cons
 		// Nothing to do since it is just asking for a message
-		return []*channelinterface.DeserializedItem{deser}, nil
+		return []*deserialized.DeserializedItem{deser}, nil
 	default:
 		panic(fmt.Sprint("invalid msg type ", deser.HeaderType))
 	}

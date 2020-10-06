@@ -968,3 +968,9 @@ func GetUniqueCount(s1 sort.IntSlice) int {
 	}
 	return count
 }
+
+func CopyBuf(buf []byte) []byte {
+	ret := make([]byte, len(buf))
+	copy(ret, buf)
+	return ret
+}

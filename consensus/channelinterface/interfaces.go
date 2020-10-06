@@ -24,6 +24,7 @@ package channelinterface
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/stats"
 	"time"
 
@@ -53,7 +54,7 @@ type BehaviorTracker interface {
 type ForwardFuncFilter func(sendChans []SendChannel) []SendChannel
 type NewForwardFuncFilter func(allConnections []sig.Pub) (destinations sig.PubList,
 	sendToRecv, sendToSend bool, sendRange SendRange)
-type MsgConstructFunc func(pieces int) (toSelf *DeserializedItem, toOthers [][]byte)
+type MsgConstructFunc func(pieces int) (toSelf *deserialized.DeserializedItem, toOthers [][]byte)
 
 // SendRange is used as a percentage of the recipients returned from NewForwardFuncFilter to send to.
 type SendRange struct {
@@ -112,7 +113,7 @@ type MainChannel interface {
 	// this method is concurrent safe.
 	// The timer should either fire or be closed before the program exits.
 	// I.E. it should be closed during the Collect() method called on consensus items.
-	SendToSelf(deser []*DeserializedItem, timeout time.Duration) TimerInterface
+	SendToSelf(deser []*deserialized.DeserializedItem, timeout time.Duration) TimerInterface
 	// ComputeDestinations returns the list of destinations given the forward filter function.
 	ComputeDestinations(forwardFunc NewForwardFuncFilter) []SendChannel
 	// Send sends a message to the outgoing connections
@@ -149,7 +150,7 @@ type MainChannel interface {
 	SendToPub(headers []messages.MsgHeader, pub sig.Pub, countStats bool, consStats stats.ConsNwStatsInterface) error
 	// HasProposal should be called by the state machine when it is ready with its proposal for the next round of consensus.
 	// It should be called after ProposalInfo object interface (package consinterface) method HasDecided had been called for the previous consensus instance.
-	HasProposal(*DeserializedItem)
+	HasProposal(*deserialized.DeserializedItem)
 	// Recv should be called as the main consensus loop every time the node is ready to process a message.
 	// It is expected to be called one at a time (not concurrent safe).
 	// It will return utils.ErrTimeout after a timeout to ensure progress.
@@ -184,6 +185,9 @@ type MainChannel interface {
 	InitInProgress() bool
 	// Reprocess is called on messages that were unable to be deserialized upon first reception, it is called by concurrent threads
 	ReprocessMessage(*RcvMsg)
+	// ReprocessMessageBytes is called on messages that have already been received and need to be reprocesses.
+	// It is safe to be called by many threads.
+	ReprocessMessageBytes(msg []byte)
 	// GetBehaviorTracker returns the BehaviorTracker object
 	GetBehaviorTracker() BehaviorTracker
 	// GetStats returns the stats object being used

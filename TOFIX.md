@@ -8,6 +8,18 @@ TODO is there a way to do this?
 - More efficient no progress messages, especially when using many nodes
 over all to all connection
 - Way to add membership changing for MVCons3
+  - Currently MvCons3 only supports random membership change.
+  - This is done using the LaterMemberChecker type
+  - In this case the membership changes and only reflected in a fixed number
+  of consensus instances in the future.
+  - Any instances already started past this in the future are restarted with an
+  empty slate.
+  - In order to distinguish the old from the new, messages contain the random
+  bytes of the VRF that was used to generate the member set being used.
+  - TODO - only put random bytes in messages when enabled
+  - TODO - gen too many rand rounds in vrf per cons for this case
+  - TODO - also need to fix LaterMemberChecker for use with the SpecialMeberCheckerTypes
+  since they are updating in different objects
 - Cleanup the state transition and creation for member the abs member
 checkers.
 Currently it works as follows:
@@ -119,3 +131,8 @@ next coordinator, we dont use the state machine to calculate the next coordinato
 (except only MVCons3 does this correctly since it allows speculative executions).
 This is also an issue in cons state line 577 where we broadcast the last
 set of messages to end the test).
+
+- Causal: did I remove the part that checks echos aren't sent twice for the same assets?
+  - The part says its depricated, but I dont see where I would have fixed it?
+  - Because of this (add see causal above) the call to start the SM happens before the loading
+  from disk, instead of when start is called

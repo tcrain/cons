@@ -81,11 +81,12 @@ func (spi *CausalCounterProposerInfo) Init(gc *generalconfig.GeneralConfig, last
 
 // StartInit is called on the init state machine to start the program.
 func (spi *CausalCounterProposerInfo) StartInit(memberCheckerState consinterface.ConsStateInterface) {
-	mc, _, _, err := memberCheckerState.GetMemberChecker(spi.index)
+	idxItem, err := memberCheckerState.GetMemberChecker(spi.index)
 	if err != nil {
-		panic(err)
+		logging.Warning("member set does not exists (likely already garbage collected)", err)
+		return
 	}
-	_, err = mc.MC.CheckFixedCoord(spi.myPub)
+	_, err = idxItem.MC.MC.CheckFixedCoord(spi.myPub)
 	switch err {
 	case types.ErrNoFixedCoord:
 		panic("must use fixed coord")

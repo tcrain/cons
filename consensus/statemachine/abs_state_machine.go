@@ -22,6 +22,7 @@ package statemachine
 import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -148,7 +149,7 @@ func (spi *AbsStateMachine) AbsGetProposal(hdr messages.MsgHeader) {
 	if *spi.closed {
 		return
 	}
-	di := &channelinterface.DeserializedItem{
+	di := &deserialized.DeserializedItem{
 		Index:          spi.index,
 		HeaderType:     hdr.GetID(),
 		Header:         hdr,

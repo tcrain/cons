@@ -30,6 +30,7 @@ import (
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/cons/bincons1"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -169,7 +170,7 @@ func (sc *BinConsRnd6) GetBinDecided() (int, types.ConsensusRound) {
 // For this consensus implementation messageState must be an instance of BinConsMessageStateInterface.
 // It returns true in first position if made progress towards decision, or false if already decided, and return true in second position if the message should be forwarded.
 func (sc *BinConsRnd6) ProcessMessage(
-	deser *channelinterface.DeserializedItem,
+	deser *deserialized.DeserializedItem,
 	isLocal bool,
 	_ *channelinterface.SendRecvChannel) (bool, bool) {
 
@@ -787,11 +788,12 @@ func (sc *BinConsRnd6) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig
 }
 
 // GetDecision returns the binary value decided as a single byte slice.
-func (sc *BinConsRnd6) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
+func (sc *BinConsRnd6) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
 	if sc.Decided == -1 {
 		panic("should have decided")
 	}
-	return nil, []byte{byte(sc.Decided)}, types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1)
+	return nil, []byte{byte(sc.Decided)}, types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
+		types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) + 1)
 }
 
 // GetConsType returns the type of consensus this instance implements.

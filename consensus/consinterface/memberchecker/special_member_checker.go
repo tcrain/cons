@@ -24,6 +24,7 @@ import (
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
+	"sync"
 
 	"github.com/tcrain/cons/consensus/auth/sig"
 )
@@ -74,9 +75,11 @@ func (tsm *NoSpecialMembers) CheckMember(idx types.ConsensusIndex, pub sig.Pub, 
 // in CheckMemberLocalMsg by merging the normal public key, using their indecies.
 type MultiSigMemChecker struct {
 	// absMemberChecker
-	allowsChange  bool
-	idx           types.ConsensusIndex
-	originPubList sig.PubList // the normal public keys, we use these to generate the merged public keys
+	allowsChange bool
+	idx          types.ConsensusIndex
+	// this is a pointer so we avoid races when using LaterMemberChecker (TODO fix this see TOFIX.md)
+	originPubList *sig.PubList // the normal public keys, we use these to generate the merged public keys
+	mutex         sync.Mutex
 }
 
 // NewMultSigMemChecker generates a new MultiSigMemChecker object.
@@ -84,7 +87,7 @@ func NewMultiSigMemChecker(pubs sig.PubList, allowsChange bool) *MultiSigMemChec
 	if !sig.GetUsePubIndex() {
 		panic("should only be used with pub indecies")
 	}
-	return &MultiSigMemChecker{originPubList: pubs, allowsChange: allowsChange}
+	return &MultiSigMemChecker{originPubList: &pubs, allowsChange: allowsChange}
 }
 
 // New generates a new member checker for the index, this is called on the inital special member checker each time.
@@ -110,9 +113,11 @@ func (msm *MultiSigMemChecker) UpdateState(newKeys sig.PubList, randBytes [32]by
 	// If we have new keys we no longer use our generated multisigs
 	if newKeys != nil {
 		// TODO keep the multisigs that are still valid for the new keys
-		msm.originPubList = newKeys
+		msm.originPubList = &newKeys
 	} else {
-		msm.originPubList = prevMember.(*MultiSigMemChecker).originPubList
+		if msm.originPubList != prevMember.(*MultiSigMemChecker).originPubList {
+			msm.originPubList = prevMember.(*MultiSigMemChecker).originPubList
+		}
 	}
 }
 
@@ -132,20 +137,20 @@ func (msm *MultiSigMemChecker) CheckMember(idx types.ConsensusIndex, pub sig.Pub
 	bid := blsPub.GetBitID()
 	iter := bid.NewIterator()
 	i, err := iter.NextID()
-	if i < 0 || i >= len(msm.originPubList) || err != nil {
+	if i < 0 || i >= len(*msm.originPubList) || err != nil {
 		// The bitid contains an invalid index
 		return nil, types.ErrInvalidBitID
 	}
-	mrgPub := msm.originPubList[i].(sig.MultiPub).Clone()
+	mrgPub := (*msm.originPubList)[i].(sig.MultiPub).Clone()
 	// Go through the pub keys and merge them one by one into the new key
 	for i, err := iter.NextID(); err == nil; i, err = iter.NextID() {
-		if i < 0 || i >= len(msm.originPubList) ||
-			consinterface.CheckRandMember(mc, msm.originPubList[i], hdr, msgID, false) != nil { // be sure it is a valid member index
+		if i < 0 || i >= len(*msm.originPubList) ||
+			consinterface.CheckRandMember(mc, (*msm.originPubList)[i], hdr, msgID, false) != nil { // be sure it is a valid member index
 
 			// The bitid contains an invalid index
 			return nil, types.ErrInvalidBitID
 		}
-		mrgPub.MergePubPartial(msm.originPubList[i].(sig.MultiPub))
+		mrgPub.MergePubPartial((*msm.originPubList)[i].(sig.MultiPub))
 	}
 	iter.Done()
 	// finish the merge

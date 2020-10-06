@@ -59,9 +59,11 @@ func (mc *CurrencyMemberChecker) New(newIndex types.ConsensusIndex) consinterfac
 // UpdateState chooses the pub keys with the most currency as the next members (keeping the same number of members
 // as the previous member checker)
 func (mc *CurrencyMemberChecker) UpdateState(fixedCoord sig.Pub, prevDec []byte, randBytes [32]byte,
-	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface) (newMemberPubs,
-	newOtherPubs []sig.Pub) {
+	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface,
+	futureFixed types.ConsensusID) (newMemberPubs,
+	newOtherPubs []sig.Pub, changedMembers bool) {
 
+	_ = futureFixed
 	if !prevSM.GetDecided() {
 		panic("should have updated the SM first")
 	}
@@ -109,10 +111,8 @@ func (mc *CurrencyMemberChecker) UpdateState(fixedCoord sig.Pub, prevDec []byte,
 	// Others are the ones with less value
 	newOtherPubs = newAllPubs[memberCount:]
 
-	mc.CustomMemberChecker.UpdateState(fixedCoord, prevDec, randBytes,
+	return mc.CustomMemberChecker.UpdateState(fixedCoord, prevDec, randBytes,
 		&prevMember.(*CurrencyMemberChecker).CustomMemberChecker, newMemberPubs, newOtherPubs)
-
-	return
 }
 
 // AddPubKeys adds the pub keys as members to the consensus.

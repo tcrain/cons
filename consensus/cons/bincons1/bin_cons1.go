@@ -24,6 +24,7 @@ package bincons1
 
 import (
 	"fmt"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/types"
 
@@ -175,7 +176,7 @@ func (sc *BinCons1) NeedsConcurrent() types.ConsensusInt {
 // It returns true in first position if made progress towards decision, or false if already decided, and return true in second position if the message should be forwarded.
 // It processes AuxProofTimeout messages and AuxProof messages, moving through the rounds of consensus until a decision.
 func (sc *BinCons1) ProcessMessage(
-	deser *channelinterface.DeserializedItem,
+	deser *deserialized.DeserializedItem,
 	isLocal bool,
 	_ *channelinterface.SendRecvChannel) (bool, bool) {
 
@@ -330,12 +331,13 @@ func (sc *BinCons1) CheckRound(nmt int, t int, round types.ConsensusRound,
 		if round > types.ConsensusRound(t) && sc.SkipTimeoutRound <= round { // if we haven't started a timeout for this round, then set one up
 			if roundStruct.timeoutState == cons.TimeoutNotSent {
 				roundStruct.timeoutState = cons.TimeoutSent
-				deser := []*channelinterface.DeserializedItem{
+				deser := []*deserialized.DeserializedItem{
 					{
 						Index:          sc.Index,
 						HeaderType:     messages.HdrAuxProofTimeout,
 						Header:         (messagetypes.AuxProofMessageTimeout)(round),
 						IsLocal:        types.LocalMessage,
+						MC:             sc.ConsItems.MC,
 						IsDeserialized: true}}
 				sc.roundTimers = append(sc.roundTimers, mainChannel.SendToSelf(deser, cons.GetTimeout(round, t)))
 				return true
@@ -484,11 +486,12 @@ func (sc *BinCons1) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pu
 }
 
 // GetDecision returns the binary value decided as a single byte slice.
-func (sc *BinCons1) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
+func (sc *BinCons1) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
 	if sc.Decided == -1 {
 		panic("should have decided")
 	}
-	return nil, []byte{byte(sc.Decided)}, types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1)
+	return nil, []byte{byte(sc.Decided)}, types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
+		types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) + 1)
 }
 
 // stopTimers stops any current running round timers.

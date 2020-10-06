@@ -23,6 +23,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -200,11 +201,12 @@ func PartialBroadcastFunc(partialType types.PartialMessageType, abi consinterfac
 		return err
 	}
 	// Send the message to yourself
-	toSelf := []*channelinterface.DeserializedItem{{
+	toSelf := []*deserialized.DeserializedItem{{
 		Index:          abi.GetIndex(),
 		HeaderType:     combinedSigned.GetID(),
 		Header:         combinedSigned,
 		IsDeserialized: true,
+		MC:             mc,
 		IsLocal:        types.LocalMessage,
 		Message:        sig.FromMessage(msg)}}
 	logging.Error("hashes2", combinedSigned.GetSignedHash(), partialsSigned[0].GetSignedHash())

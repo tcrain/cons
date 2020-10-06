@@ -29,12 +29,13 @@ ulimit -n
 #net.ipv4.tcp_rmem=4096 87380 8388608
 #net.ipv4.tcp_wmem=4096 65536 8388608
 #net.ipv4.tcp_mem=8388608 8388608 8388608
-#net.core.netdev_max_backlog=5000
 #" | sudo tee -a /etc/sysctl.conf
 #
 
 echo Increase TCP backlog
-echo "net.ipv4.tcp_max_syn_backlog=2048" | sudo tee -a /etc/sysctl.conf
+echo "net.ipv4.tcp_max_syn_backlog=4096
+net.core.netdev_max_backlog=16384
+net.core.somaxconn = 4096" | sudo tee -a /etc/sysctl.conf
 
 sudo sysctl -w net.ipv4.route.flush=1
 sudo sysctl -p

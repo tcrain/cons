@@ -62,7 +62,8 @@ const (
 	//Timeouts
 	ForwardTimeout              = 500  // milliseconds 	// for msg forwarder when you dont receive enough messages to foward a buffer automatically
 	ProgressTimeout             = 1000 // milliseconds, if no progress in this time, let neighbors know
-	MvConsTimeout               = 1000 // millseconds timeout when taking an action in the 3 step mv to bin reduction
+	MvConsTimeout               = 1000 // millseconds timeout when taking an action in the MV consensus algorithms
+	MvConsVRFTimeout            = 300  // millseconds timeout for waiting for a proposal when VRFs are enabled (only used by MVCons3)
 	MvConsRequestRecoverTimeout = 500  // millseconds timeout before requesting the full proposal after delivering the hash
 
 	// For the main channel
@@ -150,6 +151,11 @@ const (
 
 	// for benchmarks
 	BuildTablePDFs = false
+
+	// For MvCons3
+	// Number of instances in the future past the supporting instance that made the supported index commit for which membership
+	// is fixed (when using random membership changed)
+	FixedMemberFuture = 5
 )
 
 var Encoding = binary.LittleEndian // encoding for marshalling

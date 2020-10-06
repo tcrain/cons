@@ -240,7 +240,7 @@ func runBinConsBasicTest(proposal types.BinVal, supportCoin bool, t *testing.T) 
 		t.Error("should have decided")
 	}
 
-	_, decision, _ := bct.bcons.GetDecision()
+	_, decision, _, _ := bct.bcons.GetDecision()
 	if !bytes.Equal(decision, []byte{byte(proposal)}) {
 		t.Errorf("should have decided proposal, but decided %v", decision)
 	}

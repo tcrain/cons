@@ -23,6 +23,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
@@ -31,21 +32,23 @@ import (
 	"time"
 )
 
-var DeserFunc func(tci *TestConsItem, idx types.ConsensusIndex, msg *messages.Message, mc *consinterface.MemCheckers, ms consinterface.MessageState) ([]*channelinterface.DeserializedItem, error)
+var DeserFunc func(tci *TestConsItem, idx types.ConsensusIndex, msg *messages.Message,
+	mc *consinterface.MemCheckers, ms consinterface.MessageState) ([]*deserialized.DeserializedItem, error)
 
 type TestConsItem struct {
-	DeserFunc func(tci *TestConsItem, idx types.ConsensusIndex, msg *messages.Message, mc *consinterface.MemCheckers, ms consinterface.MessageState) ([]*channelinterface.DeserializedItem, error)
-	Index     types.ConsensusIndex
+	DeserFunc func(tci *TestConsItem, idx types.ConsensusIndex, msg *messages.Message,
+		mc *consinterface.MemCheckers, ms consinterface.MessageState) ([]*deserialized.DeserializedItem, error)
+	Index types.ConsensusIndex
 }
 
-func (sc *TestConsItem) ShouldCreatePartial(headerType messages.HeaderID) bool {
+func (sc *TestConsItem) ShouldCreatePartial(messages.HeaderID) bool {
 	return false
 }
-func (sc *TestConsItem) Broadcast(nextCoordPub sig.Pub, msg messages.InternalSignedMsgHeader,
-	signMessage bool,
-	forwardFunc channelinterface.NewForwardFuncFilter,
-	mainChannel channelinterface.MainChannel,
-	additionalMsgs ...messages.MsgHeader) {
+func (sc *TestConsItem) Broadcast(sig.Pub, messages.InternalSignedMsgHeader,
+	bool,
+	channelinterface.NewForwardFuncFilter,
+	channelinterface.MainChannel,
+	...messages.MsgHeader) {
 }
 func (sc *TestConsItem) GetCommitProof() []messages.MsgHeader { return nil }
 func (sc *TestConsItem) SetCommitProof([]messages.MsgHeader)  {}
@@ -53,10 +56,10 @@ func (sc *TestConsItem) GetPrevCommitProof() (cordPub sig.Pub, proof []messages.
 	return nil, nil
 }
 func (sc *TestConsItem) CheckMemberLocalMsg(messages.InternalSignedMsgHeader) bool { return true }
-func (sc *TestConsItem) AddPreHeader(header messages.MsgHeader)                    {}
-func (*TestConsItem) GenerateNewItem(index types.ConsensusIndex, consItems *consinterface.ConsInterfaceItems,
-	mainChannel channelinterface.MainChannel,
-	prevItem consinterface.ConsItem, bcastFunc consinterface.ByzBroadcastFunc, gc *generalconfig.GeneralConfig) consinterface.ConsItem {
+func (sc *TestConsItem) AddPreHeader(messages.MsgHeader)                           {}
+func (*TestConsItem) GenerateNewItem(index types.ConsensusIndex, _ *consinterface.ConsInterfaceItems,
+	_ channelinterface.MainChannel,
+	_ consinterface.ConsItem, _ consinterface.ByzBroadcastFunc, _ *generalconfig.GeneralConfig) consinterface.ConsItem {
 	return &TestConsItem{DeserFunc: DeserFunc, Index: index}
 }
 func (sc *TestConsItem) CheckMemberLocal() bool                                   { return true }
@@ -76,7 +79,7 @@ func (sc *TestConsItem) SetInitialState([]byte) {}
 func (sc *TestConsItem) NeedsConcurrent() types.ConsensusInt {
 	return 1
 }
-func (*TestConsItem) GenerateMessageState(config *generalconfig.GeneralConfig) consinterface.MessageState {
+func (*TestConsItem) GenerateMessageState(*generalconfig.GeneralConfig) consinterface.MessageState {
 	return nil
 }
 func (sc *TestConsItem) GetIndex() types.ConsensusIndex {
@@ -85,25 +88,23 @@ func (sc *TestConsItem) GetIndex() types.ConsensusIndex {
 func (sc *TestConsItem) CanStartNext() bool {
 	return false
 }
-func (sc *TestConsItem) SetTestConfig(testId int, options types.TestOptions) {
-}
 func (sc *TestConsItem) GetPreHeader() []messages.MsgHeader {
 	return nil
 }
-func (sc *TestConsItem) ProcessMessage(item *channelinterface.DeserializedItem, isLocal bool,
-	senderChan *channelinterface.SendRecvChannel) (progress, shouldForward bool) {
+func (sc *TestConsItem) ProcessMessage(*deserialized.DeserializedItem, bool,
+	*channelinterface.SendRecvChannel) (progress, shouldForward bool) {
 	return false, false
 }
-func (sc *TestConsItem) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
-	return nil, nil, types.ConsensusIndex{}
+func (sc *TestConsItem) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
+	return nil, nil, types.ConsensusIndex{}, types.ConsensusIndex{}
 }
-func (sc *TestConsItem) ComputeDecidedValue(state []byte, decision []byte) []byte {
+func (sc *TestConsItem) ComputeDecidedValue([]byte, []byte) []byte {
 	return nil
 }
 func (sc *TestConsItem) HasDecided() bool {
 	return false
 }
-func (sc *TestConsItem) GetBinState(localOnly bool) ([]byte, error) {
+func (sc *TestConsItem) GetBinState(bool) ([]byte, error) {
 	return nil, nil
 }
 func (sc *TestConsItem) GetConsType() types.ConsType {
@@ -118,20 +119,14 @@ func (sc *TestConsItem) GotProposal(messages.MsgHeader, channelinterface.MainCha
 func (sc *TestConsItem) GetProposeHeaderID() messages.HeaderID {
 	return 0
 }
-func (sc *TestConsItem) InitState(preHeaders []messages.MsgHeader, priv sig.Priv, eis generalconfig.ExtraInitState,
-	stats stats.StatsInterface) {
-}
-func (sc *TestConsItem) ResetState(index types.ConsensusIndex, memberChecker *consinterface.MemCheckers,
-	messageState consinterface.MessageState, forwardChecker consinterface.ForwardChecker, prev consinterface.ConsItem) {
-}
-func (sc *TestConsItem) SetNextConsItem(next consinterface.ConsItem) {
+func (sc *TestConsItem) SetNextConsItem(consinterface.ConsItem) {
 	// panic("unused")
 }
 func (sc *TestConsItem) GetBufferCount(messages.MsgIDHeader, *generalconfig.GeneralConfig, *consinterface.MemCheckers) (
 	endThreshold int, maxPossible int, msgid messages.MsgID, err error) {
 	panic("not used")
 }
-func (*TestConsItem) GetHeader(emptyPub sig.Pub, generalConfig *generalconfig.GeneralConfig,
+func (*TestConsItem) GetHeader(_ sig.Pub, _ *generalconfig.GeneralConfig,
 	headerID messages.HeaderID) (messages.MsgHeader, error) {
 	switch headerID {
 	case messages.HdrNetworkTest:
@@ -141,7 +136,7 @@ func (*TestConsItem) GetHeader(emptyPub sig.Pub, generalConfig *generalconfig.Ge
 	}
 }
 func (sc *TestConsItem) DeserializeMessage(idx types.ConsensusIndex, msg *messages.Message,
-	mc *consinterface.MemCheckers, ms consinterface.MessageState) ([]*channelinterface.DeserializedItem, error) {
+	mc *consinterface.MemCheckers, ms consinterface.MessageState) ([]*deserialized.DeserializedItem, error) {
 	return sc.DeserFunc(sc, idx, msg, mc, ms)
 }
 
@@ -150,47 +145,45 @@ type TestMessageState struct {
 }
 
 func (tms *TestMessageState) GotMsg(_ consinterface.HeaderFunc,
-	dsi *channelinterface.DeserializedItem, _ *generalconfig.GeneralConfig, _ *consinterface.MemCheckers) (
-	[]*channelinterface.DeserializedItem, error) {
-	return []*channelinterface.DeserializedItem{dsi}, nil
+	dsi *deserialized.DeserializedItem, _ *generalconfig.GeneralConfig, _ *consinterface.MemCheckers) (
+	[]*deserialized.DeserializedItem, error) {
+	return []*deserialized.DeserializedItem{dsi}, nil
 }
 
-func (tms *TestMessageState) GetMsgState(priv sig.Priv, localOnly bool,
-	bufferCountFunc consinterface.BufferCountFunc,
-	mc *consinterface.MemCheckers) ([]byte, error) {
+func (tms *TestMessageState) GetMsgState(sig.Priv, bool,
+	consinterface.BufferCountFunc,
+	*consinterface.MemCheckers) ([]byte, error) {
 	return nil, nil
 }
-
-func (tms *TestMessageState) AddMyVRFProof(proof sig.VRFProof) {}
 
 func (tms *TestMessageState) New(idx types.ConsensusIndex) consinterface.MessageState {
 	return &TestMessageState{idx}
 }
-func (tms *TestMessageState) SetupUnsignedMessage(hdr messages.InternalSignedMsgHeader,
-	mc *consinterface.MemCheckers) (*sig.UnsignedMessage, error) {
+func (tms *TestMessageState) SetupUnsignedMessage(messages.InternalSignedMsgHeader,
+	*consinterface.MemCheckers) (*sig.UnsignedMessage, error) {
 	return nil, nil
 }
-func (tms *TestMessageState) GetCoinVal(hdr messages.InternalSignedMsgHeader, threshold int, mc *consinterface.MemCheckers) (
+func (tms *TestMessageState) GetCoinVal(messages.InternalSignedMsgHeader, int, *consinterface.MemCheckers) (
 	coinVal types.BinVal, ready bool, err error) {
 	return
 }
-func (tms *TestMessageState) GetThreshSig(hdr messages.InternalSignedMsgHeader, threshold int, mc *consinterface.MemCheckers) (*sig.SigItem, error) {
+func (tms *TestMessageState) GetThreshSig(messages.InternalSignedMsgHeader, int, *consinterface.MemCheckers) (*sig.SigItem, error) {
 	return nil, nil
 }
 func (tms *TestMessageState) GetIndex() types.ConsensusIndex {
 	return tms.index
 }
-func (tms *TestMessageState) SetupSignedMessagesDuplicates(combined *messagetypes.CombinedMessage, hdrs []messages.InternalSignedMsgHeader,
-	mc *consinterface.MemCheckers) (combinedSigned *sig.MultipleSignedMessage, partialsSigned []*sig.MultipleSignedMessage, err error) {
+func (tms *TestMessageState) SetupSignedMessagesDuplicates(*messagetypes.CombinedMessage, []messages.InternalSignedMsgHeader,
+	*consinterface.MemCheckers) (combinedSigned *sig.MultipleSignedMessage, partialsSigned []*sig.MultipleSignedMessage, err error) {
 
 	return
 }
-func (tms *TestMessageState) SetupSignedMessage(sm messages.InternalSignedMsgHeader,
-	generateMySig bool, addOthersSigsCount int, mc *consinterface.MemCheckers) (*sig.MultipleSignedMessage, error) {
+func (tms *TestMessageState) SetupSignedMessage(messages.InternalSignedMsgHeader,
+	bool, int, *consinterface.MemCheckers) (*sig.MultipleSignedMessage, error) {
 
 	return nil, nil
 }
-func (tms *TestMessageState) GetSigCountMsgIDList(msgID messages.MsgID) []consinterface.MsgIDCount {
+func (tms *TestMessageState) GetSigCountMsgIDList(messages.MsgID) []consinterface.MsgIDCount {
 	panic("unused")
 }
 func (tms *TestMessageState) GetSigCountMsg(types.HashStr) int {
@@ -199,7 +192,7 @@ func (tms *TestMessageState) GetSigCountMsg(types.HashStr) int {
 func (tms *TestMessageState) GetSigCountMsgID(messages.MsgID) int {
 	panic("unused")
 }
-func (tms *TestMessageState) GetSigCountMsgHeader(header messages.InternalSignedMsgHeader, mc *consinterface.MemCheckers) (int, error) {
+func (tms *TestMessageState) GetSigCountMsgHeader(messages.InternalSignedMsgHeader, *consinterface.MemCheckers) (int, error) {
 	panic("unused")
 }
 
@@ -213,7 +206,7 @@ func (mc *TestMemberChecker) GetMyPriv() sig.Priv {
 	return nil
 }
 
-func (mc *TestMemberChecker) SetMainChannel(channel channelinterface.MainChannel) {}
+func (mc *TestMemberChecker) SetMainChannel(channelinterface.MainChannel) {}
 func (mc *TestMemberChecker) AllowsChange() bool {
 	return false
 }
@@ -226,13 +219,13 @@ func (mc *TestMemberChecker) GetParticipants() sig.PubList {
 func (mc *TestMemberChecker) GetAllPubs() sig.PubList {
 	return nil
 }
-func (mc *TestMemberChecker) GotVrf(pub sig.Pub, isProposal bool, msgID messages.MsgID, proof sig.VRFProof) error {
+func (mc *TestMemberChecker) GotVrf(sig.Pub, bool, messages.MsgID, sig.VRFProof) error {
 	panic("unused")
 }
 func (mc *TestMemberChecker) GetMyVRF(bool, messages.MsgID) sig.VRFProof { return nil }
 
-func (mc *TestMemberChecker) CheckRandMember(pub sig.Pub, hdr messages.InternalSignedMsgHeader,
-	msgID messages.MsgID, isLocal bool) error {
+func (mc *TestMemberChecker) CheckRandMember(sig.Pub, messages.InternalSignedMsgHeader,
+	messages.MsgID, bool) error {
 
 	return nil
 }
@@ -241,29 +234,29 @@ func (mc *TestMemberChecker) SelectRandMembers() bool { return false }
 func (mc *TestMemberChecker) GetNewPub() sig.Pub {
 	return nil
 }
-func (mc *TestMemberChecker) SetStats(stats stats.StatsInterface) {
-}
-func (mc *TestMemberChecker) CheckRoundCoord(msgID messages.MsgID, checkPub sig.Pub,
-	round types.ConsensusRound) (coordPub sig.Pub, err error) {
+func (mc *TestMemberChecker) CheckRoundCoord(messages.MsgID, sig.Pub,
+	types.ConsensusRound) (coordPub sig.Pub, err error) {
 	panic("unused")
 }
 func (mc *TestMemberChecker) GetIndex() types.ConsensusIndex {
 	return mc.index
 }
-func (mc *TestMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, allPubKeys sig.PubList, initRandBytes [32]byte, sh *consinterface.Shared) {
+func (mc *TestMemberChecker) AddPubKeys(sig.Pub, sig.PubList, sig.PubList, [32]byte, *consinterface.Shared) {
 }
 func (mc *TestMemberChecker) GetParticipantCount() int {
 	return 0
 }
-func (mc *TestMemberChecker) CheckRandRoundCoord(msgID messages.MsgID, checkPub sig.Pub,
-	round types.ConsensusRound) (randValue uint64, coordPub sig.Pub, err error) {
+func (mc *TestMemberChecker) CheckRandRoundCoord(messages.MsgID, sig.Pub,
+	types.ConsensusRound) (randValue uint64, coordPub sig.Pub, err error) {
 	return
 }
 func (mc *TestMemberChecker) New(idx types.ConsensusIndex) consinterface.MemberChecker {
 	return &TestMemberChecker{idx}
 }
-func (mc *TestMemberChecker) CheckEstimatedRoundCoordNextIndex(checkPub sig.Pub,
-	round types.ConsensusRound) (coordPub sig.Pub, err error) {
+func (mc *TestMemberChecker) Invalidated() error     { return nil }
+func (mc *TestMemberChecker) GetRnd() (ret [32]byte) { return }
+func (mc *TestMemberChecker) CheckEstimatedRoundCoordNextIndex(sig.Pub,
+	types.ConsensusRound) (coordPub sig.Pub, err error) {
 	return
 }
 func (mc *TestMemberChecker) GetStats() stats.StatsInterface { return nil }
@@ -284,19 +277,20 @@ func (mc *TestMemberChecker) GetFaultCount() int {
 func (mc *TestMemberChecker) CheckMemberBytes(types.ConsensusIndex, sig.PubKeyID) sig.Pub {
 	panic("shouldnt be called")
 }
-func (mc *TestMemberChecker) UpdateState(fixedCoord sig.Pub, prevDec []byte, randBytes [32]byte,
-	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface) (newMemberPubs, newAllPubs []sig.Pub) {
+func (mc *TestMemberChecker) UpdateState(sig.Pub, []byte, [32]byte,
+	consinterface.MemberChecker, consinterface.GeneralStateMachineInterface,
+	types.ConsensusID) (newMemberPubs, newAllPubs []sig.Pub, changedMembership bool) {
 
 	panic("unused")
 }
 func (mc *TestMemberChecker) FinishUpdateState() {
 }
-func (mc *TestMemberChecker) CheckIndex(index types.ConsensusIndex) bool {
+func (mc *TestMemberChecker) CheckIndex(types.ConsensusIndex) bool {
 	return true
 }
 
-func DeserializeMessage(tci *TestConsItem, idx types.ConsensusIndex, msg *messages.Message,
-	mc *consinterface.MemCheckers, ms consinterface.MessageState) ([]*channelinterface.DeserializedItem, error) {
+func DeserializeMessage(_ *TestConsItem, idx types.ConsensusIndex, msg *messages.Message,
+	_ *consinterface.MemCheckers, _ consinterface.MessageState) ([]*deserialized.DeserializedItem, error) {
 
 	tstMsg := &messagetypes.NetworkTestMessage{}
 	var tstMsgTimeout messagetypes.TestMessageTimeout
@@ -311,7 +305,7 @@ func DeserializeMessage(tci *TestConsItem, idx types.ConsensusIndex, msg *messag
 			panic(err)
 			return nil, err
 		}
-		return []*channelinterface.DeserializedItem{
+		return []*deserialized.DeserializedItem{
 			{
 				Index:          idx,
 				HeaderType:     ht,
@@ -324,7 +318,7 @@ func DeserializeMessage(tci *TestConsItem, idx types.ConsensusIndex, msg *messag
 			panic(err)
 			return nil, err
 		}
-		return []*channelinterface.DeserializedItem{
+		return []*deserialized.DeserializedItem{
 			{
 				Index:          idx,
 				HeaderType:     ht,
@@ -338,25 +332,25 @@ func DeserializeMessage(tci *TestConsItem, idx types.ConsensusIndex, msg *messag
 
 type TestSM struct{}
 
-func (TestSM) GetSMStats() consinterface.SMStats                                       { return nil }
-func (TestSM) GetProposal()                                                            {}
-func (TestSM) FinishedLastRound() bool                                                 { return false }
-func (TestSM) HasDecided(proposer sig.Pub, index types.ConsensusInt, decision []byte)  {}
-func (TestSM) StartIndex(index types.ConsensusInt) consinterface.StateMachineInterface { return nil }
-func (TestSM) FailAfter(index types.ConsensusInt)                                      {}
-func (TestSM) Init(generalConfig *generalconfig.GeneralConfig, lastProposal types.ConsensusInt, needsConcurrent types.ConsensusInt,
-	mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
+func (TestSM) GetSMStats() consinterface.SMStats                                 { return nil }
+func (TestSM) GetProposal()                                                      {}
+func (TestSM) FinishedLastRound() bool                                           { return false }
+func (TestSM) HasDecided(sig.Pub, types.ConsensusInt, []byte)                    {}
+func (TestSM) StartIndex(types.ConsensusInt) consinterface.StateMachineInterface { return nil }
+func (TestSM) FailAfter(types.ConsensusInt)                                      {}
+func (TestSM) Init(*generalconfig.GeneralConfig, types.ConsensusInt, types.ConsensusInt,
+	channelinterface.MainChannel, chan channelinterface.ChannelCloseType, bool) {
 }
-func (TestSM) GetByzProposal(originProposal []byte, gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+func (TestSM) GetByzProposal([]byte, *generalconfig.GeneralConfig) (byzProposal []byte) {
 	return
 }
 func (TestSM) GetDone() types.DoneType                                    { return types.NotDone }
 func (TestSM) CheckDecisions([][]byte) (outOfOrderErrors, errors []error) { return }
-func (TestSM) CheckStartStatsRecording(index types.ConsensusInt)          {}
+func (TestSM) CheckStartStatsRecording(types.ConsensusInt)                {}
 func (TestSM) GetIndex() (ret types.ConsensusIndex)                       { return }
-func (TestSM) ValidateProposal(proposer sig.Pub, proposal []byte) error   { return nil }
+func (TestSM) ValidateProposal(sig.Pub, []byte) error                     { return nil }
 func (TestSM) GetInitialState() []byte                                    { return nil }
-func (TestSM) StatsString(testDuration time.Duration) string              { return "" }
+func (TestSM) StatsString(time.Duration) string                           { return "" }
 func (TestSM) GetDecided() bool                                           { return false }
 func (TestSM) GetRand() (ret [32]byte)                                    { return }
 func (TestSM) DoneClear()                                                 {}

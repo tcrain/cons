@@ -94,7 +94,8 @@ type TestOptions struct {
 	ForwardTimeout              int // milliseconds 	// for msg forwarder when you dont receive enough messages to foward a buffer automatically
 	RandForwardTimeout          int // amount of time to randomly add to Forward timeout
 	ProgressTimeout             int // milliseconds, if no progress in this time, let neighbors know
-	MvConsTimeout               int // millseconds timeout when taking an action in the 3 step mv to bin reduction
+	MvConsTimeout               int // millseconds timeout when taking an action in the MV consensus algorithms
+	MvConsVRFTimeout            int // millseconds timeout for waiting for a proposal when VRFs are enabled (only used by MVCons3)
 	MvConsRequestRecoverTimeout int // millseconds timeout before requesting the full proposal after delivering the hash
 
 	NodeChoiceVRFRelaxation int           // Additional chance to chose a node as a member when using VRF.
@@ -125,7 +126,8 @@ func (to TestOptions) String() string {
 		"\n\tStopOnCommit: %v, FixedSeed: %v, EncryptChannels: %v, NoSignatures: %v, Byz procs: %v, ByzType: %s,"+
 		"\n\tCoinType: %v, UseFixedCoinPresets: %v, Sleep Crypto: %v, Share Pubs: %v,  MCType: %v,"+
 		"\n\tSig BitID: %v, MC BitID: %v, WarmUp: %v, KeepPast %v, FwdTimeout: %v, RndFwdTimeout: %v,"+
-		"\n\t ProgressTimeout: %v, MVTimeout: %v, MVRecoverTimeout: %v, NodeVRFRelax: %v, CoordVRF: %v, TestID %v}",
+		"\n\t ProgressTimeout: %v, MVTimeout: %v, MVVRFTimeout: %v, MVRecoverTimeout: %v, NodeVRFRelax: %v,"+
+		"\n\tCoordVRF: %v, TestID %v}",
 		to.ConsType, to.MaxRounds, to.FailRounds, to.NumTotalProcs, to.NumNonMembers, to.NumFailProcs,
 		to.ConnectionType, to.MsgDropPercent, to.NetworkType, to.FanOut, to.StorageType,
 		to.ClearDiskOnRestart, to.IncludeProofs, to.SigType, to.UseMultisig, to.UsePubIndex, to.BufferForwardType,
@@ -136,7 +138,7 @@ func (to TestOptions) String() string {
 		to.EncryptChannels, to.NoSignatures, to.NumByz, to.ByzType, to.CoinType, to.UseFixedCoinPresets,
 		to.SleepCrypto, to.SharePubsRPC, to.MCType,
 		to.SigBitIDType, to.MemCheckerBitIDType, to.WarmUpInstances, to.KeepPast, to.ForwardTimeout, to.RandForwardTimeout, to.ProgressTimeout,
-		to.MvConsTimeout, to.MvConsRequestRecoverTimeout, to.NodeChoiceVRFRelaxation, to.CoordChoiceVRF, to.TestID)
+		to.MvConsTimeout, to.MvConsVRFTimeout, to.MvConsRequestRecoverTimeout, to.NodeChoiceVRFRelaxation, to.CoordChoiceVRF, to.TestID)
 }
 
 func AllowsGetRandBytes(smType StateMachineType) bool {
@@ -188,7 +190,7 @@ func (to TestOptions) AllowsRandMembers(checkerType MemberCheckerType) bool {
 		return false
 	}
 	switch checkerType {
-	case CurrentTrueMC, CurrencyMC:
+	case CurrentTrueMC, LaterMC, CurrencyMC:
 		return true
 	}
 	return false
@@ -339,11 +341,16 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		}
 	}
 
-	if to.RndMemberType == VRFPerCons && to.UseRandCoord {
-		err = fmt.Errorf("rand coord not supported with VRFPerCons")
-		return
+	if to.UseRandCoord {
+		if to.RndMemberType == VRFPerCons {
+			err = fmt.Errorf("rand coord not supported with VRFPerCons")
+			return
+		}
+		if to.RotateCord {
+			err = fmt.Errorf("cannot have random and rotate coord enabled together")
+			return
+		}
 	}
-
 	if to.NoSignatures {
 		switch to.RndMemberType {
 		case VRFPerCons, VRFPerMessage, KnownPerCons:
@@ -427,16 +434,22 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		return
 	}
 
-	if to.MCType == CurrencyMC && to.StateMachineType != CurrencyTxProposer {
-		err = fmt.Errorf("if using CurrencySM, then must use SimpleCurrencyTxProposer state machie")
-		return
+	if to.MCType == CurrencyMC {
+		if to.StateMachineType != CurrencyTxProposer {
+			err = fmt.Errorf("if using CurrencySM, then must use SimpleCurrencyTxProposer state machie")
+			return
+		}
+		if to.CollectBroadcast != Full {
+			err = fmt.Errorf("TODO allow collect broadcast the currency proposer (we need to be able to tenatively predict the next coordinator from the current proposal state)")
+			return
+		}
 	}
 
 	if consProcs < 4 {
 		err = fmt.Errorf("must have at least 4 consensus participants")
 		return
 	}
-	if to.AllowConcurrent > 1 && to.MCType != TrueMC {
+	if to.AllowConcurrent > 1 && (to.MCType != TrueMC || to.RndMemberType != NonRandom) {
 		err = fmt.Errorf("must use static membership for concurrent consensus")
 		return
 	}
@@ -612,21 +625,25 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		err = fmt.Errorf("Multisig must be used with use pub index")
 		return
 	}
-	if consType == MvCons3Type && (config.KeepFuture < 5) {
-		err = fmt.Errorf("when using MvCons3 generalconfig.KeepFuture must be at least 5")
-		return
-	}
-	if consType == MvCons3Type && (to.AllowConcurrent != 0) {
-		err = fmt.Errorf("when using MvCons3 AllowConcurrent must be 0")
-		return
-	}
-	if consType == MvCons3Type && !(to.MCType == TrueMC) {
-		err = fmt.Errorf("when using MvCons3 must use true memberchecker TrueMC")
-		return
-	}
-	if consType == MvCons3Type && (to.RotateCord || to.RndMemberType != NonRandom || to.UseRandCoord) {
-		err = fmt.Errorf("must set rotateCord to false and disable random membership when using MvCons3")
-		return
+	if consType == MvCons3Type {
+		if config.KeepFuture < 5 {
+			err = fmt.Errorf("when using MvCons3 generalconfig.KeepFuture must be at least 5")
+			return
+		}
+		if to.AllowConcurrent != 0 {
+			err = fmt.Errorf("when using MvCons3 AllowConcurrent must be 0")
+			return
+		}
+		switch to.MCType {
+		case TrueMC, LaterMC: // ok
+		default:
+			err = fmt.Errorf("when using MvCons3 must use true memberchecker TrueMC or LaterMC")
+			return
+		}
+		if to.CollectBroadcast != Full && (to.RotateCord || to.RndMemberType != NonRandom || to.UseRandCoord) {
+			err = fmt.Errorf("must set rotateCord to false and disable random membership when using MvCons3")
+			return
+		}
 	}
 	if to.OrderingType == Causal {
 		if to.RotateCord {
@@ -639,6 +656,10 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		}
 		if to.ByzType != NonFaulty {
 			err = fmt.Errorf("TODO") // TODO
+			return
+		}
+		if to.MCType == LaterMC {
+			err = fmt.Errorf("LaterMC only compatible with total ordering")
 			return
 		}
 	}

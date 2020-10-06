@@ -25,6 +25,7 @@ package forwardchecker
 import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/stats"
 	"github.com/tcrain/cons/consensus/types"
@@ -57,8 +58,8 @@ type internalForwardChecker interface {
 // buffMsg tracks a set of messaged to be forwarded, based on their messages.MsgID.
 // (i.e. there will be one of these object per unique messages.MsgID)
 type buffMsg struct {
-	msgID messages.MsgID                       // the msgID
-	msgs  []*channelinterface.DeserializedItem // the set of messages
+	msgID messages.MsgID                   // the msgID
+	msgs  []*deserialized.DeserializedItem // the set of messages
 
 	count         int       // number of signatures the message has
 	sendTime      time.Time // last time the message was send
@@ -112,7 +113,7 @@ func (fwd *absBufferForwarder) ConsDecided(stats.NwStatsInterface) {
 // It keeps track of the messages received so far based on messages.MsgID.
 func (fwd *absBufferForwarder) CheckForward(
 	sndRcvChan *channelinterface.SendRecvChannel,
-	msg *channelinterface.DeserializedItem,
+	msg *deserialized.DeserializedItem,
 	shouldForward bool,
 	isProposalMessage bool,
 	endThreshold, maxPossible, sigCount int,
@@ -171,7 +172,7 @@ func (fwd *absBufferForwarder) CheckForward(
 // Messages are forwareded when they have reached a threshold based on their result of ContItem.GetBufferCount, or if they have not reached
 // the next threshold after a timeout. It returns nil for msgs if there are no messages ready to be forwarded.
 func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) (
-	msgs []*channelinterface.DeserializedItem,
+	msgs []*deserialized.DeserializedItem,
 	forwardFunc channelinterface.NewForwardFuncFilter) {
 
 	for _, nxt := range fwd.buffMsgList {
@@ -266,7 +267,7 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 // it is processed.
 type absDirectForwarder struct {
 	internalForwardChecker
-	msg        *channelinterface.DeserializedItem
+	msg        *deserialized.DeserializedItem
 	sndRcvChan *channelinterface.SendRecvChannel
 }
 
@@ -294,7 +295,7 @@ func (fwd *absDirectForwarder) ConsDecided(stats.NwStatsInterface) {
 // It expects GetNextForwardItem to be called before CheckForward is called again.
 func (fwd *absDirectForwarder) CheckForward(
 	sndRcvChan *channelinterface.SendRecvChannel,
-	msg *channelinterface.DeserializedItem,
+	msg *deserialized.DeserializedItem,
 	shouldForward bool,
 	isProposalMessage bool,
 	endThreshold, maxPossible, sigCount int,
@@ -318,11 +319,11 @@ func (fwd *absDirectForwarder) CheckForward(
 // GetNextFowardItem returns the last message that was called with CheckForward
 // if forwarding is enabled.
 func (fwd *absDirectForwarder) GetNextForwardItem(_ stats.NwStatsInterface) (
-	msg []*channelinterface.DeserializedItem,
+	msg []*deserialized.DeserializedItem,
 	forwardFunc channelinterface.NewForwardFuncFilter) {
 
 	if fwd.msg != nil {
-		msg = []*channelinterface.DeserializedItem{fwd.msg}
+		msg = []*deserialized.DeserializedItem{fwd.msg}
 	}
 	fwd.msg = nil
 	fwd.sndRcvChan = nil
@@ -374,7 +375,7 @@ func (fwd *AllToAllForwarder) newInternal() internalForwardChecker {
 // CheckForward does nothing for the AllToAllForwarder.
 func (fwd *AllToAllForwarder) CheckForward(
 	sndRcvChan *channelinterface.SendRecvChannel,
-	msg *channelinterface.DeserializedItem,
+	msg *deserialized.DeserializedItem,
 	shouldForward bool,
 	isProposalMessage bool,
 	endThreshold, maxPossible, sigCount int,
@@ -388,7 +389,7 @@ func (fwd *AllToAllForwarder) CheckForward(
 
 // GetNextForwardItem always returns a nil result for the AllToAllForwarder.
 func (fwd *AllToAllForwarder) GetNextForwardItem(_ stats.NwStatsInterface) (
-	msg []*channelinterface.DeserializedItem,
+	msg []*deserialized.DeserializedItem,
 	forwardFunc channelinterface.NewForwardFuncFilter) {
 
 	// no forwarding in all to all

@@ -42,6 +42,10 @@ type absRoundKnownMemberChecker struct {
 	cidrand *absRandCoordByID
 }
 
+func (arm *absRoundKnownMemberChecker) GetRnd() [32]byte {
+	return arm.rnd
+}
+
 func initAbsRoundKnownMemberChecker(priv sig.Priv, stats stats.StatsInterface,
 	gc *generalconfig.GeneralConfig) *absRoundKnownMemberChecker {
 

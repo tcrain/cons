@@ -22,8 +22,8 @@ package strongcoin2echo
 import (
 	"fmt"
 	"github.com/tcrain/cons/config"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -44,7 +44,7 @@ type roundInfo struct {
 
 // CheckFinishedMessage checks if the message is for the coin and if the coin is already known.
 // If so true is returned, false otherwise.
-func (sms *MsgState) CheckFinishedMessage(deser *channelinterface.DeserializedItem) bool {
+func (sms *MsgState) CheckFinishedMessage(deser *deserialized.DeserializedItem) bool {
 
 	if deser.HeaderType == messages.HdrCoin {
 		round := deser.Header.(messages.InternalSignedMsgHeader).GetBaseMsgHeader().(*messagetypes.CoinMessage).Round
@@ -134,7 +134,7 @@ func (sms *MsgState) GetCoinSignType() types.SignType {
 
 // GotMsg processes messages of type CoinMessage. Once an n-t threshold of these messages have been received
 // from different processes the value of the coin is revealed.
-func (sms *MsgState) GotMsg(msgState consinterface.MessageState, deser *channelinterface.DeserializedItem,
+func (sms *MsgState) GotMsg(msgState consinterface.MessageState, deser *deserialized.DeserializedItem,
 	gc *generalconfig.GeneralConfig, mc *consinterface.MemCheckers) (types.ConsensusRound, error) {
 
 	sms.mutex.Lock()

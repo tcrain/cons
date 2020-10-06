@@ -22,8 +22,8 @@ package mvcons2
 import (
 	"bytes"
 	"github.com/stretchr/testify/assert"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/stats"
 	"testing"
@@ -100,9 +100,9 @@ func createMvConsTestItems(keyIndex int, privKeys []sig.Priv, pubKeys []sig.Pub,
 }
 
 func createMvSendItems(hdrType messages.HeaderID, idx types.ConsensusIndex, round types.ConsensusRound, proposal []byte,
-	bct cons.ConsTestItems, t *testing.T) []*channelinterface.DeserializedItem {
+	bct cons.ConsTestItems, t *testing.T) []*deserialized.DeserializedItem {
 
-	ret := make([]*channelinterface.DeserializedItem, len(bct.PrivKeys))
+	ret := make([]*deserialized.DeserializedItem, len(bct.PrivKeys))
 	var hash types.HashBytes
 	if proposal == nil {
 		hash = types.GetZeroBytesHashLength()
@@ -158,7 +158,7 @@ func createMvSendItems(hdrType messages.HeaderID, idx types.ConsensusIndex, roun
 			t.Error(err)
 		}
 
-		ret[i] = &channelinterface.DeserializedItem{
+		ret[i] = &deserialized.DeserializedItem{
 			Index:          idx,
 			HeaderType:     hdrType,
 			Header:         smd,
@@ -274,7 +274,7 @@ func TestMvCons2UnitProcessMsg1(t *testing.T) {
 	if !bct.bcons.HasDecided() {
 		t.Error("should have decided")
 	}
-	_, decision, _ := bct.bcons.GetDecision()
+	_, decision, _, _ := bct.bcons.GetDecision()
 	if !bytes.Equal(decision, mvConsTestProposal) {
 		t.Errorf("should have decided %v, but decided %v", mvConsTestProposal, decision)
 	}
@@ -369,7 +369,7 @@ func TestMvCons2UnitProcessMsgNoProposal(t *testing.T) {
 	if !bct.bcons.HasDecided() {
 		t.Error("should have decided")
 	}
-	_, decision, _ := bct.bcons.GetDecision()
+	_, decision, _, _ := bct.bcons.GetDecision()
 	if !bytes.Equal(decision, mvConsTestProposal) {
 		t.Errorf("should have decided %v, but decided %v", mvConsTestProposal, decision)
 	}
@@ -393,7 +393,7 @@ func TestMvCons2UnitProcessMsg0(t *testing.T) {
 	// No proposal
 	// No echos
 	// Just the echo timeout, this can happen when we didn't get enough equal echos before the timeout
-	deser := &channelinterface.DeserializedItem{
+	deser := &deserialized.DeserializedItem{
 		Index:          idx,
 		HeaderType:     messages.HdrMvEchoTimeout,
 		Header:         (messagetypes.MvEchoMessageTimeout)(0),
@@ -413,7 +413,7 @@ func TestMvCons2UnitProcessMsg0(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		// commit timeout so we advance to round 1
 		// Just the commit timeout
-		deser = &channelinterface.DeserializedItem{
+		deser = &deserialized.DeserializedItem{
 			Index:          idx,
 			HeaderType:     messages.HdrMvCommitTimeout,
 			Header:         (messagetypes.MvCommitMessageTimeout)(0),
@@ -516,7 +516,7 @@ func TestMvCons2UnitProcessMsg0(t *testing.T) {
 		if !bct[i].bcons.HasDecided() {
 			t.Error("should have decided")
 		}
-		_, decision, _ := bct[i].bcons.GetDecision()
+		_, decision, _, _ := bct[i].bcons.GetDecision()
 		if !bytes.Equal(decision, mvConsTestProposal) {
 			t.Errorf("should have decided %v, but decided %v", mvConsTestProposal, decision)
 		}

@@ -26,6 +26,7 @@ import (
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -36,12 +37,12 @@ import (
 type RbBcast2 struct {
 	cons.AbsConsItem
 	cons.AbsMVRecover
-	myProposal          *messagetypes.MvProposeMessage                       // My proposal for this bcast
-	decisionHash        types.HashStr                                        // the hash of the decided value
-	decisionHashBytes   types.HashBytes                                      // the hash of the decided value
-	decisionInitMsg     *messagetypes.MvInitMessage                          // the actual decided value (should be same as proposal if nonfaulty coord)
-	decisionPub         sig.Pub                                              // the pub of the decisionInitMsg
-	validatedInitHashes map[types.HashStr]*channelinterface.DeserializedItem // hashes of init messages that have been validated by the state machine
+	myProposal          *messagetypes.MvProposeMessage                   // My proposal for this bcast
+	decisionHash        types.HashStr                                    // the hash of the decided value
+	decisionHashBytes   types.HashBytes                                  // the hash of the decided value
+	decisionInitMsg     *messagetypes.MvInitMessage                      // the actual decided value (should be same as proposal if nonfaulty coord)
+	decisionPub         sig.Pub                                          // the pub of the decisionInitMsg
+	validatedInitHashes map[types.HashStr]*deserialized.DeserializedItem // hashes of init messages that have been validated by the state machine
 	sentEcho            bool
 	sentCommit          bool
 	includeProofs       bool // if true then we should include proofs with our commit messages
@@ -63,7 +64,7 @@ func (*RbBcast2) GenerateNewItem(index types.ConsensusIndex, items *consinterfac
 	newItem := &RbBcast2{AbsConsItem: newAbsItem}
 	items.ConsItem = newItem
 	newItem.includeProofs = gc.Eis.(cons.ConsInitState).IncludeProofs
-	newItem.validatedInitHashes = make(map[types.HashStr]*channelinterface.DeserializedItem)
+	newItem.validatedInitHashes = make(map[types.HashStr]*deserialized.DeserializedItem)
 	newItem.InitAbsMVRecover(index, gc)
 
 	return newItem
@@ -218,17 +219,18 @@ func (sc *RbBcast2) HasDecided() bool {
 }
 
 // GetDecision returns the decided value as a byte slice.
-func (sc *RbBcast2) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
+func (sc *RbBcast2) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
 	if sc.decisionInitMsg != nil {
 		if len(sc.decisionInitMsg.Proposal) == 0 {
 			panic(sc.Index)
 		}
-		var retIdx types.ConsensusIndex
+		var retIdx, futureIdx types.ConsensusIndex
 		switch v := sc.Index.Index.(type) {
 		case types.ConsensusInt:
 			retIdx = types.SingleComputeConsensusIDShort(v - 1)
+			futureIdx = types.SingleComputeConsensusIDShort(v + 1)
 		}
-		return sc.decisionPub, sc.decisionInitMsg.Proposal, retIdx
+		return sc.decisionPub, sc.decisionInitMsg.Proposal, retIdx, futureIdx
 	}
 	panic("should have decided")
 }
@@ -301,7 +303,7 @@ func (sc *RbBcast2) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pu
 // messages.HdrMvRequestRecover a node terminated bin cons with 1, but didn't get the init message, so if we have it we send it.
 // messages.HdrMvRecoverTimeout if a node terminated bin cons with 1, but didn't get the init mesage this timeout is started, once it runs out, we ask other nodes to send the init message.
 func (sc *RbBcast2) ProcessMessage(
-	deser *channelinterface.DeserializedItem,
+	deser *deserialized.DeserializedItem,
 	isLocal bool,
 	senderChan *channelinterface.SendRecvChannel) (bool, bool) {
 
@@ -414,7 +416,7 @@ func (sc *RbBcast2) checkProgress(t, nmt int, mainChannel channelinterface.MainC
 		// request recover if needed
 		if initMsg := sc.validatedInitHashes[sc.decisionHash]; initMsg == nil {
 			// we haven't yet received the init message for the hash, so we request it from other nodes after a timeout
-			sc.StartRecoverTimeout(sc.Index, mainChannel)
+			sc.StartRecoverTimeout(sc.Index, mainChannel, sc.ConsItems.MC)
 		} else {
 			// we have the init message so we decide
 			sc.decisionInitMsg = initMsg.Header.(messages.InternalSignedMsgHeader).GetBaseMsgHeader().(*messagetypes.MvInitMessage)

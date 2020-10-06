@@ -32,12 +32,12 @@ import (
 	"github.com/tcrain/cons/consensus/cons/bincons1"
 	"github.com/tcrain/cons/consensus/cons/binconsrnd1"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/types"
-	"sort"
 )
 
 // MvCons1 is a simple leader-based multi-value to binary consensus reduction using BinCons1.
@@ -51,15 +51,15 @@ import (
 type MvCons1 struct {
 	cons.AbsConsItem
 	cons.AbsMVRecover
-	binCons             cons.BinConsInterface                                // the binary consensus object
-	decisionHash        types.HashStr                                        // the hash of the decided value
-	decisionInitMsg     *messagetypes.MvInitMessage                          // the actual decided value (should be same as proposal if nonfaulty coord)
-	proposerPub         sig.Pub                                              // the public key of the proposer of the decided message
-	sentEcho            bool                                                 // true if an echo message was sent
-	zeroHash            types.HashBytes                                      // if we don't receive an init message after the timeout we just send a zero hash to let others know we didn't receive anything
-	validatedInitHashes map[types.HashStr]*channelinterface.DeserializedItem // hashes of init messages that have been validated by the state machine
-	sortedInitHashes    cons.DeserSortVRF                                    // valid init messages sorted by VRFID, used when random member selection is enabled
-	includeProofs       bool                                                 // true if the binary consensus should include proofs that messages are valid
+	binCons             cons.BinConsInterface                            // the binary consensus object
+	decisionHash        types.HashStr                                    // the hash of the decided value
+	decisionInitMsg     *messagetypes.MvInitMessage                      // the actual decided value (should be same as proposal if nonfaulty coord)
+	proposerPub         sig.Pub                                          // the public key of the proposer of the decided message
+	sentEcho            bool                                             // true if an echo message was sent
+	zeroHash            types.HashBytes                                  // if we don't receive an init message after the timeout we just send a zero hash to let others know we didn't receive anything
+	validatedInitHashes map[types.HashStr]*deserialized.DeserializedItem // hashes of init messages that have been validated by the state machine
+	sortedInitHashes    cons.DeserSortVRF                                // valid init messages sorted by VRFID, used when random member selection is enabled
+	includeProofs       bool                                             // true if the binary consensus should include proofs that messages are valid
 
 	initTimer        channelinterface.TimerInterface // timer for the init message
 	echoTimer        channelinterface.TimerInterface // timer for the echo messages
@@ -118,7 +118,7 @@ func (*MvCons1) GenerateNewItem(index types.ConsensusIndex, items *consinterface
 	newItem.binCons = binConsItem.GenerateNewItem(index, items, mainChannel,
 		prevItem, broadcastFunc, gc).(cons.BinConsInterface)
 
-	newItem.validatedInitHashes = make(map[types.HashStr]*channelinterface.DeserializedItem)
+	newItem.validatedInitHashes = make(map[types.HashStr]*deserialized.DeserializedItem)
 	newItem.InitAbsMVRecover(index, gc)
 	items.ConsItem = newItem
 
@@ -196,8 +196,6 @@ func (sc *MvCons1) checkSendEcho() {
 			!selectRandMembers) { // (b) we are not selecting random members
 
 		// send an echo message containing the hash of the proposal
-		sort.Sort(sc.sortedInitHashes)
-		// sc.sentEcho = true
 		w := sc.sortedInitHashes[0].Header.(*sig.MultipleSignedMessage)
 		proposalHash := types.GetHash(w.GetBaseMsgHeader().(*messagetypes.MvInitMessage).Proposal)
 		sc.broadcastEcho(proposalHash, sc.MainChannel)
@@ -239,7 +237,7 @@ func (sc *MvCons1) checkSendEcho() {
 // messages.HdrMvRecoverTimeout if a node terminated bin cons with 1, but didn't get the init mesage this timeout is started, once it runs out, we ask other nodes to send the init message.
 // messages.HdrAuxProof messages are passed to the binray cons object.
 func (sc *MvCons1) ProcessMessage(
-	deser *channelinterface.DeserializedItem,
+	deser *deserialized.DeserializedItem,
 	isLocal bool,
 	senderChan *channelinterface.SendRecvChannel) (bool, bool) {
 
@@ -403,7 +401,7 @@ func (sc *MvCons1) checkEchoState(t, nmt int, mainChannel channelinterface.MainC
 						logging.Infof("Got mv delivery at index %v", sc.Index)
 						sc.stopTimers()
 					} else {
-						sc.StartRecoverTimeout(sc.Index, mainChannel)
+						sc.StartRecoverTimeout(sc.Index, mainChannel, sc.ConsItems.MC)
 					}
 				}
 			}
@@ -572,15 +570,16 @@ func (sc *MvCons1) HasDecided() bool {
 
 // GetDecision returns the decided value as a byte slice,
 // or nil if a nil value was decided
-func (sc *MvCons1) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
+func (sc *MvCons1) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
+	prv := types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1)
+	fut := types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) + 1)
 	switch dec, _ := sc.binCons.GetBinDecided(); dec {
 	case 0:
 		// we decided nil
-		return nil, nil, types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1)
+		return nil, nil, prv, fut
 	case 1:
 		if sc.decisionInitMsg != nil {
-			return sc.proposerPub, sc.decisionInitMsg.Proposal,
-				types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1)
+			return sc.proposerPub, sc.decisionInitMsg.Proposal, prv, fut
 		}
 	}
 	panic("should have decided")

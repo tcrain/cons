@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/storage"
@@ -95,8 +96,8 @@ type CausalConsInterfaceState struct {
 	// TODO should GC for invalid indices, now they are kept in case they are for an instance not yet generated
 	futureMessages map[types.ConsensusHash][]*channelinterface.RcvMsg
 
-	LastDecided types.ParentConsensusHash // TODO
-
+	DecidedMap  map[types.ParentConsensusHash]bool // TODO clean this up
+	LastDecided types.ParentConsensusHash
 }
 
 func NewCausalConsInterfaceState(initItem ConsItem,
@@ -137,6 +138,7 @@ func NewCausalConsInterfaceState(initItem ConsItem,
 
 	// we keep a map from idx to its decided child idxs for recovery (that we don't GC), TODO find a way to keep this on disk
 	mcs.parentToChildConsumers = make(map[types.ParentConsensusHash][]types.ParentConsensusHash)
+	mcs.DecidedMap = make(map[types.ParentConsensusHash]bool)
 
 	return mcs
 }
@@ -174,7 +176,7 @@ func (mcs *CausalConsInterfaceState) AddFutureMessage(rcvMsg *channelinterface.R
 		}
 		if !found {
 			mcs.mainChannel.ReprocessMessage(
-				&channelinterface.RcvMsg{CameFrom: 34, Msg: []*channelinterface.DeserializedItem{nxtMsg},
+				&channelinterface.RcvMsg{CameFrom: 34, Msg: []*deserialized.DeserializedItem{nxtMsg},
 					SendRecvChan: rcvMsg.SendRecvChan, IsLocal: rcvMsg.IsLocal})
 		}
 	}
@@ -185,7 +187,7 @@ func (mcs *CausalConsInterfaceState) GetGeneralConfig() *generalconfig.GeneralCo
 	return mcs.gc
 }
 
-func (mcs *CausalConsInterfaceState) checkMsgHashes(item *channelinterface.DeserializedItem) error {
+func (mcs *CausalConsInterfaceState) checkMsgHashes(item *deserialized.DeserializedItem) error {
 	if mcs.IsInStorageInit {
 		return nil // in loading from disk so ok
 	}
@@ -258,7 +260,7 @@ func (mcs *CausalConsInterfaceState) GetConsensusIndexFuncs() types.ConsensusInd
 // If it is ready then true is returned.
 // If there is an error processing the message then an error is returned.
 // It validates the sent value with each of the hashes given by the signed message in indices and AdditionalIndices
-func (mcs *CausalConsInterfaceState) CheckValidateProposal(item *channelinterface.DeserializedItem,
+func (mcs *CausalConsInterfaceState) CheckValidateProposal(item *deserialized.DeserializedItem,
 	sendRecvChan *channelinterface.SendRecvChannel, isLocal bool) (readyToProcess bool, err error) {
 
 	if msm, ok := item.Header.(*sig.MultipleSignedMessage); ok { // is this a signed message?
@@ -306,7 +308,7 @@ func (mcs *CausalConsInterfaceState) CheckValidateProposal(item *channelinterfac
 					mcs.ProposalsToValidate[nxtIdx.(types.ConsensusHash)] =
 						append(mcs.ProposalsToValidate[nxtIdx.(types.ConsensusHash)],
 							&channelinterface.RcvMsg{SendRecvChan: sendRecvChan, IsLocal: isLocal,
-								Msg: []*channelinterface.DeserializedItem{item}})
+								Msg: []*deserialized.DeserializedItem{item}})
 					return false, nil
 				}
 				if i+1 < len(msm.Index.AdditionalIndices) {
@@ -401,6 +403,9 @@ func (mcs *CausalConsInterfaceState) InitSM(initSM CausalStateMachineInterface) 
 
 	initDepHashes := make([]types.ConsensusHash, len(initDependentItems))
 	for i, nxt := range initDependentItems {
+		if nxt.Pub == nil {
+			panic("should not be nil")
+		}
 		initDepHashes[i] = nxt.ID.(types.ConsensusHash)
 		mcs.childToParentMap[initDepHashes[i]] = initParentIdx
 		mcs.outputToOwner[initDepHashes[i]] = nxt.Pub
@@ -473,8 +478,7 @@ func (mcs *CausalConsInterfaceState) GetConsItem(idx types.ConsensusIndex) (Cons
 	return items.ConsItem, nil
 }
 
-func (mcs *CausalConsInterfaceState) CheckGenMemberChecker(idx types.ConsensusIndex) (
-	*MemCheckers, MessageState, ForwardChecker, error) {
+func (mcs *CausalConsInterfaceState) CheckGenMemberChecker(idx types.ConsensusIndex) (*ConsInterfaceItems, error) {
 
 	mcs.mutex.Lock()
 	defer mcs.mutex.Unlock()
@@ -484,8 +488,7 @@ func (mcs *CausalConsInterfaceState) CheckGenMemberChecker(idx types.ConsensusIn
 
 // GetMemberChecker returns the member checkers, messages state, and forward checker for the given index.
 // If useLock is true, then accesses are protected by a lock.
-func (mcs *CausalConsInterfaceState) GetMemberChecker(cid types.ConsensusIndex) (*MemCheckers,
-	MessageState, ForwardChecker, error) {
+func (mcs *CausalConsInterfaceState) GetMemberChecker(cid types.ConsensusIndex) (*ConsInterfaceItems, error) {
 
 	if mcs.mainChannel == nil {
 		panic("must set main channel")
@@ -508,10 +511,10 @@ func (mcs *CausalConsInterfaceState) GetMemberChecker(cid types.ConsensusIndex) 
 		if items.MC.MC.GetIndex().Index != idx {
 			panic(fmt.Sprintf("got wrong index %v, expected %v", items.MC.MC.GetIndex(), idx))
 		}
-		return items.MC, items.MsgState, items.FwdChecker, nil
+		return items, nil
 	}
 	// mcs.genIndex()
-	return nil, nil, nil, types.ErrInvalidIndex
+	return nil, types.ErrInvalidIndex
 }
 
 func (mcs *CausalConsInterfaceState) recGenChildInd(itm types.ParentConsensusHash,
@@ -611,6 +614,7 @@ func (mcs *CausalConsInterfaceState) DoneIndex(cid types.ConsensusIndex,
 	decidedIndex := types.ParentConsensusHash(cid.Index.(types.ConsensusHash))
 
 	mcs.LastDecided = decidedIndex // TODO
+	mcs.DecidedMap[decidedIndex] = true
 
 	// Let the member checker know we are done generating new items from it since this index decided
 	// by calling DoneNextUpdateState
@@ -794,8 +798,7 @@ func (mcs *CausalConsInterfaceState) getIndex(itemIndex types.ParentConsensusHas
 	return nil
 }
 
-func (mcs *CausalConsInterfaceState) genIndex(idx types.ConsensusIndex) (*MemCheckers,
-	MessageState, ForwardChecker, error) {
+func (mcs *CausalConsInterfaceState) genIndex(idx types.ConsensusIndex) (*ConsInterfaceItems, error) {
 
 	itemIndex := types.ParentConsensusHash(idx.Index.(types.ConsensusHash))
 	firstIndex := idx.FirstIndex.(types.ConsensusHash)
@@ -812,14 +815,14 @@ func (mcs *CausalConsInterfaceState) genIndex(idx types.ConsensusIndex) (*MemChe
 	if item := mcs.consItemsMap[itemIndex]; item != nil {
 		// TODO is there a check that needs to happen here?
 		// panic("cons item already allocated")
-		return item.MC, item.MsgState, item.FwdChecker, nil
+		return item, nil
 	}
 
 	var ok bool
 	var parIdx types.ParentConsensusHash
 	if parIdx, ok = mcs.childToParentMap[firstIndex]; !ok {
 		// panic("didn't find parent nxtIdx")
-		return nil, nil, nil, types.ErrParentNotFound
+		return nil, types.ErrParentNotFound
 	}
 	var parItem *ConsInterfaceItems
 	if parItem, ok = mcs.consItemsMap[parIdx]; !ok {
@@ -847,12 +850,12 @@ func (mcs *CausalConsInterfaceState) genIndex(idx types.ConsensusIndex) (*MemChe
 		var pi types.ParentConsensusHash
 		var ok bool
 		if pi, ok = mcs.childToParentMap[nxtIdx.(types.ConsensusHash)]; !ok {
-			return nil, nil, nil, types.ErrParentNotFound
+			return nil, types.ErrParentNotFound
 			// panic("didn't find parent nxtIdx")
 		}
 		// check the owners are all the same
 		if !sig.CheckPubsEqual(owner, mcs.outputToOwner[nxtIdx.(types.ConsensusHash)]) {
-			return nil, nil, nil, types.ErrNotOwner
+			return nil, types.ErrNotOwner
 		}
 		if _, ok = mcs.consItemsMap[pi]; !ok {
 			panic("didn't find parent item") // sanity check
@@ -902,9 +905,9 @@ func (mcs *CausalConsInterfaceState) genIndex(idx types.ConsensusIndex) (*MemChe
 	if parIdx == mcs.initHash {
 		dec = mcs.initSM.GetInitialState()
 	} else {
-		_, dec, _ = parItem.ConsItem.GetDecision()
+		_, dec, _, _ = parItem.ConsItem.GetDecision()
 	}
-	newPubs, _ := item.MC.MC.UpdateState(owner, dec, randBytes, parItem.MC.MC, parSM)
+	newPubs, _, _ := item.MC.MC.UpdateState(owner, dec, randBytes, parItem.MC.MC, parSM, nil)
 	if newPubs != nil && item.MC.MC.IsReady() {
 		panic("Member checker should not be ready if the members change until, FinishUpdateStateIsCalled")
 	}
@@ -942,7 +945,7 @@ func (mcs *CausalConsInterfaceState) genIndex(idx types.ConsensusIndex) (*MemChe
 	}
 
 	// return item
-	return item.MC, item.MsgState, item.FwdChecker, nil
+	return item, nil
 }
 
 // getUnconsumedOutputs returns the unconsumed outputs for the given consensus item.

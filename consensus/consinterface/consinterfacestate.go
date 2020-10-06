@@ -24,9 +24,11 @@ import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/types"
+	"sort"
 	"sync"
 	"time"
 
@@ -35,11 +37,11 @@ import (
 )
 
 type ConsStateInterface interface {
-	GetMemberChecker(cid types.ConsensusIndex) (*MemCheckers, MessageState, ForwardChecker, error)
-	GetConsItem(idIdx types.ConsensusIndex) (ConsItem, error)
+	GetMemberChecker(cid types.ConsensusIndex) (*ConsInterfaceItems, error)
+	// GetConsItem(idIdx types.ConsensusIndex) (ConsItem, error)
 	GetNewPub() sig.Pub
 	GetGeneralConfig() *generalconfig.GeneralConfig
-	CheckGenMemberChecker(cid types.ConsensusIndex) (*MemCheckers, MessageState, ForwardChecker, error)
+	CheckGenMemberChecker(cid types.ConsensusIndex) (*ConsInterfaceItems, error)
 	GetConsensusIndexFuncs() types.ConsensusIndexFuncs
 	SetMainChannel(mainChannel channelinterface.MainChannel)
 }
@@ -79,6 +81,8 @@ type ConsInterfaceState struct {
 	GotProposal         map[types.ConsensusInt]bool                       // set to true if received a proposal for the index
 	ProposalsToValidate map[types.ConsensusInt][]*channelinterface.RcvMsg // set of proposals to be validated
 
+	lastMCInputIndex types.ConsensusInt // Largest index where a decision was last input into a member checker
+
 	mutex         sync.Mutex // concurrency control
 	emptyPub      sig.Pub    // Will be used to create empty public key objects
 	broadcastFunc ByzBroadcastFunc
@@ -87,6 +91,8 @@ type ConsInterfaceState struct {
 	collectedIndex  types.ConsensusInt   // garbage collected up to this index
 	IsInStorageInit bool                 // Used during initialization, when recovering from disk this is set to true so we don't send messages when we reply to values received.
 	genRandBytes    bool                 // Only works if GenRandBytes is ture. This uses NumTotalProcs and NumNonMembers to randomly decide which nodes will participate.
+
+	SharedLock sync.Mutex // Shared with cons item
 }
 
 type ConsInterfaceItems struct {
@@ -142,6 +148,7 @@ func NewConsInterfaceState(initItem ConsItem,
 	mcs.firstItem = 1
 	mcs.lastItem = 1
 	mcs.gcUpTo = 1
+	mcs.lastMCInputIndex = 1
 
 	mcs.initMemberChecker = initMemberChecker
 	mcs.initSpecialMemberChecker = initSpecialMemberChecker
@@ -189,7 +196,7 @@ func (mcs *ConsInterfaceState) GetConsensusIndexFuncs() types.ConsensusIndexFunc
 // If it is ready then true is returned.
 // If there is an error processing the message then an error is returned.
 // This should only be called from the main message thread.
-func (mcs *ConsInterfaceState) CheckValidateProposal(item *channelinterface.DeserializedItem,
+func (mcs *ConsInterfaceState) CheckValidateProposal(item *deserialized.DeserializedItem,
 	sendRecvChan *channelinterface.SendRecvChannel, isLocal bool) (readyToProcess bool, err error) {
 
 	if msm, ok := item.Header.(*sig.MultipleSignedMessage); ok { // is this a signed message?
@@ -216,7 +223,7 @@ func (mcs *ConsInterfaceState) CheckValidateProposal(item *channelinterface.Dese
 				logging.Warningf("need to validate proposal later support idx %v, idx %v, decided %v", supIdx, item.Index, mcs.LocalIndex)
 				mcs.ProposalsToValidate[supIdx] = append(mcs.ProposalsToValidate[supIdx],
 					&channelinterface.RcvMsg{SendRecvChan: sendRecvChan, IsLocal: isLocal,
-						Msg: []*channelinterface.DeserializedItem{item}})
+						Msg: []*deserialized.DeserializedItem{item}})
 				return false, nil
 			}
 			switch pi.GetDone() {
@@ -287,7 +294,7 @@ func (mcs *ConsInterfaceState) Reset() {
 	mcs.mutex.Unlock()
 }*/
 
-func (mcs *ConsInterfaceState) GetConsItem(idIdx types.ConsensusIndex) (ConsItem, error) {
+/*func (mcs *ConsInterfaceState) GetConsItem(idIdx types.ConsensusIndex) (ConsItem, error) {
 	if mcs.mainChannel == nil {
 		panic("must set main channel")
 	}
@@ -306,8 +313,8 @@ func (mcs *ConsInterfaceState) GetConsItem(idIdx types.ConsensusIndex) (ConsItem
 	items.MC.MC.CheckIndex(items.ConsItem.GetIndex())
 	return items.ConsItem, nil
 }
-
-func (mcs *ConsInterfaceState) CheckGenMemberChecker(cid types.ConsensusIndex) (*MemCheckers, MessageState, ForwardChecker, error) {
+*/
+func (mcs *ConsInterfaceState) CheckGenMemberChecker(cid types.ConsensusIndex) (*ConsInterfaceItems, error) {
 
 	// nothing to do here, items are generated in GetMemberChecker
 	return mcs.GetMemberChecker(cid)
@@ -315,7 +322,7 @@ func (mcs *ConsInterfaceState) CheckGenMemberChecker(cid types.ConsensusIndex) (
 
 // GetMemberChecker returns the member checkers, messages state, and forward checker for the given index.
 // If useLock is true, then accesses are protected by a lock.
-func (mcs *ConsInterfaceState) GetMemberChecker(cid types.ConsensusIndex) (*MemCheckers, MessageState, ForwardChecker, error) {
+func (mcs *ConsInterfaceState) GetMemberChecker(cid types.ConsensusIndex) (*ConsInterfaceItems, error) {
 	if mcs.mainChannel == nil {
 		panic("must set main channel")
 	}
@@ -327,13 +334,13 @@ func (mcs *ConsInterfaceState) GetMemberChecker(cid types.ConsensusIndex) (*MemC
 	defer mcs.mutex.Unlock()
 
 	if idx < types.ConsensusInt(utils.SubOrZero(uint64(mcs.LocalIndex), uint64(mcs.gc.KeepPast))) {
-		return nil, nil, nil, types.ErrIndexTooOld
+		return nil, types.ErrIndexTooOld
 	}
 	if idx > mcs.StartedIndex+config.DropFuture {
-		return nil, nil, nil, types.ErrIndexTooNew
+		return nil, types.ErrIndexTooNew
 	}
 	if idx > mcs.StartedIndex+config.KeepFuture {
-		return nil, nil, nil, types.ErrParentNotFound
+		return nil, types.ErrParentNotFound
 	}
 
 	items := mcs.getIndex(idx, true)
@@ -346,8 +353,9 @@ func (mcs *ConsInterfaceState) GetMemberChecker(cid types.ConsensusIndex) (*MemC
 	if items.MC.MC.GetIndex().Index != idx {
 		panic(fmt.Sprintf("got wrong index %v, expected %v", items.MC.MC.GetIndex(), idx))
 	}
+	items.MC.MC.CheckIndex(items.ConsItem.GetIndex())
 
-	return items.MC, items.MsgState, items.FwdChecker, nil
+	return items, nil
 }
 
 // DoneIndex is called with consensus has finished at idx, binstate is the value decided, which is passed
@@ -356,8 +364,8 @@ func (mcs *ConsInterfaceState) GetMemberChecker(cid types.ConsensusIndex) (*MemC
 // It is concurrent safe with GetMemberChecker.
 // This should only be called from the main thread.
 // It returns true if the last consensus index has finished.
-func (mcs *ConsInterfaceState) DoneIndex(nextIdxID, supportIndex types.ConsensusID, proposer sig.Pub,
-	dec []byte) (finishedLastRound bool) {
+func (mcs *ConsInterfaceState) DoneIndex(nextIdxID, supportIndex, futureDependentIndex types.ConsensusID,
+	proposer sig.Pub, dec []byte) (finishedLastRound bool) {
 
 	mcs.mutex.Lock()
 	defer mcs.mutex.Unlock()
@@ -416,14 +424,7 @@ func (mcs *ConsInterfaceState) DoneIndex(nextIdxID, supportIndex types.Consensus
 		(mcs.allowConcurrent == 0 && mcs.initItem.NeedsConcurrent() == 1) { // no concurrency or need concurrent
 
 		if pi == nil {
-			prvSM := mcs.ProposalInfo[supportIndex.(types.ConsensusInt)]
-			if !prvSM.GetDecided() && mcs.initItem.NeedsConcurrent() > 1 {
-				panic("idx")
-			}
-			pi = prvSM.StartIndex(nextIdx)
-			mcs.SupportIndex[nextIdx] = supportIndex.(types.ConsensusInt)
-			mcs.ProposalInfo[nextIdx] = pi
-			logging.Info("gen sm from support", supportIndex, "my index", nextIdx)
+			pi = mcs.allocSM(supportIndex.(types.ConsensusInt), nextIdx)
 		}
 		if !gotInput {
 			pi.HasDecided(proposer, nextIdx, dec)
@@ -436,7 +437,7 @@ func (mcs *ConsInterfaceState) DoneIndex(nextIdxID, supportIndex types.Consensus
 	}
 
 	// Update the member checker
-	mcs.updateMC(nextIdx, dec, randBytes)
+	mcs.updateMC(nextIdx, futureDependentIndex, dec, randBytes)
 
 	// Update the state index
 	mcs.LocalIndex++
@@ -455,22 +456,7 @@ func (mcs *ConsInterfaceState) DoneIndex(nextIdxID, supportIndex types.Consensus
 			// if v := types.ConsensusInt(utils.SubOrZero(uint64(mcs.LocalIndex), config.KeepPast+1)); v > 0 {
 			logging.Info("Garbage collection of cons instance", v)
 
-			if ci, ok := mcs.consItemsMap[v]; ok {
-				if err := ci.MC.MC.DoneNextUpdateState(); err != nil {
-					panic(err)
-				}
-				ci.ConsItem.Collect()
-			}
-			delete(mcs.consItemsMap, v)
-			if item, ok := mcs.ProposalInfo[v]; ok {
-				item.Collect() // sanity check
-			}
-
-			delete(mcs.ProposalInfo, v)
-			delete(mcs.PreDecisions, v)
-			delete(mcs.SupportIndex, v)
-			delete(mcs.GotProposal, v)
-
+			mcs.clearIndex(v)
 			mcs.consItemsMap[v+1].ConsItem.PrevHasBeenReset()
 			mcs.gcUpTo = v
 		}
@@ -479,6 +465,36 @@ func (mcs *ConsInterfaceState) DoneIndex(nextIdxID, supportIndex types.Consensus
 		return false
 	}
 	return pi.FinishedLastRound()
+}
+
+func (mcs *ConsInterfaceState) allocSM(supportIndex, nextIdx types.ConsensusInt) StateMachineInterface {
+	prvSM := mcs.ProposalInfo[supportIndex]
+	if !prvSM.GetDecided() && mcs.initItem.NeedsConcurrent() > 1 {
+		panic("idx")
+	}
+	pi := prvSM.StartIndex(nextIdx)
+	mcs.SupportIndex[nextIdx] = supportIndex
+	mcs.ProposalInfo[nextIdx] = pi
+	logging.Info("gen sm from support", supportIndex, "my index", nextIdx)
+	return pi
+}
+
+func (mcs *ConsInterfaceState) clearIndex(v types.ConsensusInt) {
+	if ci, ok := mcs.consItemsMap[v]; ok {
+		if err := ci.MC.MC.DoneNextUpdateState(); err != nil {
+			panic(err)
+		}
+		ci.ConsItem.Collect()
+	}
+	delete(mcs.consItemsMap, v)
+	if item, ok := mcs.ProposalInfo[v]; ok {
+		item.Collect() // sanity check
+	}
+
+	delete(mcs.ProposalInfo, v)
+	delete(mcs.PreDecisions, v)
+	delete(mcs.SupportIndex, v)
+	delete(mcs.GotProposal, v)
 }
 
 func (mcs *ConsInterfaceState) reprocessProposals(nextIdx types.ConsensusInt) {
@@ -491,19 +507,32 @@ func (mcs *ConsInterfaceState) reprocessProposals(nextIdx types.ConsensusInt) {
 	}
 }
 
-func (mcs *ConsInterfaceState) updateMC(idx types.ConsensusInt, dec []byte, randBytes [32]byte) {
+func (mcs *ConsInterfaceState) updateMC(idx types.ConsensusInt, futureDependentID types.ConsensusID, dec []byte, randBytes [32]byte) {
+	var futureDependentIndex types.ConsensusInt
+	if futureDependentID == nil {
+	} else {
+		futureDependentIndex = futureDependentID.(types.ConsensusInt)
+		if mcs.lastMCInputIndex > futureDependentIndex { // || (mcs.allowConcurrent == 0 && futureDependentIndex <= mcs.StartedIndex) {
+			panic("member checkers decided out of order")
+		}
+		mcs.lastMCInputIndex = futureDependentIndex
+		if futureDependentIndex <= idx {
+			panic("future dependent index must come after this index")
+		}
+	}
 	prevItems := mcs.consItemsMap[idx]
 	if prevItems == nil {
 		panic("shouldn't be nil")
 	}
 	prevMemberChecker := prevItems.MC
+	// mcs.lastMCInputIndex = futureDependentIndex
 
 	nextConsItem := mcs.getIndex(idx+1, true)
 	nextMemberChecker := nextConsItem.MC
 
 	// inform member checker of the next consensus index that the previous has decided
-	newPubs, newAllPubs := nextMemberChecker.MC.UpdateState(nil, dec, randBytes, prevMemberChecker.MC,
-		mcs.ProposalInfo[idx])
+	newPubs, newAllPubs, changedMembers := nextMemberChecker.MC.UpdateState(nil, dec, randBytes, prevMemberChecker.MC,
+		mcs.ProposalInfo[idx], futureDependentID)
 	if newPubs != nil && nextMemberChecker.MC.IsReady() {
 		panic("Member checker should not be ready if the members change until, FinishUpdateStateIsCalled")
 	}
@@ -523,6 +552,79 @@ func (mcs *ConsInterfaceState) updateMC(idx types.ConsensusInt, dec []byte, rand
 		panic("should know members by now")
 	}
 
+	if futureDependentID == nil { // no changes so we don't have to check for invalid future indices
+		if changedMembers {
+			panic("should not have changed members if we had no future dependent index")
+		}
+		return
+	}
+
+	// If we changed members, then we have to check for all future indices that have started to reset them
+	// we start clearing no earlier then 1 index after the member checker that just processed the input // TODO clean this up
+	// (because we cant clear the index we just created, or any index before futureDependedIndex as the current
+	// decided index needs that not to change)
+	startClear := utils.MaxConsensusIndex(idx+2, futureDependentIndex)
+	var mustClear bool
+	clearedFrom := mcs.lastItem + 1
+	prev := mcs.consItemsMap[startClear-1]
+	for i := startClear; i <= mcs.lastItem; i++ {
+		item := mcs.consItemsMap[i]
+		if changedMembers && item.MC.MC.IsReady() { // we only have to clear the item if it has checked membership already
+			mustClear = true
+		}
+		if !mustClear {
+			prev = item
+			continue
+		}
+		if clearedFrom > i {
+			clearedFrom = i
+		}
+		prev.ConsItem.SetNextConsItem(nil)
+		// If we started the index, then we have to reset it
+		if i <= mcs.StartedIndex {
+			if pi, ok := mcs.ProposalInfo[i]; ok {
+				pi.DoneClear()
+				pi.Collect()
+				delete(mcs.ProposalInfo, i)
+			}
+		}
+		// If we have already processes messages, then we reprocess them with the new member checker
+		binstate, err := item.ConsItem.GetBinState(false)
+		utils.PanicNonNil(err)
+		if len(binstate) > 0 {
+			mcs.mainChannel.ReprocessMessageBytes(binstate)
+		}
+		err = item.MC.MC.Invalidated()
+		utils.PanicNonNil(err)
+		mcs.clearIndex(i)
+		prev = item
+	}
+	if clearedFrom <= mcs.StartedIndex { // update the started index for items removed
+		var maxStarted types.ConsensusInt
+		for nxt := range mcs.ProposalInfo {
+			if maxStarted < nxt {
+				maxStarted = nxt
+			}
+		}
+		mcs.StartedIndex = maxStarted
+	}
+	mcs.lastItem = clearedFrom - 1 // we have removed all later items
+
+	var items sort.IntSlice
+	for k := range mcs.consItemsMap {
+		items = append(items, int(k))
+	}
+	items.Sort()
+	pr := items[0]
+	for _, nxt := range items[1:] {
+		if nxt != pr+1 {
+			panic(1)
+		}
+		pr = nxt
+	}
+	if mcs.lastItem != types.ConsensusInt(items[len(items)-1]) {
+		panic(1)
+	}
 }
 
 func (mcs *ConsInterfaceState) getIndex(endidx types.ConsensusInt, alreadyWriteLocked bool) *ConsInterfaceItems {
@@ -531,10 +633,6 @@ func (mcs *ConsInterfaceState) getIndex(endidx types.ConsensusInt, alreadyWriteL
 	if item == nil { // allocate any missing objects
 		if !alreadyWriteLocked {
 			panic(1)
-			//mcs.mutex.RUnlock()
-			//defer mcs.mutex.RLock()
-			//mcs.mutex.Lock()
-			//defer mcs.mutex.Unlock()
 		}
 
 		item = mcs.consItemsMap[endidx]
@@ -574,15 +672,18 @@ func (mcs *ConsInterfaceState) getIndex(endidx types.ConsensusInt, alreadyWriteL
 
 				// create the new forwarder
 				if memCheck.IsReady() {
-					if memCheck.AllowsChange() {
-						panic("should not be ready if allows change")
-					}
+					// if memCheck.AllowsChange() {
+					//	panic("should not be ready if allows change")
+					//}
 					newItem.FwdChecker = mcs.initForwardChecker.New(parIndex, memCheck.GetParticipants(), memCheck.GetAllPubs())
 				}
 
+				mcs.SharedLock.Lock()
 				newItem.ConsItem = mcs.initItem.GenerateNewItem(parIndex, newItem, mcs.mainChannel, prevItem.ConsItem,
 					mcs.broadcastFunc, mcs.gc)
 				prevItem.ConsItem.SetNextConsItem(newItem.ConsItem)
+				mcs.SharedLock.Unlock()
+
 				mcs.consItemsMap[parIndex.Index.(types.ConsensusInt)] = newItem
 				prevItem = newItem
 			}
@@ -619,7 +720,7 @@ func (mcs *ConsInterfaceState) CheckPreDecision() {
 		if err != nil {
 			panic(err)
 		}
-		nxtItem, err := mcs.GetConsItem(idxItem)
+		nxtItem, err := mcs.GetMemberChecker(idxItem)
 		if err != nil {
 			panic(err)
 		}
@@ -628,7 +729,7 @@ func (mcs *ConsInterfaceState) CheckPreDecision() {
 		}
 
 		// Get information about what the previous started index can decide
-		if prvIdx, proposer, preDecision, ready := nxtItem.GetNextInfo(); !ready {
+		if prvIdx, proposer, preDecision, ready := nxtItem.ConsItem.GetNextInfo(); !ready {
 			// the predecision is not ready so we go to the next
 			continue
 		} else { // we are ready for another pre-decision
@@ -672,7 +773,7 @@ func (mcs *ConsInterfaceState) CheckPreDecision() {
 				}
 				nextSM = prvSM.StartIndex(idx)
 				// Get the proposal for the SM if needed
-				if prvIdx2, ready := nxtItem.GetProposalIndex(); ready && !mcs.GotProposal[idx] {
+				if prvIdx2, ready := nxtItem.ConsItem.GetProposalIndex(); ready && !mcs.GotProposal[idx] {
 					mcs.GotProposal[idx] = true
 					if prvIdx.Index != prvIdx2.Index {
 						logging.Error("got different support indecies")
@@ -707,12 +808,12 @@ func (mcs *ConsInterfaceState) CheckProposalNeeded(nextIdx types.ConsensusInt) {
 	if err != nil {
 		panic(err)
 	}
-	nextItem, err := mcs.GetConsItem(idxItem)
+	nextItem, err := mcs.GetMemberChecker(idxItem)
 	if err != nil {
 		panic(err)
 	}
 
-	if preIdx, ready := nextItem.GetProposalIndex(); ready && !mcs.GotProposal[nextIdx] {
+	if preIdx, ready := nextItem.ConsItem.GetProposalIndex(); ready && !mcs.GotProposal[nextIdx] {
 		var pi StateMachineInterface
 		if pi = mcs.ProposalInfo[nextIdx]; pi == nil {
 			prvSM := mcs.ProposalInfo[preIdx.Index.(types.ConsensusInt)]

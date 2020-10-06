@@ -21,8 +21,8 @@ package knowncoin
 
 import (
 	"github.com/tcrain/cons/config"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
@@ -115,14 +115,14 @@ func (sms *MsgState) getCoin(round types.ConsensusRound) types.BinVal {
 
 // CheckFinishedMessage checks if the message is for the coin and if the coin is already known.
 // If so true is returned, false otherwise.
-func (sms *MsgState) CheckFinishedMessage(deser *channelinterface.DeserializedItem) bool {
+func (sms *MsgState) CheckFinishedMessage(deser *deserialized.DeserializedItem) bool {
 
 	return false
 }
 
 // GotMsg processes messages of type CoinMessage. Once an n-t threshold of these messages have been received
 // from different processes the value of the coin is revealed.
-func (sms *MsgState) GotMsg(consinterface.MessageState, *channelinterface.DeserializedItem,
+func (sms *MsgState) GotMsg(consinterface.MessageState, *deserialized.DeserializedItem,
 	*generalconfig.GeneralConfig, *consinterface.MemCheckers) (types.ConsensusRound, error) {
 
 	return 0, types.ErrInvalidMsgSize

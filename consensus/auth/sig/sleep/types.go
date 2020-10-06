@@ -163,6 +163,11 @@ func (pub *VrfPub) ShallowCopy() sig.Pub {
 	return &newPub
 }
 
+// ProofToHash checks the VRF for the message and returns the random bytes if valid
+func (pub *VrfPub) ProofToHash(msg sig.SignedMessage, proof sig.VRFProof) (index [32]byte, err error) {
+	return pub.vRFPub.proofToHash(pub.sleepPub, msg, proof)
+}
+
 // FromPubBytes creates a public key object from the public key bytes
 func (pub *VrfPub) FromPubBytes(b sig.PubKeyBytes) (sig.Pub, error) {
 	p, err := pub.sleepPub.FromPubBytes(b)

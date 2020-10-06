@@ -24,6 +24,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
@@ -35,13 +36,13 @@ import (
 // using forwardChecker.CheckForward(), this queues the message to be forwarded if needed,
 // it is then acutally forwarded in the call to sendForward.
 func checkForward(sndRcvChan *channelinterface.SendRecvChannel,
-	msg *channelinterface.DeserializedItem,
+	msg *deserialized.DeserializedItem,
 	shouldForward bool,
-	item consinterface.ConsItem,
+	// item consinterface.ConsItem,
 	memberCheckerState consinterface.ConsStateInterface,
 	mainChannel channelinterface.MainChannel) {
 
-	memberChecker, messageState, forwardChecker, err := memberCheckerState.GetMemberChecker(msg.Index)
+	idxItem, err := memberCheckerState.GetMemberChecker(msg.Index)
 	if err != nil {
 		panic("invalid idx")
 	}
@@ -53,16 +54,16 @@ func checkForward(sndRcvChan *channelinterface.SendRecvChannel,
 			logging.Info("Combined messages are not forwarded since they are forwarded as partials")
 		} else {
 			// Check how many times this message should be received before being forwarded
-			endThreshold, maxPossible, msgID, err := item.GetBufferCount(msg.Header,
-				memberCheckerState.GetGeneralConfig(), memberChecker)
+			endThreshold, maxPossible, msgID, err := idxItem.ConsItem.GetBufferCount(msg.Header,
+				memberCheckerState.GetGeneralConfig(), idxItem.MC)
 			if err != nil || endThreshold == 0 {
 				logging.Infof("Not forwarding msg type: %s, err: %v, endThresh %v", msg.Header.GetID(), err, endThreshold)
 			} else {
 				// count how many signatures this message has
-				sigCount := messageState.GetSigCountMsgID(w.GetMsgID())
-				forwardChecker.CheckForward(sndRcvChan, msg, shouldForward,
+				sigCount := idxItem.MsgState.GetSigCountMsgID(w.GetMsgID())
+				idxItem.FwdChecker.CheckForward(sndRcvChan, msg, shouldForward,
 					messages.IsProposalHeader(w.Index, w.InternalSignedMsgHeader), endThreshold,
-					maxPossible, sigCount, msgID, memberChecker)
+					maxPossible, sigCount, msgID, idxItem.MC)
 			}
 		}
 	default:
@@ -78,24 +79,20 @@ func checkForward(sndRcvChan *channelinterface.SendRecvChannel,
 func sendForward(idx types.ConsensusIndex, memberCheckerState consinterface.ConsStateInterface,
 	mainChannel channelinterface.MainChannel) (sent bool) {
 
-	mc, msgState, forwardChecker, err := memberCheckerState.GetMemberChecker(idx)
+	idxItem, err := memberCheckerState.GetMemberChecker(idx)
 	if err != nil {
 		panic("invalid idx")
 	}
 	// mainChannel.GetStats()
 	// get the next item to be fowraded
-	msgs, forwardFunc := forwardChecker.GetNextForwardItem(mainChannel.GetStats())
+	msgs, forwardFunc := idxItem.FwdChecker.GetNextForwardItem(mainChannel.GetStats())
 	// loop until no items remain
-	for ; msgs != nil; msgs, forwardFunc = forwardChecker.GetNextForwardItem(mainChannel.GetStats()) {
+	for ; msgs != nil; msgs, forwardFunc = idxItem.FwdChecker.GetNextForwardItem(mainChannel.GetStats()) {
 		for _, msg := range msgs {
 			if msg.Index.Index != idx.Index {
 				panic("should have same index")
 			}
-			item, err := memberCheckerState.GetConsItem(msg.Index)
-			if err != nil {
-				panic("err")
-			}
-			toSend, err := messages.CreateMsg(item.GetPreHeader())
+			toSend, err := messages.CreateMsg(idxItem.ConsItem.GetPreHeader())
 			if err != nil {
 				panic(err)
 			}
@@ -103,12 +100,13 @@ func sendForward(idx types.ConsensusIndex, memberCheckerState consinterface.Cons
 			if gc.IncludeCurrentSigs { // We include all sigs we have seen so far
 				switch w := msg.Header.(type) {
 				case *sig.MultipleSignedMessage:
-					sigNum, _, _, err := item.GetBufferCount(w, gc, mc)
+					sigNum, _, _, err := idxItem.ConsItem.GetBufferCount(w, gc, idxItem.MC)
 					if err != nil || sigNum < 1 {
 						panic(fmt.Sprint("should have already filtered invalid forward messages", err, sigNum))
 					}
 					// w.SetSigItems(nil)                                // First clear the sigs
-					msg.Header, err = msgState.SetupSignedMessage(w.InternalSignedMsgHeader, false, sigNum, mc) // Now add all we have seen
+					msg.Header, err = idxItem.MsgState.SetupSignedMessage(w.InternalSignedMsgHeader, false,
+						sigNum, idxItem.MC) // Now add all we have seen
 					if err != nil && err != types.ErrNotEnoughSigs {
 						logging.Error(err)
 						continue
@@ -129,7 +127,7 @@ func sendForward(idx types.ConsensusIndex, memberCheckerState consinterface.Cons
 			// send the message
 			mainChannel.Send(toSend.GetBytes(),
 				messages.IsProposalHeader(msg.Index, msg.Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader),
-				false, forwardFunc, mc.MC.GetStats().IsRecordIndex(), mc.MC.GetStats())
+				false, forwardFunc, idxItem.MC.MC.GetStats().IsRecordIndex(), idxItem.MC.MC.GetStats())
 		}
 	}
 	return
@@ -137,7 +135,7 @@ func sendForward(idx types.ConsensusIndex, memberCheckerState consinterface.Cons
 
 // CheckForwardProposal is called by multivalue consensus. It keeps track of sorted proposals by their
 // VRFs and says the forward the ones with the minimum VRFs seen so far.
-func CheckForwardProposal(deser *channelinterface.DeserializedItem,
+func CheckForwardProposal(deser *deserialized.DeserializedItem,
 	hashStr types.HashStr, decisionHash types.HashStr, sortedInitHashesIn DeserSortVRF,
 	items *consinterface.ConsInterfaceItems) (sortedInitHashes DeserSortVRF, shouldForward bool) {
 

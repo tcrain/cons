@@ -252,6 +252,10 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 	// We choose rand members as all other nodes, since on recover we may get a different set of other nodes
 	to.RndMemberCount = to.NumTotalProcs - to.NumNonMembers
 	to.FanOut = 6
+	to.CoordChoiceVRF = 30 // for the test we allow more coordinators so we decide nil less often
+	if to.ConsType == types.MvCons3Type {
+		to.MCType = types.LaterMC
+	}
 
 	fmt.Println("Running with VRF type random member selection")
 	iter, err := NewTestOptIter(AllOptions, consConfigs, NewSingleIter(SingleSMTest, to))
@@ -260,6 +264,7 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 
 	if to.OrderingType == types.Total && to.ConsType != types.RbBcast1Type && to.ConsType != types.RbBcast2Type {
 		// we dont run random coordinator with rbbcasts since they must have only a single broadcaster
+		// we allow RbBcast and random with causal ordering because we use a fixed coordinator
 		fmt.Println("Running with VRF type random member selection and random coordinator")
 		cTo := to
 		cTo.UseRandCoord = true
@@ -366,7 +371,11 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 		tmpTo := to
 		tmpTo.NumTotalProcs = 10
 		tmpTo.RndMemberType = types.KnownPerCons
-		tmpTo.MCType = types.CurrentTrueMC
+		if tmpTo.ConsType == types.MvCons3Type {
+			tmpTo.MCType = types.LaterMC
+		} else {
+			tmpTo.MCType = types.CurrentTrueMC
+		}
 		tmpTo.RndMemberCount = tmpTo.NumTotalProcs - tmpTo.NumNonMembers - 1
 		tmpTo.GenRandBytes = true
 		iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(SingleSMTest, tmpTo))

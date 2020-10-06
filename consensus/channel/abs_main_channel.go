@@ -24,6 +24,7 @@ package channel
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/stats"
 	"github.com/tcrain/cons/consensus/types"
 	"math/rand"
@@ -44,7 +45,7 @@ type AbsMainChannel struct {
 	MyConInfo            channelinterface.NetNodeInfo           // Connection info of the local node
 	InternalChan         chan *channelinterface.RcvMsg          // Used to send messages from the receiving threads to the main consensus thread in Recv
 	CloseChannel         chan channelinterface.ChannelCloseType // Used to perform shutdown
-	Proposal             []*channelinterface.DeserializedItem   // The proposal for the next consensus instance, should be nil once processes by the current instance
+	Proposal             []*deserialized.DeserializedItem       // The proposal for the next consensus instance, should be nil once processes by the current instance
 	SelfMessages         *[]*messages.Message                   // List of messages sent by the local node to itself, pending to be processed
 	IsInInit             bool                                   // While true system is recovering, and messages should not be sent
 	ConsItem             consinterface.ConsItem                 // The consensus state
@@ -60,7 +61,7 @@ type AbsMainChannel struct {
 
 	SelfMsgCount int32 // used atomically by threads keeping track of the number of self messages
 
-	proposalDuringInit []*channelinterface.DeserializedItem // The proposal is stored here during initalization, as during initilaization we don't resend proposal for decided indecies, until we reach one that is undecided
+	proposalDuringInit []*deserialized.DeserializedItem // The proposal is stored here during initalization, as during initilaization we don't resend proposal for decided indecies, until we reach one that is undecided
 
 }
 
@@ -132,7 +133,7 @@ func (tp *AbsMainChannel) GetBehaviorTracker() channelinterface.BehaviorTracker 
 
 // HasProposal should be called by the state machine when it is ready with its proposal for the next round of consensus.
 // It should be called after ProposalInfo object interface (package consinterface) method HasDecided had been called for the previous consensus instance.
-func (tp *AbsMainChannel) HasProposal(msg *channelinterface.DeserializedItem) {
+func (tp *AbsMainChannel) HasProposal(msg *deserialized.DeserializedItem) {
 	if tp.IsInInit {
 		tp.proposalDuringInit = append(tp.proposalDuringInit, msg)
 		return
@@ -162,7 +163,7 @@ func (ct *ChannelTimer) Stop() bool {
 
 // SendToSelf sends a deserialzed message to the current processes after a timeout, it returns the timer
 // or nil if timeout <= 0, this method is concurrent safe.
-func (tp *AbsMainChannel) SendToSelf(deser []*channelinterface.DeserializedItem, timeout time.Duration) channelinterface.TimerInterface {
+func (tp *AbsMainChannel) SendToSelf(deser []*deserialized.DeserializedItem, timeout time.Duration) channelinterface.TimerInterface {
 	if timeout > 0 {
 		atomic.AddInt32(&tp.SelfMsgCount, 1)
 		return &ChannelTimer{abs: tp,
@@ -180,7 +181,7 @@ func (tp *AbsMainChannel) SendToSelf(deser []*channelinterface.DeserializedItem,
 	return nil
 }
 
-func (tp *AbsMainChannel) processLocalMsg(deser []*channelinterface.DeserializedItem) {
+func (tp *AbsMainChannel) processLocalMsg(deser []*deserialized.DeserializedItem) {
 	for _, di := range deser {
 		ret, err := consinterface.CheckLocalDeserializedMessage(di, tp.ConsItem, tp.MemberCheckerState)
 		switch err {
@@ -234,7 +235,7 @@ func (tp *AbsMainChannel) ProcessMessage(msg *messages.Message, wasEncrypted boo
 	return tp.afterMessageProcess(items, err, sndRcvChan, false, tp.MemberCheckerState)
 }
 
-func (tp *AbsMainChannel) afterMessageProcess(items []*channelinterface.DeserializedItem, errs []error,
+func (tp *AbsMainChannel) afterMessageProcess(items []*deserialized.DeserializedItem, errs []error,
 	sndRcvChan *channelinterface.SendRecvChannel, isRepreocess bool, _ consinterface.ConsStateInterface) (bool, []error) {
 
 	// logging.Infof("Error unwraping message at connection %v: %v", sndRcvChan.ConnectionInfo, err)
@@ -270,10 +271,10 @@ func (tp *AbsMainChannel) ReprocessMessage(rcvMsg *channelinterface.RcvMsg) {
 	}
 	go func() {
 		for _, deser := range rcvMsg.Msg {
-			var items []*channelinterface.DeserializedItem
+			var items []*deserialized.DeserializedItem
 			var errors []error
 			if deser.IsDeserialized {
-				items = []*channelinterface.DeserializedItem{deser}
+				items = []*deserialized.DeserializedItem{deser}
 			} else {
 				var err error
 				items, err = consinterface.FinishUnwrapMessage(deser.IsLocal, deser.Header, deser.Message,
@@ -287,6 +288,52 @@ func (tp *AbsMainChannel) ReprocessMessage(rcvMsg *channelinterface.RcvMsg) {
 			tp.afterMessageProcess(items, errors, rcvMsg.SendRecvChan, true, nil)
 		}
 		atomic.AddInt32(&tp.ReprocessCount, -1)
+	}()
+}
+
+// ReprocessMessageBytes is called on messages that have already been received and need to be reprocesses.
+// It is safe to be called by many threads.
+func (tp *AbsMainChannel) ReprocessMessageBytes(msg []byte) {
+	val := atomic.AddInt32(&tp.ReprocessCount, 1)
+	if val > config.MaxMsgReprocessCount { // Too many messages
+		atomic.AddInt32(&tp.ReprocessCount, -1)
+		return
+	}
+	go func() {
+		defer func() {
+			atomic.AddInt32(&tp.ReprocessCount, -1)
+		}()
+		msg := messages.NewMessage(msg)
+		_, err := msg.PopMsgSize()
+		if err != nil {
+			logging.Warning("Error reprocessing message: ", err)
+			return
+		}
+		deserItems, errors := consinterface.UnwrapMessage(sig.FromMessage(msg),
+			types.IntIndexFuns, types.NonLocalMessage,
+			tp.ConsItem, tp.MemberCheckerState)
+		if errors != nil {
+			// we may have errors since the members have changed
+			logging.Warning("Error reprocessing messages: ", errors)
+		}
+		// reprocess the messages
+		for _, deser := range deserItems {
+			var items []*deserialized.DeserializedItem
+			var errors []error
+			if deser.IsDeserialized {
+				items = []*deserialized.DeserializedItem{deser}
+			} else {
+				var err error
+				items, err = consinterface.FinishUnwrapMessage(deser.IsLocal, deser.Header, deser.Message,
+					tp.MemberCheckerState.GetConsensusIndexFuncs(),
+					tp.ConsItem, tp.MemberCheckerState)
+				if err != nil {
+					// items = nil
+					errors = []error{err}
+				}
+			}
+			tp.afterMessageProcess(items, errors, nil, true, nil)
+		}
 	}()
 }
 
@@ -308,7 +355,7 @@ func (tp *AbsMainChannel) Recv() (*channelinterface.RcvMsg, error) {
 			logging.Info("Got a proposal message")
 			nxtProposal := tp.Proposal[0]
 			tp.Proposal = tp.Proposal[1:]
-			ret := &channelinterface.RcvMsg{CameFrom: 3, Msg: []*channelinterface.DeserializedItem{nxtProposal},
+			ret := &channelinterface.RcvMsg{CameFrom: 3, Msg: []*deserialized.DeserializedItem{nxtProposal},
 				SendRecvChan: nil, IsLocal: true}
 			// tp.Proposal = nil
 			return ret, nil

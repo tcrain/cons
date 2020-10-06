@@ -61,7 +61,7 @@ func TestMvCons2MsgDrop(t *testing.T) {
 }
 
 func TestMvCons2MultiSig(t *testing.T) {
-	cons.RunMultiSigTests(types.TestOptions{}, types.MvCons2Type, &MvCons2{}, MvCons2Config{}, nil, t)
+	cons.RunMultiSigTests(types.TestOptions{}, types.MvCons2Type, &MvCons2{}, MvCons2Config{}, []int{}, t)
 }
 
 func TestMvCons2P2p(t *testing.T) {

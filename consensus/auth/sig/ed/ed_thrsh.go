@@ -71,6 +71,12 @@ func (et *EdCoinThresh) GetT() int {
 	return et.t
 }
 
+func (et *EdCoinThresh) ShallowCopy() *EdCoinThresh {
+	ret := *et
+	ret.partPub = et.partPub.ShallowCopy().(*PartPub)
+	return &ret
+}
+
 func (et *EdCoinThresh) GetN() int {
 	return et.n
 }

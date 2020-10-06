@@ -67,6 +67,7 @@ type MemberChecker interface {
 	CheckRandMember(pub sig.Pub, hdr messages.InternalSignedMsgHeader, msgID messages.MsgID, isLocal bool) error
 	// SelectRandMembers returns true if the member checker is selecting random members.
 	RandMemberType() types.RndMemberType
+	GetRnd() [32]byte
 
 	// UpdateState is called when the previous consensus instance decides, the input is the decision plus the previous member checker.
 	// Calling this should not change what IsReady returns, only after FinishUpdateState should IsReady always return true.
@@ -78,12 +79,24 @@ type MemberChecker interface {
 	// newMemberPubs must be a equal to or a subset of newAllPubs.
 	// If membership is not changed since the previous consensus instance then nil is returned for these items.
 	// Proof is the vrf proof of the current node if random membership is enabled.
+	// futureFixed the same value returned by consinterface.ConsItem GetDecision(),
+	// i.e. the first larger index that this decision does not depend
+	// on (normally this is the current index + 1). prvIdx and futureFixed are different for MvCons3 as that
+	// consensus piggybacks consensus instances on top of eachother.
 	// The return values are nil if the membership has not changed.
+	// ChangedMembership must be true if either of the other return values are non-nil.
+	// Even if they are nil, but the membership could have changed in a different way (i.e. by random membership)
+	// it must return true
 	UpdateState(fixedCoord sig.Pub, prevDec []byte, randBytes [32]byte,
-		prevMember MemberChecker, prevSM GeneralStateMachineInterface) (newMemberPubs, newAllPubs []sig.Pub)
+		prevMember MemberChecker, prevSM GeneralStateMachineInterface,
+		futureFixed types.ConsensusID) (newMemberPubs, newAllPubs []sig.Pub, changedMembership bool)
 	// DoneNextUpdateState is called when the member checker will no longer be used as input to generate a new member checker
 	// as the prevMemberChecker to update state.
 	DoneNextUpdateState() error
+	// Invalidated is called if the member checker has been made invalid.
+	// This happens if a different set of members was chosen then was initial proposed.
+	// Currently this is only supported when using total ordering.
+	Invalidated() error
 
 	// GotVrf should be called when a node's VRF proof is received for this consensus instance.
 	// If the VRF was valid it returns the uint64 that represents the vrf // TODO is it sufficient to just use the first 8 bytes of the rand?
@@ -218,7 +231,7 @@ func CheckMemberCoord(mc *MemCheckers, rnd types.ConsensusRound,
 
 	randVal, _, err := CheckCoord(sigItem.Pub, mc, rnd, msg.GetMsgID())
 	if err != nil {
-		logging.Errorf("Got proposal from invalid cord at index %v", mc.MC.GetIndex())
+		logging.Warningf("Got proposal from invalid cord at index %v", mc.MC.GetIndex())
 		return err
 	}
 	sigItem.VRFID = randVal

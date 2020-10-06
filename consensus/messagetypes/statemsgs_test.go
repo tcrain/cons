@@ -587,6 +587,7 @@ func TestMvInitMessageSerialize(t *testing.T) {
 
 func TestMvInitSupportMsgSerialize(t *testing.T) {
 	proposalHashSupport := types.GetHash(mvinitsupport)
+	randHash := types.GetHash([]byte("some rand bytes"))
 
 	createMsgFunc := func(createEmpty bool) messages.InternalSignedMsgHeader {
 		hdr := NewMvInitSupportMessage()
@@ -594,6 +595,7 @@ func TestMvInitSupportMsgSerialize(t *testing.T) {
 			hdr.Proposal = mvinitproposal
 			hdr.SupportedIndex = mvinitsupportindex
 			hdr.SupportedHash = proposalHashSupport
+			hdr.RandHash = randHash
 		}
 		return hdr
 	}
@@ -602,6 +604,7 @@ func TestMvInitSupportMsgSerialize(t *testing.T) {
 		assert.Equal(t, mvinitproposal, hdr.Proposal)
 		assert.Equal(t, mvinitsupportindex, hdr.SupportedIndex)
 		assert.Equal(t, proposalHashSupport, hdr.SupportedHash)
+		assert.Equal(t, randHash, hdr.RandHash)
 	}
 	internalTestSignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
 	internalTestUnsignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
@@ -698,6 +701,31 @@ func TestMvEchoMsgSerialize(t *testing.T) {
 	checkMsgFunc := func(msg messages.InternalSignedMsgHeader) {
 		hdr := msg.GetBaseMsgHeader().(*MvEchoMessage)
 		assert.Equal(t, proposalHash, hdr.ProposalHash)
+		assert.Equal(t, round, hdr.Round)
+	}
+	internalTestSignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+	internalTestUnsignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+}
+
+func TestMvEchoHashMsgSerialize(t *testing.T) {
+	var proposal = []byte("a proposal is written here")
+	var round types.ConsensusRound = 10
+	proposalHash := types.GetHash(proposal)
+	randHash := types.GetHash([]byte("some rand bytes"))
+
+	createMsgFunc := func(createEmpty bool) messages.InternalSignedMsgHeader {
+		hdr := NewMvEchoHashMessage()
+		if !createEmpty {
+			hdr.ProposalHash = proposalHash
+			hdr.Round = round
+			hdr.RandHash = randHash
+		}
+		return hdr
+	}
+	checkMsgFunc := func(msg messages.InternalSignedMsgHeader) {
+		hdr := msg.GetBaseMsgHeader().(*MvEchoHashMessage)
+		assert.Equal(t, proposalHash, hdr.ProposalHash)
+		assert.Equal(t, randHash, hdr.RandHash)
 		assert.Equal(t, round, hdr.Round)
 	}
 	internalTestSignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)

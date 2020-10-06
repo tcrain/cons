@@ -55,6 +55,10 @@ func initAbsRandCoordByID(priv sig.Priv, stats stats.StatsInterface, gc *general
 	return ret
 }
 
+func (arm *absRandCoordByID) GetRnd() [32]byte {
+	return arm.rnd
+}
+
 func (arm *absRandCoordByID) setMainChannel(_ channelinterface.MainChannel) {}
 
 func (arm *absRandCoordByID) newRndMC(idx types.ConsensusIndex, stats stats.StatsInterface) absRandMemberInterface {
@@ -178,7 +182,7 @@ func (arm *absRandCoordByID) checkRandCoord(participantNodeCount, totalNodeCount
 
 	// the threshold for the given number of nodes
 	onePc := uint64(math.MaxUint64) / 100
-	thrsh := uint64(float64(onePc) * float64(arm.gc.CoordChoiceVRF)) //* (float64(100) / float64(totalNodeCount))) //arm.coordinatorRelaxation
+	thrsh := uint64((onePc) * uint64(arm.gc.CoordChoiceVRF)) //* (float64(100) / float64(totalNodeCount))) //arm.coordinatorRelaxation
 
 	// thrsh := uint64((float64(1)/float64(totalNodeCount))*math.MaxUint64)
 	if item.rnd <= thrsh {

@@ -13,7 +13,6 @@ shutdownNodes=0
 
 echo Running all to all experiment
 toFolders="./testconfigs/all2all/ ./testconfigs/all2all-cbcast/"
-# toFolders="./testconfigs/all2all-cbcast/"
 nodesCount="5 15 25"
 echo bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"
 bash scripts/cloudscripts/fullrun.sh "$toFolders" "$regions" "$nodesPerRegion" "$nodesCount" "$launchNodes" "$shutdownNodes" "$genimage" "$deleteimage" "$instancetype" "$branch" "$singleZoneRegion" "$homezone"

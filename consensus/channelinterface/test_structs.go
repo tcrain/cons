@@ -23,6 +23,7 @@ import (
 	// "fmt"
 
 	"github.com/tcrain/cons/consensus/auth/sig"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"sync"
 	"testing"
 	"time"
@@ -96,7 +97,7 @@ func runLoop(id int, tp MainChannel, numChannels, loops int, wg *sync.WaitGroup,
 
 		buffTo, err := messages.CreateMsg(hdrsTo)
 		assert.Nil(t, err)
-		deser := []*DeserializedItem{
+		deser := []*deserialized.DeserializedItem{
 			{
 				Index:          types.ConsensusIndex{Index: i, FirstIndex: i},
 				HeaderType:     tstMsgTimeout.GetID(),

@@ -65,6 +65,7 @@ type StatsInterface interface {
 	StatsPrintInterface
 
 	New(index types.ConsensusIndex) StatsInterface
+	Remove(index types.ConsensusIndex)                                        // Remove is only supported for total ordering
 	StartRecording(profileCPU, profileMem bool, testIndex int, testID uint64) // StartRecording starts recording the stats.
 	DoneRecording()                                                           // DoneRecording stops recording the stats.
 	AddStartTime()                                                            // AddStartTime is called each time a new consesnsus instance is started.
@@ -922,13 +923,31 @@ func (bs *BasicStats) GetStartAndEndTimes() (startTimes, finishTimes []time.Time
 	return
 }
 
+// Remove is only supported for total ordering
+func (bs *BasicStats) Remove(index types.ConsensusIndex) {
+	i := int(index.Index.(types.ConsensusInt)) - 1
+	v := bs.globalStats.stats[i].(*BasicStats).Index
+	logging.Info("remove stats", v, index.Index)
+	if v != index.Index {
+		panic(fmt.Sprint("got different indices", v, index.Index))
+	}
+	// bs.globalStats.stats = append(bs.globalStats.stats[:i], bs.globalStats.stats[i+1:]...)
+}
+
 func (bs *BasicStats) New(index types.ConsensusIndex) StatsInterface {
 	ret := &BasicStats{globalStats: bs.globalStats,
 		RecordIndex: bs.globalStats.recording,
 		Index:       index.Index,
 	}
 	ret.ConsEncryptChannels = bs.EncryptChannels
-	bs.globalStats.stats = append(bs.globalStats.stats, ret)
+	if v, ok := index.Index.(types.ConsensusInt); ok && int(v-1) < len(bs.globalStats.stats) {
+		if bs.globalStats.stats[v-1].(*BasicStats).Index.(types.ConsensusInt) != v {
+			panic("invalid index")
+		}
+		bs.globalStats.stats[v-1] = ret
+	} else {
+		bs.globalStats.stats = append(bs.globalStats.stats, ret)
+	}
 	return ret
 }
 

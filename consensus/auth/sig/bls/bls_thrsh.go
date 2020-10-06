@@ -39,6 +39,12 @@ type BlsThrsh struct {
 	sharedPub *SharedPub // the threshold public key
 }
 
+func (bt *BlsThrsh) ShallowCopy() *BlsThrsh {
+	ret := *bt
+	ret.partPub = bt.partPub.ShallowCopy().(*PartPub)
+	return &ret
+}
+
 // NewBlsThrsh creates an object for a given member of a signature threshold scheme.
 func NewBlsThrsh(n, t int, idx sig.PubKeyIndex, secret kyber.Scalar, pub kyber.Point, sharedPub kyber.Point) *BlsThrsh {
 	if sig.GetUseMultisig() || sig.GetBlsMultiNew() || !sig.GetUsePubIndex() {

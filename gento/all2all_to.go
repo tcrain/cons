@@ -106,7 +106,8 @@ func GenAll2AllSimpleRand() {
 
 	folderName := "all2all-rand"
 
-	nxtID := genAll2AllSimple(folderName, true, 1)
+	var nxtID uint64 = 1
+	// nxtID = genAll2AllSimple(folderName, true, nxtID)
 
 	var consTypes []types.ConsType
 	optsSig := cons.ReplaceNilFields(cons.OptionStruct{
@@ -116,18 +117,19 @@ func GenAll2AllSimpleRand() {
 	consTypes = []types.ConsType{types.MvCons2Type}
 
 	ct := mvAll2All
+	ct.MCType = types.TrueMC
 	ct.StopOnCommit = types.Immediate
 	ct.IncludeProofs = false
 	ct.SleepCrypto = true
 	ct.WarmUpInstances = 8
 	ct.CPUProfile = false
 	// set large timeouts since we don't have any faults for this test
-	ct.MvConsTimeout = 100000
+	// ct.MvConsTimeout = 100000
 	ct.MvConsRequestRecoverTimeout = 100000
 	ct.ProgressTimeout = 100000
 
-	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
-		optsSig, nil)
+	// nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
+	//	optsSig, nil)
 
 	optsSig = cons.ReplaceNilFields(cons.OptionStruct{
 		RandMemberCheckerTypes: []types.RndMemberType{types.VRFPerCons,
@@ -136,6 +138,9 @@ func GenAll2AllSimpleRand() {
 	ct.RndMemberCount = 10
 	ct.GenRandBytes = true
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
+		optsSig, nil)
+
+	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.MvCons3Type}, []cons.ConfigOptions{mvcons3.MvCons3Config{}},
 		optsSig, nil)
 
 	genGenSets(folderName, []parse.GenSet{parse.GenPerNodeByRndMemberType})

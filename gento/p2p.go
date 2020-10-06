@@ -22,6 +22,8 @@ package gento
 import (
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/cons/mvcons2"
+	"github.com/tcrain/cons/consensus/cons/mvcons3"
+	"github.com/tcrain/cons/consensus/cons/rbbcast1"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/parse"
 )
@@ -38,16 +40,15 @@ func genP2PTest(folderName string, sleepCrypto bool, nxtID uint64) uint64 {
 		MemberCheckerTypes: []types.MemberCheckerType{types.TrueMC},
 		RotateCoordTypes:   types.WithTrue,
 	}, baseMVOptions)
-	consTypes = []types.ConsType{types.MvCons2Type}
 
 	ct := mvAll2All
-	ct.MaxRounds = 10
+	ct.MaxRounds = 5
 	ct.NetworkType = types.P2p
 	ct.FanOut = 8
 	ct.StopOnCommit = types.Immediate
 	ct.IncludeProofs = false
 	ct.SleepCrypto = sleepCrypto
-	ct.WarmUpInstances = 5
+	ct.WarmUpInstances = 1
 	ct.CPUProfile = false
 	ct.KeepPast = 1
 	ct.NumMsgProcessThreads = 3
@@ -59,11 +60,19 @@ func genP2PTest(folderName string, sleepCrypto bool, nxtID uint64) uint64 {
 	ct.RotateCord = true
 	ct.MCType = types.TrueMC
 
+	consTypes = []types.ConsType{types.MvCons2Type}
+	//nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
+	//	optsSig, nil)
+	ct.BufferForwardType = types.FixedBufferForward
+
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
 		optsSig, nil)
 
-	ct.BufferForwardType = types.FixedBufferForward
-	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
+	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.RbBcast1Type}, []cons.ConfigOptions{rbbcast1.RbBcast1Config{}},
+		optsSig, nil)
+
+	ct.RotateCord = false
+	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.MvCons3Type}, []cons.ConfigOptions{mvcons3.MvCons3Config{}},
 		optsSig, nil)
 
 	genGenSets(folderName, []parse.GenSet{parse.GenPerNodeByConsBuffFwd})

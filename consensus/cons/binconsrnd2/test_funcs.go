@@ -20,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package binconsrnd2
 
 import (
-	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/types"
 	"testing"
 
@@ -31,8 +31,8 @@ import (
 )
 
 // CreateAuxProofItems is used during unit tests to create a list of signed message supporting a binvalue and round.
-func CreateAuxProofItems(idx types.ConsensusIndex, round types.ConsensusRound, allowSupportCoin bool, binVal types.BinVal, bct cons.ConsTestItems, t *testing.T) []*channelinterface.DeserializedItem {
-	ret := make([]*channelinterface.DeserializedItem, len(bct.PrivKeys))
+func CreateAuxProofItems(idx types.ConsensusIndex, round types.ConsensusRound, allowSupportCoin bool, binVal types.BinVal, bct cons.ConsTestItems, t *testing.T) []*deserialized.DeserializedItem {
+	ret := make([]*deserialized.DeserializedItem, len(bct.PrivKeys))
 
 	for i := range bct.PrivKeys {
 		priv := bct.PrivKeys[i]
@@ -60,7 +60,7 @@ func CreateAuxProofItems(idx types.ConsensusIndex, round types.ConsensusRound, a
 			t.Error(err)
 		}
 
-		ret[i] = &channelinterface.DeserializedItem{
+		ret[i] = &deserialized.DeserializedItem{
 			Index:          idx,
 			HeaderType:     messages.HdrAuxProof,
 			Header:         dser,
@@ -72,9 +72,9 @@ func CreateAuxProofItems(idx types.ConsensusIndex, round types.ConsensusRound, a
 
 // CreateBVItems is used during unit tests to create a list of signed message supporting a binvalue and round.
 func CreateBVItems(idx types.ConsensusIndex, round types.ConsensusRound,
-	binVal types.BinVal, bct cons.ConsTestItems, t *testing.T) []*channelinterface.DeserializedItem {
+	binVal types.BinVal, bct cons.ConsTestItems, t *testing.T) []*deserialized.DeserializedItem {
 
-	ret := make([]*channelinterface.DeserializedItem, len(bct.PrivKeys))
+	ret := make([]*deserialized.DeserializedItem, len(bct.PrivKeys))
 
 	for i := range bct.PrivKeys {
 		priv := bct.PrivKeys[i]
@@ -101,7 +101,7 @@ func CreateBVItems(idx types.ConsensusIndex, round types.ConsensusRound,
 			t.Error(err)
 		}
 
-		ret[i] = &channelinterface.DeserializedItem{
+		ret[i] = &deserialized.DeserializedItem{
 			Index:          idx,
 			HeaderType:     dser.GetID(),
 			Header:         dser,
@@ -112,8 +112,8 @@ func CreateBVItems(idx types.ConsensusIndex, round types.ConsensusRound,
 }
 
 // CreateCoinItems is used during unit tests to create a list of signed messages for a coin.
-func CreateCoinItems(idx types.ConsensusIndex, round types.ConsensusRound, bct cons.ConsTestItems, t *testing.T) []*channelinterface.DeserializedItem {
-	ret := make([]*channelinterface.DeserializedItem, len(bct.PrivKeys))
+func CreateCoinItems(idx types.ConsensusIndex, round types.ConsensusRound, bct cons.ConsTestItems, t *testing.T) []*deserialized.DeserializedItem {
+	ret := make([]*deserialized.DeserializedItem, len(bct.PrivKeys))
 
 	for i := range bct.PrivKeys {
 		priv := bct.PrivKeys[i]
@@ -140,7 +140,7 @@ func CreateCoinItems(idx types.ConsensusIndex, round types.ConsensusRound, bct c
 			t.Error(err)
 		}
 
-		ret[i] = &channelinterface.DeserializedItem{
+		ret[i] = &deserialized.DeserializedItem{
 			Index:          idx,
 			HeaderType:     hdr.GetID(),
 			Header:         dser,

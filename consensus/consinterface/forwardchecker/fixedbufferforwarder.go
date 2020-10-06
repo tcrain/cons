@@ -23,6 +23,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
@@ -32,7 +33,7 @@ import (
 
 type forwardItem struct {
 	sigItems     []*sig.SigItem
-	di           *channelinterface.DeserializedItem
+	di           *deserialized.DeserializedItem
 	receivedTime time.Time
 }
 
@@ -42,7 +43,7 @@ type fixedBufferForwarder struct {
 	internalForwardChecker
 	pendingMesages map[types.HashStr]*forwardItem
 	// sndRcvChan *channelinterface.SendRecvChannel
-	proposalMsg        *channelinterface.DeserializedItem
+	proposalMsg        *deserialized.DeserializedItem
 	proposalSndRcvChan *channelinterface.SendRecvChannel
 	gc                 *generalconfig.GeneralConfig
 }
@@ -67,7 +68,7 @@ func (fwd *fixedBufferForwarder) New(idx types.ConsensusIndex, participants, all
 // It expects GetNextForwardItem to be called before CheckForward is called again.
 func (fwd *fixedBufferForwarder) CheckForward(
 	sndRcvChan *channelinterface.SendRecvChannel,
-	msg *channelinterface.DeserializedItem,
+	msg *deserialized.DeserializedItem,
 	shouldForward bool,
 	isProposalMessage bool,
 	endThreshold, maxPossible, sigCount int,
@@ -107,12 +108,12 @@ func (fwd *fixedBufferForwarder) CheckForward(
 // GetNextFowardItem returns the last message that was called with CheckForward
 // if forwarding is enabled.
 func (fwd *fixedBufferForwarder) GetNextForwardItem(_ stats.NwStatsInterface) (
-	msg []*channelinterface.DeserializedItem,
+	msg []*deserialized.DeserializedItem,
 	forwardFunc channelinterface.NewForwardFuncFilter) {
 
 	forwardFunc = fwd.internalForwardChecker.GetNewForwardListFunc()
 	if fwd.proposalMsg != nil {
-		msg = []*channelinterface.DeserializedItem{fwd.proposalMsg}
+		msg = []*deserialized.DeserializedItem{fwd.proposalMsg}
 		fwd.proposalMsg = nil
 		fwd.proposalSndRcvChan = nil
 	} else {
@@ -126,7 +127,7 @@ func (fwd *fixedBufferForwarder) GetNextForwardItem(_ stats.NwStatsInterface) (
 					panic(err)
 				}
 				nxt.di.Message = sig.EncodedMsg{Message: m}
-				msg = []*channelinterface.DeserializedItem{nxt.di}
+				msg = []*deserialized.DeserializedItem{nxt.di}
 				break
 			}
 		}

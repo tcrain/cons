@@ -21,8 +21,8 @@ package strongcoin1echo
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -82,7 +82,7 @@ func (sc1 *StrongCoin1Echo) GenerateCoinMessage(round types.ConsensusRound, alwa
 // It returns the round the coin corresponds to and true in first boolean position if made progress towards decision,
 // or false if already decided, and return true in second position if the message should be forwarded.
 // If the message is invalid an error is returned.
-func (sc1 *StrongCoin1Echo) CheckCoinMessage(deser *channelinterface.DeserializedItem,
+func (sc1 *StrongCoin1Echo) CheckCoinMessage(deser *deserialized.DeserializedItem,
 	isLocal bool, alwaysGenerate bool, consItem consinterface.ConsItem, coinMsgState consinterface.CoinMessageStateInterface,
 	msgState consinterface.MessageState) (round types.ConsensusRound, ret messages.MsgHeader,
 	progress, shouldForward bool, err error) {

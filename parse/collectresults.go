@@ -364,7 +364,11 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 			// TimeDivCons
 			nxtTitle = "TotalTimeDivNumCons"
 			printTitle := ActTitle
-			totalTimeDivNumCons := float64(ms.FinishTime.Sub(ms.StartTime)) / float64(ms.RecordCount) / float64(time.Millisecond)
+			var sum time.Duration
+			for _, nxt := range ms.SinceTimes {
+				sum += nxt
+			}
+			totalTimeDivNumCons := float64(sum) / float64(ms.RecordCount) / float64(time.Millisecond)
 			if fileName, err = intMakeStatsFile(folderPath, nxtTitle, "None", "None",
 				varyField, extraNames, totalTimeDivNumCons, 0, 0, nxtRes, ct, includeConsType); err != nil {
 

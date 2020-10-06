@@ -69,7 +69,7 @@ func (mc *CustomMemberChecker) IsReady() bool {
 // UpdateState does nothing since the members do not change.
 // func (mc *CustomMemberChecker) UpdateState(prevDec []byte, prevSM consinterface.StateMachineInterface, prevMember MemberChecker) []sig.Pub {
 func (mc *CustomMemberChecker) UpdateState(fixedCoord sig.Pub, prevDec []byte, randBytes [32]byte,
-	prevMember *CustomMemberChecker, newMemberPubs, newAllPubs []sig.Pub) (sig.PubList, sig.PubList) {
+	prevMember *CustomMemberChecker, newMemberPubs, newAllPubs []sig.Pub) (sig.PubList, sig.PubList, bool) {
 	// if prevMember.(*CustomMemberChecker).idx+1 != mc.idx {
 	// 	panic("out of oder member state update")
 	// }

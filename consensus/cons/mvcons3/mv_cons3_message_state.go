@@ -22,9 +22,9 @@ package mvcons3
 import (
 	"bytes"
 	"fmt"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/types"
 	"sync"
@@ -101,8 +101,8 @@ func (sms *MessageState) getSupportedEchoHash() types.HashBytes {
 // (2) HdrMvEcho - echo messages
 // (4) HdrMvRequestRecover - unsigned message asking for the init message received for a given hash
 func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
-	deser *channelinterface.DeserializedItem, gc *generalconfig.GeneralConfig,
-	mc *consinterface.MemCheckers) ([]*channelinterface.DeserializedItem, error) {
+	deser *deserialized.DeserializedItem, gc *generalconfig.GeneralConfig,
+	mc *consinterface.MemCheckers) ([]*deserialized.DeserializedItem, error) {
 
 	if !deser.IsDeserialized {
 		// Only track deserialzed messages
@@ -142,10 +142,18 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 
 			if nxt.HeaderType == messages.HdrMvInitSupport {
 				// taken care of in MvCons3
+				rnd := mc.MC.GetRnd()
+				hsh := types.GetHash(rnd[:])
+				if bytes.Equal(hsh, make([]byte, 32)) {
+					panic(1)
+				}
+				if !bytes.Equal(hsh, w.InternalSignedMsgHeader.(*messagetypes.MvInitSupportMessage).RandHash) {
+					return nil, types.ErrInvalidHash
+				}
 			}
 		}
 		return ret, nil
-	case messages.HdrMvEcho:
+	case messages.HdrMvEchoHash:
 		// Check the membership/signatures/duplicates
 		hdr, err := sms.Sms.GotMsg(hdrFunc, deser, gc, mc)
 		if err != nil {
@@ -159,6 +167,12 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 			logging.Info("Received a non-zero round mv init message, round:", round)
 			return nil, types.ErrInvalidRound
 		}
+		echoMsg := hdr[0].Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader.(*messagetypes.MvEchoHashMessage)
+		rndBytes := mc.MC.GetRnd()
+		if !bytes.Equal(types.GetHash(rndBytes[:]), echoMsg.RandHash) {
+			return nil, types.ErrInvalidHash
+		}
+
 		sms.mutex.Lock()
 
 		// update the message count
@@ -168,7 +182,7 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 		}
 		// check if we can support an echo hash (i.e. we got n-t of the same hash)
 		if deser.NewTotalSigCount >= nmt {
-			hashBytes := hdr[0].Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader.(*messagetypes.MvEchoMessage).ProposalHash
+			hashBytes := echoMsg.ProposalHash
 			if sms.supportedEchoHash != nil && !bytes.Equal(sms.supportedEchoHash, hashBytes) {
 				panic("got two hashes to support")
 			}
@@ -179,21 +193,21 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 	case messages.HdrMvRequestRecover:
 		// we handle this in cons
 		// Nothing to do since it is just asking for a message
-		return []*channelinterface.DeserializedItem{deser}, nil
+		return []*deserialized.DeserializedItem{deser}, nil
 	default:
 		panic(fmt.Sprint("invalid msg type ", deser.HeaderType))
 	}
 }
 
 // Generate proofs returns a signed message with signatures supporting the input values,
-// it can be a MvEchoMessage.
+// it can be a MvEchoHashMessage.
 func (sms *MessageState) GenerateProofs(sigCount int, _ types.ConsensusRound, _ types.BinVal,
 	_ sig.Pub, mc *consinterface.MemCheckers) (messages.MsgHeader, error) {
 
 	return sms.checkMvProofs(sigCount, mc, true)
 }
 
-// generateMvProofs generates an MvEcho message containing signature received supporting the proposalHash
+// generateMvProofs generates an MvEchoHash message containing signature received supporting the proposalHash
 func (sms *MessageState) checkMvProofs(sigCount int,
 	mc *consinterface.MemCheckers, generateProofs bool) (prfMsg messages.MsgHeader, err error) {
 
@@ -207,8 +221,10 @@ func (sms *MessageState) checkMvProofs(sigCount int,
 	if len(supportedEchoHash) == 0 || bytes.Equal(types.GetZeroBytesHashLength(), supportedEchoHash) {
 		err = types.ErrNoEchoHash
 	} else {
-		echoMsg := messagetypes.NewMvEchoMessage()
+		echoMsg := messagetypes.NewMvEchoHashMessage()
 		echoMsg.ProposalHash = supportedEchoHash
+		rnd := mc.MC.GetRnd()
+		echoMsg.RandHash = types.GetHash(rnd[:])
 		count, err = sms.GetSigCountMsgHeader(echoMsg, mc)
 		if count >= sigCount {
 			w = echoMsg

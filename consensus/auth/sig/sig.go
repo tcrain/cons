@@ -24,6 +24,7 @@ import (
 	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
+	"github.com/tcrain/cons/consensus/utils"
 )
 
 ////////////////////////////////////////////////////////////
@@ -136,6 +137,8 @@ type PubList []Pub
 func (a PrivList) SetIndices() {
 	for i, priv := range a {
 		priv.SetIndex(PubKeyIndex(i))
+		_, err := priv.GetPub().GetPubID()
+		utils.PanicNonNil(err)
 	}
 }
 
@@ -261,6 +264,8 @@ func AfterSortPubs(myPriv Priv, fixedCoord Pub, members PubList,
 	// Set my new index
 	newMyPriv = myPriv.ShallowCopy()
 	newMyPriv.SetIndex(PubKeyIndex(myIndex))
+	_, err = newMyPriv.GetPub().GetPubID()
+	utils.PanicNonNil(err)
 
 	// Sanity checks
 	var addCoord int

@@ -105,6 +105,13 @@ func (mc *absMemberChecker) CheckRandRoundCoord(msgID messages.MsgID, checkPub s
 	return rndValue, checkPub, nil
 }
 
+func (mc *absMemberChecker) GetRnd() (ret [32]byte) {
+	if mc.absRandMemberInterface != nil {
+		return mc.absRandMemberInterface.GetRnd()
+	}
+	return
+}
+
 // CheckRoundCoord returns the public key of the coordinator for round round.
 // It is just the mod of the round in the sorted list of public keys.
 func (mc *absMemberChecker) CheckRoundCoord(_ messages.MsgID, checkPub sig.Pub,
@@ -204,8 +211,12 @@ func (mc *absMemberChecker) GetNewPub() sig.Pub {
 // newMemberPubs should also be nil if they have not changed since the previous consensus index.
 // myPubIndex is the index of the local nodes public key in the list, if it is negative then this nodes
 // public key should not be in the  list (i.e. is not a member).
+// ChangedMembers must be true if either of the other return values are non-nil.
+// Even if they are nil, but the membership could have changed in a different way (i.e. by random membership)
+// it must return true
 func (mc *absMemberChecker) AbsGotDecision(newFixedCoord sig.Pub, newMemberPubs, newOtherPubs sig.PubList,
-	prevDec []byte, randBytes [32]byte, prevMember *absMemberChecker) (retMemberPubs, retAllPubs []sig.Pub) {
+	prevDec []byte, randBytes [32]byte, prevMember *absMemberChecker) (retMemberPubs, retAllPubs []sig.Pub,
+	changedMembers bool) {
 
 	if mc.gotDecision {
 		panic("called got decision twice")
@@ -295,9 +306,12 @@ func (mc *absMemberChecker) AbsGotDecision(newFixedCoord sig.Pub, newMemberPubs,
 			mc.gotRand(randBytes, utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, retMemberPubs,
 				mc.memberPubStrings, prevMember.absRandMemberInterface)
 		} else { // otherwise we keep the same random bytes
-			mc.gotRand(prevMember.getRnd(), utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, retMemberPubs,
+			mc.gotRand(prevMember.GetRnd(), utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, retMemberPubs,
 				mc.memberPubStrings, prevMember.absRandMemberInterface)
 		}
+	}
+	if len(retMemberPubs) > 0 || len(retAllPubs) > 0 || mc.rndMemberCount > 0 {
+		changedMembers = true
 	}
 
 	return
@@ -319,6 +333,13 @@ func (mc *absMemberChecker) checkCoordInternal(_ types.ConsensusRound, cordPub, 
 	return cordPub, nil
 }
 
+// Invalidated is called if the member checker has been made invalid.
+// This happens if a different set of members was chosen then was initial proposed.
+func (mc *absMemberChecker) Invalidated() error {
+	mc.stats.Remove(mc.idx)
+	return nil
+}
+
 // newAbsMc creates a new abstract membercheck with the same internals as mc (but with the new index).
 func (mc *absMemberChecker) newAbsMc(idx types.ConsensusIndex) *absMemberChecker {
 	newStats := mc.stats.New(idx)
@@ -327,7 +348,7 @@ func (mc *absMemberChecker) newAbsMc(idx types.ConsensusIndex) *absMemberChecker
 		newMc.absRandMemberInterface = mc.absRandMemberInterface.newRndMC(idx, newStats)
 		if idx.Index.IsInitIndex() {
 			// we do this here because we need to calculate the new values
-			newMc.gotRand(mc.getRnd(), utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, nil,
+			newMc.gotRand(mc.GetRnd(), utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, nil,
 				mc.memberPubStrings, mc.absRandMemberInterface)
 		}
 	}

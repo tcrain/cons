@@ -81,7 +81,7 @@ func (arm *absRandMemberChecker) rndDoneNextUpdateState() error {
 	return nil
 }
 
-func (arm *absRandMemberChecker) getRnd() [32]byte {
+func (arm *absRandMemberChecker) GetRnd() [32]byte {
 	return arm.rnd
 }
 
@@ -147,8 +147,9 @@ func (arm *absRandMemberChecker) checkRandMember(_ messages.MsgID, isLocal, isPr
 	}
 	// the nodes random bytes converted to a uint64
 	arm.rndLock.RLock()
+	defer arm.rndLock.RUnlock()
+
 	rndInfo, ok := arm.vrfRand[pid]
-	arm.rndLock.RUnlock()
 	if !ok {
 		return types.ErrNotReceivedVRFProof
 	}
@@ -208,7 +209,8 @@ func (arm *absRandMemberChecker) checkRandCoord(participantNodeCount, totalNodeC
 
 	// the threshold for the given number of nodes
 	onePc := uint64(math.MaxUint64) / 100
-	thrsh := uint64(float64(onePc) * float64(arm.gc.CoordChoiceVRF) * (float64(100) / float64(totalNodeCount))) //arm.coordinatorRelaxation
+	// thrsh := uint64(float64(onePc) * float64(arm.gc.CoordChoiceVRF) * (float64(100) / float64(totalNodeCount))) //arm.coordinatorRelaxation
+	thrsh := uint64((onePc) * uint64(arm.gc.CoordChoiceVRF)) //* (float64(100) / float64(totalNodeCount))) //arm.coordinatorRelaxation
 
 	// thrsh := uint64((float64(1)/float64(totalNodeCount))*math.MaxUint64)
 	if rndInfo.values[round] <= thrsh {
@@ -244,7 +246,13 @@ func (arm *absRandMemberChecker) GotVrf(pub sig.Pub, isProposal bool, msgID mess
 		seed := config.Encoding.Uint64(rndByte[:])
 		rndInfo := &rndNodeInfo{values: []uint64{seed}}
 		arm.rndLock.Lock()
-		arm.vrfRand[pid] = rndInfo
+		if z, ok := arm.vrfRand[pid]; ok {
+			if z.values[0] != rndInfo.values[0] { // sanity check
+				panic("vrf values should be equal")
+			}
+		} else {
+			arm.vrfRand[pid] = rndInfo
+		}
 		arm.rndLock.Unlock()
 	}
 	return nil

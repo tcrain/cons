@@ -67,7 +67,7 @@ func TestRbBcast1MsgDrop(t *testing.T) {
 }
 
 func TestRbBcast1MultiSig(t *testing.T) {
-	cons.RunMultiSigTests(types.TestOptions{}, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, nil, t)
+	cons.RunMultiSigTests(types.TestOptions{}, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, []int{}, t)
 }
 
 func TestRbBcast1P2p(t *testing.T) {

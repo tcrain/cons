@@ -289,6 +289,7 @@ type MemberCheckerType int
 const (
 	CurrentTrueMC MemberCheckerType = iota // Static membership, but membership checking only becomes available once the previous consensus instance terminates (for testing).
 	TrueMC                                 // Static membership.
+	LaterMC                                // Static membership, but may change, resulting in the undecided instances to be restarted (used for MvCons3)
 	BinRotateMC                            // Rotates one index through the list of members each time 0 is decided.
 	CurrencyMC                             // To be used with SimpleCurrencyTxProposer state machine
 )
@@ -322,7 +323,7 @@ func UseTp1CoinThresh(to TestOptions) bool {
 }
 
 // AllMC is a list of all the possible member checker types.
-var AllMC = []MemberCheckerType{TrueMC, CurrentTrueMC, BinRotateMC, CurrencyMC}
+var AllMC = []MemberCheckerType{TrueMC, CurrentTrueMC, LaterMC, BinRotateMC, CurrencyMC}
 
 // ConsType tells what type of consensus is being used for the experiment.
 type ConsType int

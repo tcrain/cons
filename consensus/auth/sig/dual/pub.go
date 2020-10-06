@@ -114,6 +114,8 @@ func (dpp *DualPub) VerifySecondarySig(msg sig.SignedMessage, sign sig.Sig) (boo
 // ShallowCopy makes a copy of the object without following pointers.
 func (dpp *DualPub) ShallowCopy() sig.Pub {
 	ret := *dpp
+	ret.Pub = dpp.Pub.ShallowCopy()
+	ret.pub2 = dpp.pub2.ShallowCopy()
 	return &ret
 }
 

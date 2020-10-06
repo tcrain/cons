@@ -90,6 +90,9 @@ func SetTestConfigOptions(to *types.TestOptions, fistCall bool) {
 	if to.MvConsTimeout == 0 {
 		to.MvConsTimeout = config.MvConsTimeout
 	}
+	if to.MvConsVRFTimeout == 0 {
+		to.MvConsVRFTimeout = config.MvConsVRFTimeout
+	}
 	if to.MvConsRequestRecoverTimeout == 0 {
 		to.MvConsRequestRecoverTimeout = config.MvConsRequestRecoverTimeout
 	}
@@ -410,6 +413,9 @@ func MakeMemberChecker(to types.TestOptions, randKey [32]byte, priv sig.Priv, pu
 		memberChecker = memberchecker.InitTrueMemberChecker(to.RotateCord, priv, gc)
 	case types.CurrentTrueMC:
 		memberChecker = memberchecker.InitCurrentTrueMemberChecker(GenLocalRand(to, randKey), to.RotateCord,
+			to.RndMemberCount, to.RndMemberType, types.ConsensusInt(to.LocalRandMemberChange), priv, gc)
+	case types.LaterMC:
+		memberChecker = memberchecker.InitLaterMemberChecker(GenLocalRand(to, randKey), to.RotateCord,
 			to.RndMemberCount, to.RndMemberType, types.ConsensusInt(to.LocalRandMemberChange), priv, gc)
 	case types.BinRotateMC:
 		memberChecker = memberchecker.InitBinRotateMemberChecker(priv, gc)
@@ -1241,6 +1247,13 @@ func RunConsType(initItem consinterface.ConsItem,
 			i, initItem, ds[i], statsList[i], retExtraParRegInfo, testProcs[i], finishedChan, generalConfigs[i],
 			broadcastFunc, nil, false, parRegs...)
 	}
+	// Copy to avoid data race for non-failed processes reading the keys
+	// (since we update the IDs in the initial member checker generation)
+	newPubKeys := make(sig.PubList, len(pubKeys))
+	for i, nxt := range pubKeys {
+		newPubKeys[i] = nxt.ShallowCopy()
+	}
+	pubKeys = newPubKeys
 
 	// Connect the nodes to eachother
 	numCons := make([][]int, to.NumTotalProcs)
