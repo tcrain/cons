@@ -69,8 +69,10 @@ type ConnStatus struct {
 	udpMsgCountID uint64                                 // we give each udp packet an incremented id
 	nwType        types.NetworkProtocolType              // TCP or UDP
 
-	ctx       context.Context    // context used to terminate pending TCP dial connections
-	ctxCancel context.CancelFunc // cancel function
+	ctx       context.Context      // context used to terminate pending TCP dial connections
+	ctxCancel context.CancelFunc   // cancel function
+	wgChan    chan *sync.WaitGroup // for waiting for threads to close
+	myWg      sync.WaitGroup
 
 	udpMsgPool *udpMsgPool // used for allocating buffers to UDP connections
 }
@@ -90,15 +92,33 @@ func NewConnStatus(nwType types.NetworkProtocolType) *ConnStatus {
 	cs.consPendingReconnection = make(map[sig.PubKeyStr]bool)
 	cs.recvCons = make(map[channelinterface.NetConInfo]*rcvConTime)
 	cs.removedMap = make(map[sig.PubKeyStr]channelinterface.NetNodeInfo)
-	cs.isClosed = false
 	cs.udpMsgPool = newUdpMsgPool()
 	cs.ctx, cs.ctxCancel = context.WithCancel(context.Background())
 
 	if cs.nwType == types.UDP {
 		go cs.checkKeepAliveLoop()
 	}
+	cs.runWaitThread()
 
 	return cs
+}
+
+func (cs *ConnStatus) runWaitThread() {
+	cs.wgChan = make(chan *sync.WaitGroup, 10)
+	cs.myWg.Add(1)
+	ctx, _ := context.WithCancel(cs.ctx)
+	doneChan := ctx.Done()
+	go func() {
+		for true {
+			select {
+			case wg := <-cs.wgChan:
+				wg.Wait()
+			case <-doneChan:
+				cs.myWg.Done()
+				return
+			}
+		}
+	}()
 }
 
 // Close unblocks anyone waiting on WaitUntilFewerSendCons and closes any connections.
@@ -106,8 +126,7 @@ func (cs *ConnStatus) Close() {
 	// This should only be called once
 	cs.mutex.Lock()
 	if cs.isClosed {
-		cs.mutex.Unlock()
-		return
+		panic("should not be called multiple times")
 	}
 	cs.isClosed = true
 	cs.mutex.Unlock()
@@ -129,6 +148,8 @@ func (cs *ConnStatus) Close() {
 			logging.Error(err)
 		}
 	}
+	// wait for our wait group
+	cs.myWg.Wait()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -169,7 +190,7 @@ func (cs *ConnStatus) addPendingSend(conInfo channelinterface.NetNodeInfo) error
 	return ret
 }
 
-// RemovePendingSend removes a connection to the pending list, returns an error if the connection is alread pending
+// RemovePendingSend removes a connection to the pending list, returns an error if the connection is already pending
 // Should be call to permanately remove a connection.
 func (cs *ConnStatus) removePendingSend(pub sig.Pub) error {
 	cs.mutex.Lock()
@@ -193,12 +214,13 @@ func (cs *ConnStatus) removePendingSend(pub sig.Pub) error {
 }
 
 // removeRecvConnection removes the connection from the list of recv connections.
-func (cs *ConnStatus) removeRecvConnection(conInfo channelinterface.NetConInfo) error {
+func (cs *ConnStatus) removeRecvConnection(conInfo channelinterface.NetConInfo, wg *sync.WaitGroup) error {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
 	if cs.isClosed {
 		return types.ErrClosingTime
 	}
+	cs.wgChan <- wg
 
 	if _, ok := cs.recvCons[conInfo]; !ok {
 		return types.ErrConnDoesntExist
@@ -785,12 +807,13 @@ func (cs *ConnStatus) removeSendConnectionInternal(pub sig.Pub, allowReconnectio
 
 // removeSendConnection should be called when a connection to conInfo fails or is closed.
 // The connection will be added to the list to be reconnected to.
-func (cs *ConnStatus) removeSendConnection(pub sig.Pub) error {
+func (cs *ConnStatus) removeSendConnection(pub sig.Pub, wg *sync.WaitGroup) error {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
 	if cs.isClosed {
 		return types.ErrClosingTime
 	}
+	cs.wgChan <- wg
 
 	_, err := cs.removeSendConnectionInternal(pub, true)
 	return err

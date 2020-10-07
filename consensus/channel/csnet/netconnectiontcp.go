@@ -92,7 +92,7 @@ func newNetConnectionTCPAlreadyConnected(conn net.Conn, connStatus *ConnStatus, 
 		if err != nil {
 			logging.Info(err)
 		}
-		return fmt.Errorf("Not accepting connections from %v", connInfo)
+		return fmt.Errorf("not accepting connections from %v", connInfo)
 	}
 	nsc.nci = []channelinterface.NetConInfo{connInfo}
 	nsc.sendChan = make(chan []byte, config.InternalBuffSize)
@@ -385,9 +385,9 @@ func (nsc *NetConnectionTCP) closeInternal(closeType channelinterface.ChannelClo
 	if closeType == channelinterface.CloseDuringTest {
 		var err error
 		if nsc.isRecvConn {
-			err = nsc.connStatus.removeRecvConnection(nsc.nci[0])
+			err = nsc.connStatus.removeRecvConnection(nsc.nci[0], &nsc.wgTCPConn)
 		} else {
-			err = nsc.connStatus.removeSendConnection(nsc.pub)
+			err = nsc.connStatus.removeSendConnection(nsc.pub, &nsc.wgTCPConn)
 		}
 		if err != nil {
 			// We might get an error if the connection was removed all together from the pending connections list
