@@ -21,7 +21,6 @@ package cons
 
 import (
 	"context"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/auth/sig"
@@ -33,7 +32,9 @@ import (
 	"testing"
 )
 
-func GetBaseSMType(consType types.ConsType, order types.OrderingType, consConfigs ConfigOptions) types.StateMachineType {
+func GetBaseSMType(consType types.ConsType, order types.OrderingType, consConfigs ConfigOptions,
+	to types.TestOptions) types.StateMachineType {
+
 	if order == types.Causal {
 		return types.CausalCounterProposer
 	}
@@ -41,6 +42,9 @@ func GetBaseSMType(consType types.ConsType, order types.OrderingType, consConfig
 		return types.TestProposer
 	}
 	if consConfigs.GetIsMV() {
+		if to.AllowsOutOfOrderProposals(consType) {
+			return types.CounterProposer
+		}
 		return types.CurrencyTxProposer
 	}
 	return types.BinaryProposer
@@ -53,14 +57,18 @@ func RunBasicTests(to types.TestOptions, consType types.ConsType, initItem consi
 	if config.AllowConcurrentTests {
 		t.Parallel()
 	}
+	to.NumMsgProcessThreads = 1
 	to.MaxRounds = config.MaxRounds
 	to.NumTotalProcs = config.ProcCount
-	to.NumNonMembers = config.NonMembers
+	if consConfigs.GetAllowsNonMembers() {
+		to.NumNonMembers = config.NonMembers
+	}
 	to.ClearDiskOnRestart = false
 	to.NetworkType = types.AllToAll
 	to.CheckDecisions = true
 	to.SleepValidate = config.TestSleepValidate
-	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs)
+	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs, to)
+
 	to.ConnectionType = types.TCP
 	to.UsePubIndex = true
 	to.ConsType = consType
@@ -84,7 +92,7 @@ func RunBasicTests(to types.TestOptions, consType types.ConsType, initItem consi
 
 	// Special test for currency state machine plus currency memberchecker.
 	if to.OrderingType == types.Total && checkCurrencySM(consConfigs) {
-		fmt.Println("Running test with SimpleCurrencyTxProposer and Currency member checker")
+		logging.Print("Running test with SimpleCurrencyTxProposer and Currency member checker")
 		// for these tests we only want to run one test, so we just take the first config if none is set
 		if len(toRun) == 0 {
 			toRun = []int{0}
@@ -111,17 +119,21 @@ func RunByzTests(to types.TestOptions, consType types.ConsType, initItem consint
 	to.ClearDiskOnRestart = false
 	to.NetworkType = types.AllToAll
 	to.CheckDecisions = true
-	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs)
+	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs, to)
 	to.ConnectionType = types.TCP
 	to.UsePubIndex = true
 	to.ConsType = consType
 	// to.IncludeProofs = true
 	to.SleepValidate = config.TestSleepValidate
 
-	if consConfigs.GetIsMV() && to.ConsType != types.MvCons3Type {
-		to.RotateCord = true // So the tests dont take too long
+	switch to.ConsType {
+	case types.MvCons3Type, types.MvCons4Type:
+	default:
+		if consConfigs.GetIsMV() {
+			to.RotateCord = true // So the tests dont take too long
+		}
+		// to.MCType = types.BinRotateMC
 	}
-	// to.MCType = types.BinRotateMC
 
 	to.StorageType = types.Memstorage
 
@@ -136,6 +148,7 @@ func RunByzTests(to types.TestOptions, consType types.ConsType, initItem consint
 	iter, err := NewTestOptIter(AllOptions, consConfigs, NewSingleIter(ByzTest, to))
 	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, toRun, t)
+
 }
 
 func checkCurrencySM(consConfigs ConfigOptions) bool {
@@ -167,7 +180,7 @@ func RunMemstoreTest(to types.TestOptions, consType types.ConsType, initItem con
 	to.StorageType = types.Memstorage
 	to.NetworkType = types.AllToAll
 	to.CheckDecisions = true
-	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs)
+	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs, to)
 	to.ConnectionType = types.TCP
 	to.UsePubIndex = true
 	to.ConsType = consType
@@ -196,7 +209,7 @@ func RunMsgDropTest(to types.TestOptions, consType types.ConsType, initItem cons
 	to.ClearDiskOnRestart = false
 	to.NetworkType = types.AllToAll
 	to.CheckDecisions = true
-	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs)
+	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs, to)
 	//to.StateMachineType = types.CounterProposer
 	to.ConnectionType = types.TCP
 	to.UsePubIndex = true
@@ -207,7 +220,7 @@ func RunMsgDropTest(to types.TestOptions, consType types.ConsType, initItem cons
 		ByzTypes: []types.ByzType{types.NonFaulty},
 	}, AllTestConfig)
 
-	fmt.Println("Running msg drop test with all to all network")
+	logging.Print("Running msg drop test with all to all network")
 	iter, err := NewTestOptIter(MinOptions, consConfigs, NewSingleIter(tconfig, to))
 	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, toRun, t)
@@ -219,7 +232,7 @@ func RunMsgDropTest(to types.TestOptions, consType types.ConsType, initItem cons
 
 	to.NetworkType = types.P2p
 	to.FanOut = config.FanOut
-	fmt.Println("Running msg drop test with peer to peer network")
+	logging.Print("Running msg drop test with peer to peer network")
 	iter, err = NewTestOptIter(MinOptions, consConfigs, NewSingleIter(tconfig, to))
 	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, toRun, t)
@@ -239,7 +252,7 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 	to.RndMemberType = types.KnownPerCons
 	to.NetworkType = types.AllToAll
 	to.CheckDecisions = true
-	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs)
+	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs, to)
 	to.ConnectionType = types.TCP
 	to.UsePubIndex = true
 	to.ConsType = consType
@@ -257,7 +270,7 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 		to.MCType = types.LaterMC
 	}
 
-	fmt.Println("Running with VRF type random member selection")
+	logging.Print("Running with VRF type random member selection")
 	iter, err := NewTestOptIter(AllOptions, consConfigs, NewSingleIter(SingleSMTest, to))
 	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, toRun, t)
@@ -265,7 +278,7 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 	if to.OrderingType == types.Total && to.ConsType != types.RbBcast1Type && to.ConsType != types.RbBcast2Type {
 		// we dont run random coordinator with rbbcasts since they must have only a single broadcaster
 		// we allow RbBcast and random with causal ordering because we use a fixed coordinator
-		fmt.Println("Running with VRF type random member selection and random coordinator")
+		logging.Print("Running with VRF type random member selection and random coordinator")
 		cTo := to
 		cTo.UseRandCoord = true
 		iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(BasicTestConfigs, cTo))
@@ -283,7 +296,7 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 		to.EncryptChannels = true
 		to.NoSignatures = true
 
-		fmt.Println("Running with local random member selection")
+		logging.Print("Running with local random member selection")
 		to.NetworkType = types.RequestForwarder
 		to.RndMemberType = types.LocalRandMember
 		to.GenRandBytes = false
@@ -298,7 +311,7 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 		if to.ConsType != types.RbBcast1Type && to.ConsType != types.RbBcast2Type { // TODO fix local rand member recover after failure for RBBCast (different proposals)
 
 			if to.OrderingType == types.Total {
-				fmt.Println("Running with local random member selection and random coord")
+				logging.Print("Running with local random member selection and random coord")
 				cTo := to
 				cTo.GenRandBytes = true
 				cTo.UseRandCoord = true
@@ -309,7 +322,7 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 
 			numMembers := to.RndMemberCount
 			// restart from disk enough remain live to continue
-			fmt.Println("Running with local random member selection and less than 1/3 fail and clear disk (just a single test)")
+			logging.Print("Running with local random member selection and less than 1/3 fail and clear disk (just a single test)")
 			to.NumFailProcs = utils.GetOneThirdBottom(numMembers)
 			to.FailRounds = config.MaxRounds / 2
 			to.ClearDiskOnRestart = true
@@ -318,7 +331,7 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 			runIterTests(initItem, consConfigs, iter, toRun, t)
 
 			// restart from disk enough remain live to continue
-			fmt.Println("Running  with local random member selection and less than 1/3 fail and recover from disk (just a single test)")
+			logging.Print("Running  with local random member selection and less than 1/3 fail and recover from disk (just a single test)")
 			to.NumFailProcs = utils.GetOneThirdBottom(numMembers)
 			to.FailRounds = config.MaxRounds / 2
 			to.ClearDiskOnRestart = false
@@ -344,7 +357,7 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 	to.NetworkType = types.P2p
 	to.FanOut = config.FanOut
 	to.CheckDecisions = true
-	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs)
+	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs, to)
 	to.ConnectionType = types.TCP
 	to.UseMultisig = true
 	to.UsePubIndex = true
@@ -355,7 +368,7 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 
 	to.StorageType = types.Memstorage
 
-	fmt.Println("Running with multisigs")
+	logging.Print("Running with multisigs")
 	iter, err := NewTestOptIter(AllOptions, consConfigs, NewSingleIter(SingleSMTest, to))
 	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, toRun, t)
@@ -367,7 +380,7 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 		}
 	}
 	if knownPerCons {
-		fmt.Println("Running with multisigs and randomized members")
+		logging.Print("Running with multisigs and randomized members")
 		tmpTo := to
 		tmpTo.NumTotalProcs = 10
 		tmpTo.RndMemberType = types.KnownPerCons
@@ -382,7 +395,7 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 		assert.Nil(t, err)
 		runIterTests(initItem, consConfigs, iter, toRun, t)
 	}
-	fmt.Println("Running with multisigs and buffer forwarder")
+	logging.Print("Running with multisigs and buffer forwarder")
 	to.BufferForwardType = types.ThresholdBufferForward
 	to.IncludeCurrentSigs = true
 	to.AdditionalP2PNetworks = 2
@@ -393,7 +406,7 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 
 	numMembers := to.NumTotalProcs - to.NumNonMembers
 	// restart from disk enough remain live to continue
-	fmt.Println("Running with multisigs and less than 1/3 fail and recover from disk")
+	logging.Print("Running with multisigs and less than 1/3 fail and recover from disk")
 	to.NumFailProcs = utils.GetOneThirdBottom(numMembers)
 	to.FailRounds = config.MaxRounds / 2
 	to.BufferForwardType = types.NoBufferForward
@@ -409,18 +422,20 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 func RunP2pNwTests(to types.TestOptions, consType types.ConsType, initItem consinterface.ConsItem,
 	consConfigs ConfigOptions, toRun []int, t *testing.T) {
 
+	_ = toRun
 	if config.AllowConcurrentTests {
 		t.Parallel()
 	}
 
 	to.MaxRounds = config.MaxRounds
 	to.NumNonMembers = config.NonMembers
-	to.NumTotalProcs = 10 //config.ProcCount
+	to.NumTotalProcs = 10 // config.ProcCount
 	to.ClearDiskOnRestart = false
 	to.NetworkType = types.P2p
 	to.FanOut = config.FanOut
 	to.CheckDecisions = true
-	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs)
+	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs, to)
+
 	to.ConnectionType = types.TCP
 	to.UsePubIndex = true
 	to.ConsType = consType
@@ -430,18 +445,18 @@ func RunP2pNwTests(to types.TestOptions, consType types.ConsType, initItem consi
 		ByzTypes: []types.ByzType{types.NonFaulty},
 	}, AllTestConfig)
 
-	fmt.Println("Running with static P2P network")
+	logging.Print("Running with static P2P network")
 	iter, err := NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, to))
 	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, []int{0}, t)
 
-	fmt.Println("Running with random P2P network")
+	logging.Print("Running with random P2P network")
 	to.NetworkType = types.Random
 	iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, to))
 	assert.Nil(t, err)
 	runIterTests(initItem, consConfigs, iter, []int{0}, t)
 
-	fmt.Println("Running with static P2P network and fixed buffer forward")
+	logging.Print("Running with static P2P network and fixed buffer forward")
 	to.NetworkType = types.P2p
 	to.BufferForwardType = types.FixedBufferForward
 	to.ForwardTimeout = 10
@@ -468,7 +483,7 @@ func RunFailureTests(to types.TestOptions, consType types.ConsType, initItem con
 	to.ConnectionType = types.TCP
 	to.CheckDecisions = true
 	to.UsePubIndex = true
-	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs)
+	to.StateMachineType = GetBaseSMType(consType, to.OrderingType, consConfigs, to)
 	to.ConsType = consType
 	to.StorageType = types.Diskstorage
 	to.SleepValidate = config.TestSleepValidate
@@ -484,7 +499,7 @@ func RunFailureTests(to types.TestOptions, consType types.ConsType, initItem con
 	numMembers := to.NumTotalProcs - to.NumNonMembers
 
 	// restart from disk enough remain live to continue
-	fmt.Println("Less than 1/3 fail and recover from disk")
+	logging.Print("Less than 1/3 fail and recover from disk")
 	to.NumFailProcs = utils.GetOneThirdBottom(numMembers)
 	iter, err := NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, to))
 	assert.Nil(t, err)
@@ -497,7 +512,7 @@ func RunFailureTests(to types.TestOptions, consType types.ConsType, initItem con
 
 	// clear disk enough fail that progress is stopped
 	if to.ConsType != types.MvCons3Type { // TODO fix
-		fmt.Println("All fail and recover from disk")
+		logging.Print("All fail and recover from disk")
 		to.ClearDiskOnRestart = false
 		to.NumFailProcs = to.NumTotalProcs
 		iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, to))
@@ -510,14 +525,14 @@ func RunFailureTests(to types.TestOptions, consType types.ConsType, initItem con
 	// TODO for now only test with total order because with causal sending different proposals can hault termination
 	if to.OrderingType == types.Total {
 		// restart from disk enough remain live to continue
-		fmt.Println("Less than 1/3 fail and clear their disk")
+		logging.Print("Less than 1/3 fail and clear their disk")
 		to.ClearDiskOnRestart = true
 		to.NumFailProcs = utils.GetOneThirdBottom(numMembers)
 		iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(tconfig, to))
 		assert.Nil(t, err)
 		runIterTests(initItem, consConfigs, iter, toRun, t)
 
-		// fmt.Println("Half fail and clear their disk")
+		// logging.Print("Half fail and clear their disk")
 		//to.ClearDiskOnRestart = true
 		//to.NumFailProcs = to.NumTotalProcs / 2
 		//iter, err = types.NewTestOptIter(types.AllOptions, consConfigs, types.NewSingleIter(types.AllTestConfig, to))
@@ -533,7 +548,7 @@ func runIterTests(initItem consinterface.ConsItem, consConfigs ConfigOptions,
 	var i int
 	prv, hasNxt := iter.Next()
 	if len(toRun) == 0 || utils.ContainsInt(toRun, 0) {
-		fmt.Printf("\nRunning test #%v\n", i)
+		logging.Printf("\nRunning test #%v\n", i)
 		_, err := prv.CheckValid(prv.ConsType, consConfigs.GetIsMV())
 		assert.Nil(t, err)
 
@@ -546,8 +561,8 @@ func runIterTests(initItem consinterface.ConsItem, consConfigs ConfigOptions,
 		i++
 
 		if len(toRun) == 0 || utils.ContainsInt(toRun, i) {
-			fmt.Printf("Running test #%v\n", i)
-			fmt.Println("Changing config: ", prv.StringDiff(nxt))
+			logging.Printf("Running test #%v\n", i)
+			logging.Print("Changing config: ", prv.StringDiff(nxt))
 			_, err := nxt.CheckValid(nxt.ConsType, consConfigs.GetIsMV())
 			assert.Nil(t, err)
 			runConsDebug(initItem, consConfigs.GetBroadcastFunc(nxt.ByzType), consConfigs, nxt, t)

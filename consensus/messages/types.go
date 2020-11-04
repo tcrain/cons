@@ -91,3 +91,24 @@ func (bm BasicMsgID) ToMsgIDInfo() MsgIDInfo {
 		HeaderID: uint32(bm),
 	}
 }
+
+// EventInfoMsgID implements the MsgID interface as a Hash, so every different message is different
+type EventInfoMsgID types.HashBytes
+
+// IsMsgID to satisfy the interface and returns true
+func (EventInfoMsgID) IsMsgID() bool {
+	return true
+}
+
+func (bm EventInfoMsgID) ToBytes(types.ConsensusIndex) []byte {
+	m := NewMsgBuffer()
+	m.AddBytes(bm)
+	return m.GetRemainingBytes()
+}
+
+// ToMsgIDInfo converts the MsgID to a MsgIDInfo
+func (bm EventInfoMsgID) ToMsgIDInfo() MsgIDInfo {
+	return MsgIDInfo{
+		HeaderID: uint32(HdrEventInfo),
+	}
+}

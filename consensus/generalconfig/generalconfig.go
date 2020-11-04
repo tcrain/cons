@@ -72,6 +72,7 @@ type GeneralConfig struct {
 	CoordChoiceVRF              int                        // Chance of each node being chosen as a coordinator when using VRF.
 	UseRandCoord                bool                       // If true round coordinators will be chosen using VRFs
 	BufferForwardType           types.BufferForwardType    // Type of buffer forwarder to use
+	MvCons4BcastType            types.MvCons4BcastType     // the type of message broadcast used by MvCons4
 }
 
 type ExtraInitState interface {

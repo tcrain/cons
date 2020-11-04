@@ -106,7 +106,8 @@ func (*BinConsRnd6) GenerateNewItem(index types.ConsensusIndex,
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *BinConsRnd6) Start() {
+func (sc *BinConsRnd6) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 	if sc.CheckMemberLocal() { // if the current node is a member then send an initial proposal
 		sc.NeedsProposal = true
@@ -150,7 +151,7 @@ func (sc *BinConsRnd6) GotProposal(hdr messages.MsgHeader, _ channelinterface.Ma
 }
 
 // GetMVInitialRoundBroadcast returns the type of binary message that the multi-value reduction should broadcast for round 0.
-func (sc *BinConsRnd6) GetMVInitialRoundBroadcast(val types.BinVal) messages.InternalSignedMsgHeader {
+func (sc *BinConsRnd6) GetMVInitialRoundBroadcast(types.BinVal) messages.InternalSignedMsgHeader {
 	panic("TODO")
 }
 
@@ -322,6 +323,7 @@ func (sc *BinConsRnd6) CheckRound(nmt int, t int, round types.ConsensusRound,
 		if shouldDecide < 2 {
 			if sc.Decided == -1 {
 				sc.Decided = int(shouldDecide)
+				sc.SetDecided()
 				logging.Infof("Decided proc %v bin round %v, binval %v, index %v",
 					sc.TestIndex, round, sc.Decided, sc.Index)
 				sc.decidedRound = round
@@ -435,8 +437,8 @@ func (sc *BinConsRnd6) CheckRound(nmt int, t int, round types.ConsensusRound,
 				hdrs = append(hdrs, nxt)
 			}
 			roundStruct.auxBinHeaders = hdrs
-			sms := sc.getMsgState().Sms
-			sms.TrackTotalSigCount(sc.ConsItems.MC, hdrs...)
+			// sms := sc.getMsgState().Sms
+			sc.getMsgState().Sms.TrackTotalSigCount(sc.ConsItems.MC, hdrs...)
 			binMsgState.updateAuxBinMsgCount(roundStruct, sc.ConsItems.MC)
 			// roundStruct.TotalAuxBinMsgCount = sms.GetTotalSigCount(sc.ConsItems.MC, hdrs...)
 		}
@@ -571,8 +573,8 @@ func (sc *BinConsRnd6) CheckRound(nmt int, t int, round types.ConsensusRound,
 				hdrs = append(hdrs, auxMsg)
 			}
 			roundStruct.auxStage1BinHeaders = hdrs
-			sms := sc.getMsgState().Sms
-			sms.TrackTotalSigCount(sc.ConsItems.MC, hdrs...)
+			// sms := sc.getMsgState().Sms
+			sc.getMsgState().Sms.TrackTotalSigCount(sc.ConsItems.MC, hdrs...)
 			// roundStruct.TotalAuxStage1MsgCount = sms.GetTotalSigCount(sc.ConsItems.MC, hdrs...)
 			binMsgState.updateAuxStage1MsgCount(roundStruct, sc.ConsItems.MC)
 		}
@@ -822,10 +824,11 @@ func (sc *BinConsRnd6) ShouldCreatePartial(messages.HeaderID) bool {
 func (sc *BinConsRnd6) BroadcastCoin(coinMsg messages.MsgHeader,
 	mainChannel channelinterface.MainChannel) {
 
+	sts := sc.ConsItems.MC.MC.GetStats()
 	mainChannel.SendHeader(messages.AppendCopyMsgHeader(sc.PreHeaders, coinMsg),
 		messages.IsProposalHeader(sc.Index, coinMsg.(messages.InternalSignedMsgHeader).GetBaseMsgHeader()),
 		true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
-		sc.ConsItems.MC.MC.GetStats().IsRecordIndex(), sc.ConsItems.MC.MC.GetStats())
+		sts.IsRecordIndex(), sts)
 }
 
 // GenerateMessageState generates a new message state object given the inputs.

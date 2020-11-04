@@ -240,6 +240,7 @@ type Blspub struct {
 	// pubID should only be used when sig.UseMultiSig= false
 	pubID      sig.PubKeyID // A unique string represeting this key for a consensus iteration (see PubKeyID type)
 	newBidFunc bitid.FromIntFunc
+	idx        sig.PubKeyIndex // only used is multi-sig is disabled
 }
 
 // Shallow copy makes a copy of the object without following pointers.
@@ -256,7 +257,11 @@ func (pub *Blspub) GetMsgID() messages.MsgID {
 // SetIndex sets the index of the node represented by this public key in the consensus participants
 func (pub *Blspub) SetIndex(index sig.PubKeyIndex) {
 	pub.pubID = ""
-	pub.bitID = pub.newBidFunc(sort.IntSlice{int(index)})
+	if sig.UseMultisig {
+		pub.bitID = pub.newBidFunc(sort.IntSlice{int(index)})
+	} else {
+		pub.idx = index
+	}
 }
 
 // GetIndex gets the index of the node represented by this key in the consensus participants
@@ -264,15 +269,21 @@ func (pub *Blspub) GetIndex() sig.PubKeyIndex {
 	if !sig.UsePubIndex {
 		panic("invalid when UsePubIndex is false")
 	}
-	il := pub.bitID.GetItemList()
-	if len(il) != 1 {
-		panic("should only be used on the local key")
+	if sig.UseMultisig {
+		il := pub.bitID.GetItemList()
+		if len(il) != 1 {
+			panic("should only be used on the local key")
+		}
+		return sig.PubKeyIndex(il[0])
 	}
-	return sig.PubKeyIndex(il[0])
+	return pub.idx
 }
 
 // GetSigMemberNumber returns the number of nodes represented by this BLS pub key
 func (pub *Blspub) GetSigMemberNumber() int {
+	if !sig.UseMultisig {
+		return 1
+	}
 	if sig.UsePubIndex {
 		_, _, _, count := pub.GetBitID().GetBasicInfo()
 		return count
@@ -429,11 +440,7 @@ func (pub *Blspub) GetPubID() (sig.PubKeyID, error) {
 	if sig.UsePubIndex {
 		if pub.pubID == "" {
 			buff := make([]byte, 4)
-			ids := pub.GetBitID().GetItemList()
-			if len(ids) != 1 {
-				return "", types.ErrInvalidBitID
-			}
-			config.Encoding.PutUint32(buff, uint32(ids[0]))
+			config.Encoding.PutUint32(buff, uint32(pub.idx))
 			pub.pubID = sig.PubKeyID(buff)
 		}
 		return pub.pubID, nil
@@ -482,11 +489,7 @@ func (pub *Blspub) Serialize(m *messages.Message) (int, error) {
 			return l, err
 		}
 	} else if sig.UsePubIndex {
-		ids := pub.bitID.GetItemList()
-		if len(ids) != 1 {
-			panic("should not have multiple ids unless using multisigs")
-		}
-		(*messages.MsgBuffer)(m).AddUint32(uint32(ids[0]))
+		(*messages.MsgBuffer)(m).AddUint32(uint32(pub.idx))
 		l += 4
 	} else {
 		// now the pub
@@ -542,7 +545,7 @@ func (pub *Blspub) Deserialize(m *messages.Message, unmarFunc types.ConsensusInd
 			return 0, err
 		}
 		l += br
-		pub.bitID = pub.newBidFunc([]int{int(index)})
+		pub.idx = sig.PubKeyIndex(index)
 	} else {
 		// Now the pub
 		buff, err := (*messages.MsgBuffer)(m).ReadBytes(int(size) - l)

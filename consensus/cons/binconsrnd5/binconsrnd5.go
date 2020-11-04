@@ -109,7 +109,8 @@ func (*BinConsRnd5) GenerateNewItem(index types.ConsensusIndex,
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *BinConsRnd5) Start() {
+func (sc *BinConsRnd5) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 	if sc.CheckMemberLocal() { // if the current node is a member then send an initial proposal
 		sc.NeedsProposal = true
@@ -155,7 +156,7 @@ func (sc *BinConsRnd5) GotProposal(hdr messages.MsgHeader, mainChannel channelin
 }
 
 // GetMVInitialRoundBroadcast returns the type of binary message that the multi-value reduction should broadcast for round 0.
-func (sc *BinConsRnd5) GetMVInitialRoundBroadcast(val types.BinVal) messages.InternalSignedMsgHeader {
+func (sc *BinConsRnd5) GetMVInitialRoundBroadcast(types.BinVal) messages.InternalSignedMsgHeader {
 	panic("TODO")
 }
 
@@ -372,6 +373,7 @@ func (sc *BinConsRnd5) CheckRound(nmt int, t int, round types.ConsensusRound,
 			}
 		} else {
 			sc.Decided = int(shouldDecide)
+			sc.SetDecided()
 			sc.decidedRound = round
 			logging.Infof("Decided proc %v bin round %v, binval %v, index %v", sc.TestIndex, round, shouldDecide, sc.Index)
 			sc.ConsItems.MC.MC.GetStats().AddFinishRound(round, shouldDecide == 0)
@@ -782,10 +784,11 @@ func (sc *BinConsRnd5) ShouldCreatePartial(headerType messages.HeaderID) bool {
 func (sc *BinConsRnd5) BroadcastCoin(coinMsg messages.MsgHeader,
 	mainChannel channelinterface.MainChannel) {
 
+	sts := sc.ConsItems.MC.MC.GetStats()
 	mainChannel.SendHeader(messages.AppendCopyMsgHeader(sc.PreHeaders, coinMsg),
 		messages.IsProposalHeader(sc.Index, coinMsg.(messages.InternalSignedMsgHeader).GetBaseMsgHeader()),
 		true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
-		sc.ConsItems.MC.MC.GetStats().IsRecordIndex(), sc.ConsItems.MC.MC.GetStats())
+		sts.IsRecordIndex(), sts)
 }
 
 // GenerateMessageState generates a new message state object given the inputs.

@@ -343,6 +343,7 @@ const (
 	MvCons3Type                       // Multivalue HotStuff like
 	RbBcast1Type                      // Reliable broadcast like
 	RbBcast2Type                      // Reliable broadcast
+	MvCons4Type                       // Multivalue Hashgraph like
 	SimpleConsType                    // Nodes broadcast their id and public key and wait to recieve this from all other nodes, just for testing.
 	MockTestConsType                  // Test object
 )
@@ -374,6 +375,8 @@ func (ct ConsType) String() string {
 		return "MvCons2"
 	case MvCons3Type:
 		return "MvCons3"
+	case MvCons4Type:
+		return "MvCons4"
 	case SimpleConsType:
 		return "SimpleCons"
 	case RbBcast1Type:
@@ -554,3 +557,25 @@ const (
 	NonMemberNode
 	MemberNode
 )
+
+// MvCons4BcastType is the type of message broadcast used by MvCons4.
+type MvCons4BcastType int
+
+const (
+	Direct  MvCons4BcastType = iota // create new events when you receive a new event
+	Indices                         // first send your current indices to another node then is replies with any newer events and creates an event
+	Normal                          // wait for n-t event before creating a new one at each index
+)
+
+func (mv MvCons4BcastType) String() string {
+	switch mv {
+	case Direct:
+		return "Direct"
+	case Indices:
+		return "Indices"
+	case Normal:
+		return "Normal"
+	default:
+		return fmt.Sprintf("MvCons4BcastType:%d", mv)
+	}
+}

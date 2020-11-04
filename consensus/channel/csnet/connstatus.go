@@ -531,6 +531,12 @@ func (cs *ConnStatus) internalSendTo(buff []byte, dest channelinterface.SendChan
 
 	// Next check if it is a received connection
 	if conn, ok := cs.recvCons[dest.GetConnInfos().AddrList[0]]; ok {
+		if stats != nil {
+			stats.Send(len(buff))
+		}
+		if consStats != nil {
+			consStats.ConsSend(len(buff))
+		}
 		err := conn.con.Send(buff)
 		if err != nil {
 			logging.Error(err)

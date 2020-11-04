@@ -258,7 +258,8 @@ func (sc *RbBcast2) CanStartNext() bool {
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *RbBcast2) Start() {
+func (sc *RbBcast2) Start(finishedLastIndex bool) {
+	_ = finishedLastIndex
 	sc.AbsConsItem.AbsStart()
 	logging.Infof("Starting RbBcast2 index %v", sc.Index)
 	if sc.CheckMemberLocal() {
@@ -421,6 +422,7 @@ func (sc *RbBcast2) checkProgress(t, nmt int, mainChannel channelinterface.MainC
 			// we have the init message so we decide
 			sc.decisionInitMsg = initMsg.Header.(messages.InternalSignedMsgHeader).GetBaseMsgHeader().(*messagetypes.MvInitMessage)
 			sc.decisionPub = sig.GetSingleSupporter(initMsg.Header)
+			sc.SetDecided()
 			logging.Infof("Have decision init message index %v", sc.Index)
 		}
 	}

@@ -136,3 +136,6 @@ set of messages to end the test).
   - The part says its depricated, but I dont see where I would have fixed it?
   - Because of this (add see causal above) the call to start the SM happens before the loading
   from disk, instead of when start is called
+  
+- MvCons4
+  - No checking for byzantine - if 2 witnesses are created, it will panic

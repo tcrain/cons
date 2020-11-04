@@ -97,9 +97,11 @@ func (sc *AbsMVRecover) SendRecover(validatedInitHashes map[types.HashStr]*deser
 				panic(err)
 			}
 			messages.AppendMessage(msg, initMsg.Message.Message)
+			sts := items.MC.MC.GetStats()
+			record := sts.IsRecordIndex()
 			for _, sendChan := range sendChans {
-				sendChan.MainChan.SendTo(msg.GetBytes(), sendChan.ReturnChan, items.MC.MC.GetStats().IsRecordIndex(),
-					items.MC.MC.GetStats())
+				sendChan.MainChan.SendTo(msg.GetBytes(), sendChan.ReturnChan, record,
+					sts)
 			}
 			delete(sc.requestedRecover, hashStr)
 		}
@@ -116,8 +118,9 @@ func (sc *AbsMVRecover) BroadcastRequestRecover(preHeaders []messages.MsgHeader,
 		newMsg := messagetypes.NewMvRequestRecoverMessage()
 		newMsg.Index = sc.index
 		newMsg.ProposalHash = hash
+		sts := items.MC.MC.GetStats()
 		mainChannel.SendHeader(messages.AppendCopyMsgHeader(preHeaders, newMsg),
 			false, false, forwardChecker.GetNewForwardListFunc(),
-			items.MC.MC.GetStats().IsRecordIndex(), items.MC.MC.GetStats()) // TODO use a different forward function??
+			sts.IsRecordIndex(), sts) // TODO use a different forward function??
 	}
 }

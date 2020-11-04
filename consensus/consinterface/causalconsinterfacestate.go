@@ -929,7 +929,7 @@ func (mcs *CausalConsInterfaceState) genIndex(idx types.ConsensusIndex) (*ConsIn
 
 	item.ConsItem = mcs.initItem.GenerateNewItem(idx, item, mcs.mainChannel, parItem.ConsItem,
 		mcs.broadcastFunc, mcs.gc)
-	item.ConsItem.Start()
+	item.ConsItem.Start(false)
 
 	// prevItem.ConsItem.SetNextConsItem(newItem.ConsItem)
 

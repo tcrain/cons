@@ -70,25 +70,26 @@ type StatsInterface interface {
 	DoneRecording()                                                           // DoneRecording stops recording the stats.
 	AddStartTime()                                                            // AddStartTime is called each time a new consesnsus instance is started.
 	// AddFinishTime()                                                           // AddFinishTime is called time a consensus instance decides.
-	SignedItem()                                            // SignedItem is called each time consensus signs a message.
-	ValidatedItem()                                         // ValidatedItem is called each time consensus validates a signature.
-	ValidatedCoinShare()                                    // ValidatedCoinShare is call each time a coin share is validated
-	ComputedCoin()                                          // ComputedCoin is called each time a coin is computed.
-	ValidatedVRF()                                          // ValidatedVRF is called each time a VRF is validated
-	CreatedVRF()                                            // CreatedVRF is called each time a VRF is created.
-	String() string                                         // String outputs the statistics in a human readable format.
-	AddParticipationRound(r types.ConsensusRound)           // Called when the node participates in a round r
-	AddFinishRound(r types.ConsensusRound, decidedNil bool) // Called when the node decides at round r
-	CombinedThresholdSig()                                  // Called when a threshold signature is combined.
-	DiskStore(bytes int)                                    // Called when storage to disk is done with the number of bytes stored.
-	Restart()                                               // Called on restart of failure so it knows to start recording again
-	IsRecordIndex() bool                                    // IsRecordIndex returns true if the consensus index of this stats is being recorded.
-	AddProgressTimeout()                                    // AddProgressTimeout is called when the consensus times out without making progress.
-	AddForwardState()                                       // AddForwardState is called when the node forwards state to a slow node.
-	BroadcastProposal()                                     // BroadcastProposal is called when the node makes a proposal.
-	IsMember()                                              // Is member is called when the node finds out it is the member of the consensus.
-	MemberMsgID(id messages.MsgID)                          // MemberMsgID is called when the node is a member for the message ID.
-	ProposalForward()                                       // Called when a proposal is forwarded
+	SignedItem()                                                 // SignedItem is called each time consensus signs a message.
+	ValidatedItem()                                              // ValidatedItem is called each time consensus validates a signature.
+	ValidatedCoinShare()                                         // ValidatedCoinShare is call each time a coin share is validated
+	ComputedCoin()                                               // ComputedCoin is called each time a coin is computed.
+	ValidatedVRF()                                               // ValidatedVRF is called each time a VRF is validated
+	CreatedVRF()                                                 // CreatedVRF is called each time a VRF is created.
+	String() string                                              // String outputs the statistics in a human readable format.
+	AddParticipationRound(r types.ConsensusRound)                // Called when the node participates in a round r
+	AddFinishRound(r types.ConsensusRound, decidedNil bool)      // Called when the node decides at round r
+	AddFinishRoundSet(r types.ConsensusRound, decisionCount int) // Called instead of AddFinishRound used for consensus algorithms that decide a set of values
+	CombinedThresholdSig()                                       // Called when a threshold signature is combined.
+	DiskStore(bytes int)                                         // Called when storage to disk is done with the number of bytes stored.
+	Restart()                                                    // Called on restart of failure so it knows to start recording again
+	IsRecordIndex() bool                                         // IsRecordIndex returns true if the consensus index of this stats is being recorded.
+	AddProgressTimeout()                                         // AddProgressTimeout is called when the consensus times out without making progress.
+	AddForwardState()                                            // AddForwardState is called when the node forwards state to a slow node.
+	BroadcastProposal()                                          // BroadcastProposal is called when the node makes a proposal.
+	IsMember()                                                   // Is member is called when the node finds out it is the member of the consensus.
+	MemberMsgID(id messages.MsgID)                               // MemberMsgID is called when the node is a member for the message ID.
+	ProposalForward()                                            // Called when a proposal is forwarded
 	MergeLocalStats(to types.TestOptions, numCons int) (total MergedStats)
 	// Merge all stats is a static function that merges the list of stats, and returns the average stats per process, and the total summed stats.
 	MergeAllStats(to types.TestOptions, items []MergedStats) (perProc, merge MergedStats)
@@ -140,6 +141,7 @@ type StatsObjBasic struct {
 	RoundParticipation uint64               // Last round participated in
 	DiskStorage        uint64               // Number of bytes written to disk
 	DecidedNil         uint64               //  True if nil was decided
+	ValuesDecidedCount uint64               // Number of values decided per consensus
 	ProgressTimeout    uint64               // Number of times progress timeout happened.
 	ForwardState       uint64               // Number of times state was forwarded due to neighbor timeout.
 	Proposal           bool                 // Made a proposal
@@ -176,6 +178,7 @@ type MergedStats struct {
 	MaxMemberCount, MinMemberCount                                                                                                                                                   uint64
 	MaxProposalCount, MinProposalCount                                                                                                                                               uint64
 	ProposalCount, MemberCount                                                                                                                                                       uint64
+	MaxValuesDecidedCount, MinValuesDecidedCount                                                                                                                                     uint64
 
 	ProposalCounts                           []uint64
 	MemberCounts                             []uint64
@@ -403,14 +406,22 @@ func (bs *BasicStats) AddParticipationRound(r types.ConsensusRound) {
 	}
 }
 
-func (bs *BasicStats) AddFinishRound(r types.ConsensusRound, decidedNil bool) {
+// AddFinishRoundSet is called instead of AddFinishRound used for consensus algorithms that decide a set of values
+func (bs *BasicStats) AddFinishRoundSet(r types.ConsensusRound, decisionCount int) {
 	bs.Decided = true
-	if decidedNil {
-		bs.DecidedNil++
-	}
+	bs.ValuesDecidedCount += uint64(decisionCount)
 	bs.FinishTime = time.Now()
 	bs.RoundDecide = uint64(r)
 	bs.AddParticipationRound(r)
+}
+
+func (bs *BasicStats) AddFinishRound(r types.ConsensusRound, decidedNil bool) {
+	decCount := 1
+	if decidedNil {
+		bs.DecidedNil++
+		decCount = 0
+	}
+	bs.AddFinishRoundSet(r, decCount)
 }
 
 func mergeInternalLocal(items []StatsObjBasic, reTotal MergedStats) MergedStats {
@@ -452,12 +463,12 @@ func mergeInternal(to types.TestOptions, local bool, items []StatsObjBasic) (reT
 	var setStart bool
 	var coinCreatedCounts, validateCoinCounts, decidedNil, diskStorage, roundDecides, roundParticipations,
 		signedCounts, validatedCounts, VRFCreatedCounts, VRFValidatedCouts, thrshCreated, proposalForwarded []uint64
-	var progressTimeoutCounts, forwardStateCounts []uint64
+	var progressTimeoutCounts, forwardStateCounts, valuesDecidedCount []uint64
 	var times []time.Duration
 
 	var prevTime time.Time
 	// For MvCons3 we measure from the start of the 3rd instance since were are measuring time per decision
-	if local && to.ConsType == types.MvCons3Type && len(items) > 3 {
+	if local && (to.ConsType == types.MvCons3Type || to.ConsType == types.MvCons4Type) && len(items) > 3 {
 		prevTime = items[3].StartTime
 	} else {
 		prevTime = items[0].StartTime
@@ -521,6 +532,9 @@ func mergeInternal(to types.TestOptions, local bool, items []StatsObjBasic) (reT
 
 		reTotal.ProposalForwarded += item.ProposalForwarded
 		proposalForwarded = append(proposalForwarded, item.ProposalForwarded)
+
+		reTotal.ValuesDecidedCount += item.ValuesDecidedCount
+		valuesDecidedCount = append(valuesDecidedCount, item.ValuesDecidedCount)
 	}
 
 	reTotal.ConsTimes = times
@@ -554,6 +568,8 @@ func mergeInternal(to types.TestOptions, local bool, items []StatsObjBasic) (reT
 	reTotal.MaxProgressTimeout = utils.MaxU64Slice(progressTimeoutCounts...)
 	reTotal.MinProposalForwarded = utils.MinU64Slice(proposalForwarded...)
 	reTotal.MaxProposalForwarded = utils.MaxU64Slice(proposalForwarded...)
+	reTotal.MaxValuesDecidedCount = utils.MaxU64Slice(valuesDecidedCount...)
+	reTotal.MinValuesDecidedCount = utils.MinU64Slice(valuesDecidedCount...)
 
 	return
 }
@@ -587,6 +603,7 @@ func mergeStatsObj(a, b StatsObj, includeTime bool) StatsObj {
 	a.ForwardState += b.ForwardState
 	a.ProgressTimeout += b.ProgressTimeout
 	a.ProposalForwarded += b.ProposalForwarded
+	a.ValuesDecidedCount += b.ValuesDecidedCount
 	return a
 }
 
@@ -685,7 +702,8 @@ func mapToSlice(m map[messages.MsgIDInfo]uint64) (ret []MsgIDInfoCount) {
 
 func getFirstSinceTime(to types.TestOptions, startTimes []time.Time) time.Time {
 	// For MvCons3 we measure from the start of the 3rd instance since were are measuring time per decision
-	if to.ConsType == types.MvCons3Type && len(startTimes) > 3 {
+
+	if (to.ConsType == types.MvCons3Type || to.ConsType == types.MvCons4Type) && len(startTimes) > 3 {
 		return startTimes[3]
 	} else {
 		return startTimes[0]
@@ -743,7 +761,8 @@ func (bs *BasicStats) MergeAllStats(to types.TestOptions, sList []MergedStats) (
 			endTimes[i] = append(endTimes[i], nxt.FinishTimes[i])
 		}
 
-		nwItems = append(nwItems, &nxt.BasicNwStats)
+		nxtNw := nxt.BasicNwStats
+		nwItems = append(nwItems, &nxtNw)
 		consNWItems = append(consNWItems, nxt.ConsMergedNwStats)
 		items = append(items, nxt.StatsObjBasic)
 		perProc.MinConsTime = utils.MinDuration(perProc.MinConsTime, nxt.MinConsTime)
@@ -776,6 +795,8 @@ func (bs *BasicStats) MergeAllStats(to types.TestOptions, sList []MergedStats) (
 		perProc.MaxForwardState = utils.MaxU64Slice(perProc.MaxForwardState, nxt.MaxForwardState)
 		perProc.MinProposalForwarded = utils.MinU64Slice(perProc.MinProposalForwarded, nxt.MinProposalForwarded)
 		perProc.MaxProposalForwarded = utils.MaxU64Slice(perProc.MaxProposalForwarded, nxt.MaxProposalForwarded)
+		perProc.MaxValuesDecidedCount = utils.MaxU64Slice(perProc.MaxValuesDecidedCount, nxt.MaxValuesDecidedCount)
+		perProc.MinValuesDecidedCount = utils.MinU64Slice(perProc.MinValuesDecidedCount, nxt.MinValuesDecidedCount)
 
 		summedTime += nxt.ConsTime
 	}
@@ -873,6 +894,7 @@ func (bs *BasicStats) MergeAllStats(to types.TestOptions, sList []MergedStats) (
 	perProc.ForwardState /= uint64(len(items))
 	perProc.ProgressTimeout /= uint64(len(items))
 	perProc.ProposalForwarded /= uint64(len(items))
+	perProc.ValuesDecidedCount /= uint64(len(items))
 
 	// Calculate as the value per consensus, instead of per node
 	perProc.MemberCount /= uint64(sList[0].RecordCount)
@@ -945,6 +967,8 @@ func (bs *BasicStats) New(index types.ConsensusIndex) StatsInterface {
 			panic("invalid index")
 		}
 		bs.globalStats.stats[v-1] = ret
+		// ret = bs.globalStats.stats[v-1].(*BasicStats)
+		// ret.RecordIndex = bs.globalStats.recording
 	} else {
 		bs.globalStats.stats = append(bs.globalStats.stats, ret)
 	}
@@ -1122,6 +1146,7 @@ func (ms MergedStats) String() string {
 		"\n\tMembers: %v, MaxMembers: %v, MinMembers: %v,"+
 		"\n\tProposalsFwd: %v, MaxPropFwd: %v, MinPropFwd: %v"+
 		"\n\tForwardState: %v, MinForwardState: %v, MaxForwardState: %v"+
+		"\n\tValuesDecided: %v, MinValuesDecided: %v, MaxValuesDecided: %v"+
 		"\n\t%v}",
 		ms.RecordCount, float64(ms.FinishTime.Sub(ms.StartTime))/float64(time.Millisecond),
 		float64(ms.FinishTime.Sub(ms.StartTime))/float64(ms.RecordCount)/float64(time.Millisecond),
@@ -1139,5 +1164,7 @@ func (ms MergedStats) String() string {
 		ms.CoinValidated, ms.MinValidatedCoin, ms.MaxValidatedCoin,
 		ms.ProgressTimeout, ms.MinProgressTimeout, ms.MaxProgressTimeout, ms.ProposalCount, ms.MaxProposalCount, ms.MinProposalCount,
 		ms.MemberCount, ms.MaxMemberCount, ms.MinMemberCount, ms.ProposalForwarded, ms.MaxProposalForwarded, ms.MinProposalForwarded,
-		ms.ForwardState, ms.MinForwardState, ms.MaxForwardState, MsgIDCountString(ms.MsgIDCount, ms.MinMsgIDCount, ms.MaxMsgIDCount))
+		ms.ForwardState, ms.MinForwardState, ms.MaxForwardState,
+		ms.ValuesDecidedCount, ms.MinValuesDecidedCount, ms.MaxValuesDecidedCount,
+		MsgIDCountString(ms.MsgIDCount, ms.MinMsgIDCount, ms.MaxMsgIDCount))
 }

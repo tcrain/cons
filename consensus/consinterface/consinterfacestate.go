@@ -344,6 +344,12 @@ func (mcs *ConsInterfaceState) GetMemberChecker(cid types.ConsensusIndex) (*Cons
 	}
 
 	items := mcs.getIndex(idx, true)
+	mcs.checkItem(idx, items)
+
+	return items, nil
+}
+
+func (mcs *ConsInterfaceState) checkItem(idx types.ConsensusInt, items *ConsInterfaceItems) {
 	if items.MC == nil || items.MsgState == nil {
 		panic("shouldn't be nil")
 	}
@@ -354,8 +360,15 @@ func (mcs *ConsInterfaceState) GetMemberChecker(cid types.ConsensusIndex) (*Cons
 		panic(fmt.Sprintf("got wrong index %v, expected %v", items.MC.MC.GetIndex(), idx))
 	}
 	items.MC.MC.CheckIndex(items.ConsItem.GetIndex())
+}
 
-	return items, nil
+// GetOldestMemberChecker returns the oldest member checkers, messages state, and forward checker.
+func (mcs *ConsInterfaceState) GetOldestMemberCheckerIdx() types.ConsensusInt {
+	if mcs.mainChannel == nil {
+		panic("must set main channel")
+	}
+
+	return types.ConsensusInt(utils.SubOrOne(uint64(mcs.LocalIndex), uint64(mcs.gc.KeepPast)))
 }
 
 // DoneIndex is called with consensus has finished at idx, binstate is the value decided, which is passed
@@ -613,6 +626,9 @@ func (mcs *ConsInterfaceState) updateMC(idx types.ConsensusInt, futureDependentI
 	var items sort.IntSlice
 	for k := range mcs.consItemsMap {
 		items = append(items, int(k))
+	}
+	if len(items) == 0 {
+		panic("should be non zero")
 	}
 	items.Sort()
 	pr := items[0]

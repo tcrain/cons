@@ -23,9 +23,11 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
+	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/types"
 )
 
@@ -45,12 +47,47 @@ type AbsConsItem struct {
 	BroadcastFunc consinterface.ByzBroadcastFunc
 	GotProposal   bool
 	MainChannel   channelinterface.MainChannel
+	Decided       bool
 }
 
 func (sc *AbsConsItem) Collect() {
 	sc.ConsItems = nil
 	sc.PrevItem = nil
 	sc.NextItem = nil
+}
+
+// GetCustomRecoverMsg is called when there is no progress after a timeout.
+// It returns a NoProgress message.
+func (sc *AbsConsItem) GetCustomRecoverMsg(createEmpty bool) messages.MsgHeader {
+	if createEmpty {
+		return messagetypes.NewNoProgressMessage(types.ConsensusIndex{}, false, 0)
+	} else {
+		return messagetypes.NewNoProgressMessage(sc.Index, sc.Decided, int(sc.GeneralConfig.TestIndex))
+	}
+}
+
+// ProcessCustomRecoveryMessage panics as this consensus does not use a custom recovery message
+// (the recovery uses the default functions in the consensus state objects).
+func (sc *AbsConsItem) ProcessCustomRecoveryMessage(item *deserialized.DeserializedItem,
+	senderChan *channelinterface.SendRecvChannel) {
+
+	_, _ = item, senderChan
+	panic("should not reach")
+}
+
+// SetDecided should be called by the consensus implementation when a value is decided.
+func (sc *AbsConsItem) SetDecided() {
+	sc.Decided = true
+}
+
+// GetRecoverMsgType returns the HeaderID of the recovery messages used by this consensus.
+func (sc *AbsConsItem) GetRecoverMsgType() messages.HeaderID {
+	return messages.HdrNoProgress
+}
+
+// ForwardOldIndices returns false.
+func (sc *AbsConsItem) ForwardOldIndices() bool {
+	return false
 }
 
 // HasStarted returns true if Start has ben called

@@ -34,6 +34,7 @@ var ErrDeserialize = fmt.Errorf("error deserialize")
 var ErrClosingTime = fmt.Errorf("time to close")
 var ErrTimeout = fmt.Errorf("timeout")
 var ErrNoValidSigs = fmt.Errorf("no valid sigs")
+var ErrInvalidSigCount = fmt.Errorf("invalid number of signatures")
 var ErrNoNewSigs = fmt.Errorf("no new sigs")
 var ErrInvalidBinStateMsg = fmt.Errorf("invalid bin state msg")
 var ErrDontForwardMessage = fmt.Errorf("message should not be forwarded")
@@ -127,3 +128,10 @@ var ErrAlreadyCombinedPartials = fmt.Errorf("has already combined partials")
 
 // storage
 var ErrInvalidKeySize = fmt.Errorf("invalid key size")
+
+// graph
+var ErrPrevIndexNotFound = fmt.Errorf("previous index not found")
+var ErrInvalidRemoteAncestor = fmt.Errorf("invalid remote ancestor")
+var ErrInvalidRemoteAncestorCount = fmt.Errorf("invalid number of remote ancestors")
+var ErrEventExists = fmt.Errorf("event already exists")
+var ErrDuplicateRemoteAncestors = fmt.Errorf("duplicate remote ancestors")

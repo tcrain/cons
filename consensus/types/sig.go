@@ -41,6 +41,7 @@ const (
 )
 
 var AllSigTypes = []SigType{EC, ED, SCHNORR, EDCOIN, BLS, TBLS, TBLSDual, CoinDual, QSAFE}
+var BasicSigTypes = []SigType{EC, ED, SCHNORR, BLS, QSAFE}
 var ThrshSigTypes = []SigType{TBLS, TBLSDual, CoinDual}
 var EncryptChannelsSigTypes = []SigType{EC, ED, SCHNORR, EDCOIN, BLS, TBLS, TBLSDual, CoinDual}
 var VRFSigTypes = []SigType{EC, BLS}

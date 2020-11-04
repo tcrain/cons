@@ -191,7 +191,8 @@ func (sc *MvCons3) GetPrevCommitProof() (coordPub sig.Pub, proof []messages.MsgH
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *MvCons3) Start() {
+func (sc *MvCons3) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 
 	if err := sc.startCons(); err != nil {
@@ -684,6 +685,7 @@ func (sc *MvCons3) addSupport(fromIndex, toIndex types.ConsensusInt, supportedHa
 				// sc.ConsItems.MC.MC.GetStats().AddFinishRound(types.ConsensusRound(fromIndex - sc.Index.Index.(types.ConsensusInt) - 1))
 			}
 			sc.hasDecided = decidedNil
+			sc.SetDecided()
 		}
 		// keep going to find correct index to support
 		if sc.prevItem != nil {
@@ -709,6 +711,7 @@ func (sc *MvCons3) addSupport(fromIndex, toIndex types.ConsensusInt, supportedHa
 					//types.ConsensusRound(fromIndex - sc.Index.Index.(types.ConsensusInt) - 1))
 				}
 				sc.hasDecided = decidedValue // we decided a value
+				sc.SetDecided()
 				// fmt.Println("decided", supportIdxs, sc.Index.Index, "my id:", sc.GeneralConfig.TestIndex)
 			}
 			// bc.supportedBy[fromIndex] = depth
@@ -769,9 +772,13 @@ func (sc *MvCons3) CanStartNext() bool {
 }
 
 // GetNextInfo will be called after CanStartNext returns true.
-// prevIdx should be the index that this cosensus index will follow (normally this is just idx - 1).
+// It is used to get information about how the state machine for this instance will be generated.
+// prevIdx should be the index that this consensus index will follow (normally this is just idx - 1).
 // preDecision is either nil or the value that will be decided if a non-nil value is decided.
+// hasInfo returns true if the values for proposer and preDecision are ready.
 // If false is returned then the next is started, but the current instance has no state machine created.
+// This function is mainly used for MvCons3 since the order of state machines depends on depends on the execution
+// of the consensus instances.
 func (sc *MvCons3) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasInfo bool) {
 	if sc.echoInitMsg == nil {
 		return types.ConsensusIndex{}, nil, nil, false

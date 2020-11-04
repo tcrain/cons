@@ -1425,7 +1425,6 @@ func RunConsType(initItem consinterface.ConsItem,
 			msList[i] = nxt.MergeLocalStats(to, int(types.ComputeNumRounds(to)))
 			sString := fmt.Sprintf("Stats for proc %v: %v, %v", i, msList[i].String(), msList[i].NwString())
 			logging.Infof(sString)
-
 		}
 		logging.Print(GetStatsString(to, msList, false, ""))
 		logging.Print(consStates[to.NumTotalProcs-1].SMStatsString(msList[0].FinishTime.Sub(msList[0].StartTime))) // TODO merge these stats also???
@@ -1487,7 +1486,7 @@ func VerifyDecisions(to types.TestOptions, retExtraParRegInfo [][]byte, consType
 		panic(fmt.Sprint(errs, outOfOrderErrs))
 	}
 	if len(outOfOrderErrs) > 0 {
-		logging.Errorf("Got some out of order errors: %v", outOfOrderErrs)
+		logging.Warningf("Got some out of order errors: %v", outOfOrderErrs)
 		if !to.AllowsOutOfOrderProposals(consType) {
 			panic(outOfOrderErrs)
 		}

@@ -27,13 +27,13 @@ import (
 // NoProgressMessage is sent when a node has made no progress towards consensus after a timeout.
 // It implements messages.MsgHeader
 type NoProgressMessage struct {
-	TestID             int
-	IsUnconsumedOutput bool // if true then have already decided this index so only want future information
+	TestID       int
+	IndexDecided bool // if true then have already decided this index so only want future information
 	basicMessage
 }
 
-func NewNoProgressMessage(index types.ConsensusIndex, isUnconsumedOutput bool, testID int) *NoProgressMessage {
-	return &NoProgressMessage{testID, isUnconsumedOutput, basicMessage{cid: index}}
+func NewNoProgressMessage(index types.ConsensusIndex, indexDecided bool, testID int) *NoProgressMessage {
+	return &NoProgressMessage{testID, indexDecided, basicMessage{cid: index}}
 }
 
 // GetID returns the header id for this header
@@ -52,7 +52,7 @@ func (npm *NoProgressMessage) Serialize(m *messages.Message) (int, error) {
 	if err != nil {
 		return l, err
 	}
-	(*messages.MsgBuffer)(m).AddBool(npm.IsUnconsumedOutput)
+	(*messages.MsgBuffer)(m).AddBool(npm.IndexDecided)
 	n, _ := (*messages.MsgBuffer)(m).AddUint32(uint32(npm.TestID))
 	return l + n + 1, nil
 }
@@ -63,7 +63,7 @@ func (npm *NoProgressMessage) Deserialize(m *messages.Message, unmarFunc types.C
 	if err != nil {
 		return l, err
 	}
-	if npm.IsUnconsumedOutput, err = (*messages.MsgBuffer)(m).ReadBool(); err != nil {
+	if npm.IndexDecided, err = (*messages.MsgBuffer)(m).ReadBool(); err != nil {
 		return l + 1, err
 	}
 	v, r, err := (*messages.MsgBuffer)(m).ReadUint32()

@@ -294,7 +294,8 @@ func (sc *MvBinConsRnd2) CanStartNext() bool {
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *MvBinConsRnd2) Start() {
+func (sc *MvBinConsRnd2) Start(finishedLastIndex bool) {
+	_ = finishedLastIndex
 	sc.AbsConsItem.AbsStart()
 	logging.Infof("Starting MvBinConsRnd2 index %v", sc.Index)
 	if sc.CheckMemberLocal() {

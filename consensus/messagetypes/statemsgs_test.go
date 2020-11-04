@@ -27,6 +27,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
 	"github.com/tcrain/cons/consensus/generalconfig"
+	"github.com/tcrain/cons/consensus/graph"
 	"github.com/tcrain/cons/consensus/types"
 	"testing"
 
@@ -327,7 +328,7 @@ func TestNoProgressMsgSerialize(t *testing.T) {
 
 	_, err = hdr.Deserialize(msg, types.IntIndexFuns)
 	assert.Equal(t, tstMsgIndex, hdr.GetIndex().Index)
-	assert.True(t, hdr.IsUnconsumedOutput)
+	assert.True(t, hdr.IndexDecided)
 	assert.Nil(t, err)
 }
 
@@ -513,6 +514,56 @@ func TestCoinMsgSerialize(t *testing.T) {
 	checkMsgFunc := func(msg messages.InternalSignedMsgHeader) {
 		hdr := msg.GetBaseMsgHeader().(*CoinMessage)
 		assert.Equal(t, round, hdr.Round)
+	}
+	internalTestSignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+	internalTestUnsignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+}
+
+func TestIdxMsgSerialize(t *testing.T) {
+	indices := []graph.IndexType{0, 3, 12, 41, 428, 928}
+	createMsgFunc := func(createEmpty bool) messages.InternalSignedMsgHeader {
+		hdr := NewIndexMessage()
+		if !createEmpty {
+			hdr.Indices = indices
+		}
+		return hdr
+	}
+	checkMsgFunc := func(msg messages.InternalSignedMsgHeader) {
+		hdr := msg.GetBaseMsgHeader().(*IndexMessage)
+		assert.Equal(t, indices, hdr.Indices)
+	}
+	internalTestSignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+	internalTestUnsignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+}
+
+func TestEventInfoMsgSerialize(t *testing.T) {
+	eventInfo := graph.EventInfo{
+		LocalInfo: graph.EventPointer{
+			ID:    3,
+			Index: 1,
+			Hash:  types.GetHash([]byte("local")),
+		},
+		Buff: []byte("some msg"),
+		RemoteAncestors: []graph.EventPointer{{
+			ID:    1,
+			Index: 2,
+			Hash:  types.GetHash([]byte("remote1")),
+		}, {
+			ID:    2,
+			Index: 3,
+			Hash:  types.GetHash([]byte("remote2")),
+		}},
+	}
+	createMsgFunc := func(createEmpty bool) messages.InternalSignedMsgHeader {
+		hdr := NewEventMessage()
+		if !createEmpty {
+			hdr.Event = eventInfo
+		}
+		return hdr
+	}
+	checkMsgFunc := func(msg messages.InternalSignedMsgHeader) {
+		hdr := msg.GetBaseMsgHeader().(*EventMessage)
+		assert.Equal(t, eventInfo, hdr.Event)
 	}
 	internalTestSignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
 	internalTestUnsignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)

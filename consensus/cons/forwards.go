@@ -125,9 +125,10 @@ func sendForward(idx types.ConsensusIndex, memberCheckerState consinterface.Cons
 			sent = true
 			// count how many signatures this message has
 			// send the message
+			sts := idxItem.MC.MC.GetStats()
 			mainChannel.Send(toSend.GetBytes(),
 				messages.IsProposalHeader(msg.Index, msg.Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader),
-				false, forwardFunc, idxItem.MC.MC.GetStats().IsRecordIndex(), idxItem.MC.MC.GetStats())
+				false, forwardFunc, sts.IsRecordIndex(), sts)
 		}
 	}
 	return

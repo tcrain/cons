@@ -32,6 +32,7 @@ import (
 	"github.com/tcrain/cons/consensus/cons/mvcons1"
 	"github.com/tcrain/cons/consensus/cons/mvcons2"
 	"github.com/tcrain/cons/consensus/cons/mvcons3"
+	"github.com/tcrain/cons/consensus/cons/mvcons4"
 	"github.com/tcrain/cons/consensus/cons/rbbcast1"
 	"github.com/tcrain/cons/consensus/cons/rbbcast2"
 	"github.com/tcrain/cons/consensus/consinterface"
@@ -63,6 +64,8 @@ func GetConsItem(to types.TestOptions) (consItem consinterface.ConsItem) {
 		consItem = &mvcons2.MvCons2{}
 	case types.MvCons3Type:
 		consItem = &mvcons3.MvCons3{}
+	case types.MvCons4Type:
+		consItem = &mvcons4.MvCons4{}
 	case types.RbBcast1Type:
 		consItem = &rbbcast1.RbBcast1{}
 	case types.RbBcast2Type:
@@ -100,10 +103,12 @@ func GetConsConfig(to types.TestOptions) (consConfig cons.ConfigOptions) {
 		consConfig = mvcons2.MvCons2Config{}
 	case types.MvCons3Type:
 		consConfig = mvcons3.MvCons3Config{}
+	case types.MvCons4Type:
+		consConfig = mvcons4.Config{}
 	case types.RbBcast1Type:
 		consConfig = rbbcast1.RbBcast1Config{}
 	case types.RbBcast2Type:
-		consConfig = rbbcast2.RbBcast2Config{}
+		consConfig = rbbcast2.Config{}
 	default:
 		logging.Error("invalid cons type", to.ConsType)
 		panic(to.ConsType)

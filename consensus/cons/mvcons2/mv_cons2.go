@@ -340,7 +340,8 @@ func (sc *MvCons2) CanStartNext() bool {
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *MvCons2) Start() {
+func (sc *MvCons2) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 	if sc.round == 0 {
 		err := sc.startRound(sc.MainChannel)
@@ -734,6 +735,7 @@ func (sc *MvCons2) checkProgressRound(round types.ConsensusRound, t, nmt int, ma
 			} else {
 				// we have the init message so we decide
 				sc.decisionInitMsg = initMsg.Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader.(*messagetypes.MvInitMessage)
+				sc.SetDecided()
 				sc.decisionPub = initMsg.Header.(*sig.MultipleSignedMessage).SigItems[0].Pub
 				logging.Infof("Have decision init message index %v", sc.Index)
 

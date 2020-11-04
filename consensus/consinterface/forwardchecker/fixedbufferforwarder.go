@@ -99,6 +99,7 @@ func (fwd *fixedBufferForwarder) CheckForward(
 			}
 			fwdItem.di.Header = w.ShallowCopy().(*sig.MultipleSignedMessage)
 			fwdItem.di.HeaderType = msg.HeaderType
+			fwdItem.di.Message = msg.Message // TODO remove ?
 			fwd.pendingMesages[w.GetHashString()] = fwdItem
 		}
 		fwdItem.sigItems = append(fwdItem.sigItems, w.SigItems...)
@@ -121,14 +122,16 @@ func (fwd *fixedBufferForwarder) GetNextForwardItem(_ stats.NwStatsInterface) (
 			if time.Since(nxt.receivedTime) > time.Duration(fwd.gc.ForwardTimeout)*time.Millisecond {
 				delete(fwd.pendingMesages, k)
 				w := nxt.di.Header.(*sig.MultipleSignedMessage)
-				w.SetSigItems(nxt.sigItems)
-				m := messages.NewMessage(nil)
-				if _, err := w.Serialize(m); err != nil {
-					panic(err)
+				if len(nxt.sigItems) > 1 {
+					w.SetSigItems(nxt.sigItems)
+					m := messages.NewMessage(nil)
+					if _, err := w.Serialize(m); err != nil {
+						panic(err)
+					}
+					nxt.di.Message = sig.EncodedMsg{Message: m}
 				}
-				nxt.di.Message = sig.EncodedMsg{Message: m}
-				msg = []*deserialized.DeserializedItem{nxt.di}
-				break
+				msg = append(msg, nxt.di)
+				// break
 			}
 		}
 	}

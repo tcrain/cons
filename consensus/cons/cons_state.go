@@ -21,7 +21,6 @@ package cons
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
@@ -142,7 +141,9 @@ func NewConsState(initIitem consinterface.ConsItem,
 		}
 		for _, nxt := range deserItems {
 			if nxt.Index.Index.(types.ConsensusInt) != idx {
-				panic(fmt.Sprint(nxt.Index, idx))
+				// panic(fmt.Sprint(nxt.Index, idx))
+				logging.Infof("loaded message index %v from stored index of %v, this may be an error depending"+
+					"on the consensus type (is not an error for MvCons4)", nxt.Index.Index.(types.ConsensusInt), idx)
 			}
 		}
 		// reply the messages
@@ -174,7 +175,7 @@ func (cs *ConsState) finishInitialization() {
 
 func (cs *ConsState) Start() {
 	if cs.memberCheckerState.LocalIndex == cs.firstItem.GetIndex().Index {
-		cs.firstItem.Start()
+		cs.firstItem.Start(false)
 	}
 	cs.checkProgress(cs.memberCheckerState.LocalIndex)
 }
@@ -233,7 +234,6 @@ func (cs *ConsState) sendNoProgressMsg() {
 	i := cs.memberCheckerState.LocalIndex
 	idx := types.SingleComputeConsensusIDShort(i)
 	logging.Info("Sending no progress message for index", i, cs.generalConfig.TestIndex)
-	hdr = messagetypes.NewNoProgressMessage(idx, false, cs.generalConfig.TestIndex)
 
 	cs.localIndexTime = time.Now()
 	idxItem, err := cs.memberCheckerState.GetMemberChecker(idx)
@@ -241,6 +241,13 @@ func (cs *ConsState) sendNoProgressMsg() {
 		panic("local index error")
 	}
 	idxItem.MC.MC.GetStats().AddProgressTimeout()
+
+	hdr = idxItem.ConsItem.GetCustomRecoverMsg(false)
+	// if hdr = idxItem.ConsItem.GetCustomRecoverMsg(false); hdr != nil { // custom recovery message
+	// } else { // just use the normal recovery message
+	//	hdr = messagetypes.NewNoProgressMessage(idx, false, cs.generalConfig.TestIndex)
+	// }
+
 	mm, err := messages.CreateMsgSingle(hdr)
 	if err != nil {
 		panic(err)
@@ -251,6 +258,7 @@ func (cs *ConsState) sendNoProgressMsg() {
 // ProcessMessage should be called when a message sent from an external node is ready to be processed.
 // It returns a list of messages to be sent back to the sender of the original message (if any).
 func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg [][]byte, returnErrs []error) {
+
 	defer func() {
 		// After we have finished processing the messages, we do the following
 		// (1) send any messages waiting to be forwarded
@@ -258,31 +266,30 @@ func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg 
 
 		// we only execute the loop for the current index if the item only needs 1 concurrent instance
 		var runLoopOnce bool
-		if cs.initItem.NeedsConcurrent() <= 1 {
+		if cs.initItem.NeedsConcurrent() <= 1 && !cs.initItem.ForwardOldIndices() {
 			runLoopOnce = true
 		}
 
 		var forwarded bool
-
-		// for !cs.isInStorageInit && cs.startedIndex < cs.localIndex+generalconfig.KeepFuture && cs.startedIndex < cs.localIndex+cs.allowConcurrent {
-
-		for i := cs.memberCheckerState.LocalIndex; i <= cs.memberCheckerState.StartedIndex; i++ {
-
-			// for i := utils.SubOrOne(cs.localIndex, uint64(generalconfig.KeepPast)); i <= cs.localIndex; i++ {
-			// for i := cs.localIndex; i <= cs.localIndex; i++ {
+		var i types.ConsensusInt
+		if cs.initItem.ForwardOldIndices() { // start from the oldest remaining index
+			i = cs.memberCheckerState.GetOldestMemberCheckerIdx()
+		} else {
+			i = cs.memberCheckerState.LocalIndex // start from the most recent undecided index
+		}
+		for ; i <= cs.memberCheckerState.StartedIndex; i++ {
 			// forward any messages waiting
 			if sendForward(types.SingleComputeConsensusIDShort(i), cs.memberCheckerState, cs.mainChannel) {
 				forwarded = true
 			}
-			// }
-			if forwarded {
-				// Since we forwarded a message we consider that we have made progress so we return
-				// TODO should always do this?
-				return
-			}
-			if runLoopOnce {
+			if forwarded && runLoopOnce {
 				break
 			}
+		}
+		if forwarded {
+			// Since we forwarded a message we consider that we have made progress so we return without sending a no progress message
+			// TODO should always do this?
+			return
 		}
 		// If we haven't made progress after a timeout, inform our neighbors
 		if time.Since(cs.localIndexTime) > cs.timeoutTime && !cs.isInStorageInit { //&& cs.memberCheckerState.LocalIndex <= cs.maxInstances {
@@ -308,8 +315,7 @@ func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg 
 		// }
 
 		// Check if it is a no change message
-		switch ht {
-		case messages.HdrNoProgress:
+		if cs.initItem.GetRecoverMsgType() == messages.HdrNoProgress && ht == messages.HdrNoProgress {
 			// The external node hasn't made any progress, so if we are more advanced than it,
 			// then we send it what we have
 			// var returnMessages [][]byte
@@ -361,11 +367,16 @@ func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg 
 			}
 			// return returnMessages, nil
 			continue
+		} else if cs.initItem.GetRecoverMsgType() == ht { // custom recovery message type
+			item, err := cs.memberCheckerState.GetMemberChecker(types.SingleComputeConsensusIDShort(cs.memberCheckerState.LocalIndex))
+			utils.PanicNonNil(err)
+			item.ConsItem.ProcessCustomRecoveryMessage(deser, rcvMsg.SendRecvChan)
+			continue
 		}
 
 		// Process the message
 		if endidx < types.ConsensusInt(utils.SubOrZero(uint64(myIndex), uint64(cs.generalConfig.KeepPast))) { // An old message
-			// The message was too old to be processed, so we just drop it
+			// otherwise the message was too old to be processed, so we just drop it
 			returnErrs = append(returnErrs, types.ErrIndexTooOld)
 			continue
 		} else if endidx > cs.memberCheckerState.StartedIndex+config.KeepFuture { // A message for a future index
@@ -445,6 +456,8 @@ func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg 
 // It upadates any state in case decisions were made.
 func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 	idx := cidx.(types.ConsensusInt)
+
+	var finishedLastRound bool // set to true if the last round decided
 	// only need to check for progress if the idx is at least as big as the current index
 	if idx >= cs.memberCheckerState.LocalIndex {
 		// Check if the current index has a pre-decision ready
@@ -455,9 +468,7 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 
 		// start from the current index and check if can advance the state
 		item, err := cs.memberCheckerState.GetMemberChecker(types.SingleComputeConsensusIDShort(cs.memberCheckerState.LocalIndex))
-		if err != nil {
-			panic(err)
-		}
+		utils.PanicNonNil(err)
 		nextIdx := cs.memberCheckerState.LocalIndex
 		nextIdxItem := types.SingleComputeConsensusIDShort(nextIdx)
 		nextItem := item
@@ -517,7 +528,7 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 			}
 
 			// Update the member checker
-			finishedLastRound := cs.memberCheckerState.DoneIndex(nextIdx, supportIndex.Index, futureDependentIndex.Index, proposer, dec)
+			finishedLastRound = cs.memberCheckerState.DoneIndex(nextIdx, supportIndex.Index, futureDependentIndex.Index, proposer, dec)
 			logging.Infof("Decided cons state index %v", nextIdx)
 
 			// Update the state index
@@ -563,7 +574,7 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 				if err != nil {
 					panic(err)
 				}
-				startIdx.ConsItem.Start()
+				startIdx.ConsItem.Start(finishedLastRound)
 			}
 
 			// If this was the last round then we broadcast the commit proof so all can finish (since we won't
@@ -643,7 +654,7 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 				panic(err)
 			}
 			cs.memberCheckerState.SharedLock.Lock()
-			startItem.ConsItem.Start()
+			startItem.ConsItem.Start(finishedLastRound)
 			cs.memberCheckerState.SharedLock.Unlock()
 
 			// See the new index needs a proposal

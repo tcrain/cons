@@ -139,7 +139,8 @@ func (sc *MvCons1) NeedsConcurrent() types.ConsensusInt {
 func (sc *MvCons1) SetInitialState([]byte) {}
 
 // Start allows GetProposalIndex to return true.
-func (sc *MvCons1) Start() {
+func (sc *MvCons1) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 
 	if sc.CheckMemberLocal() {

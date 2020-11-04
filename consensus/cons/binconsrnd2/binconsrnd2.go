@@ -109,7 +109,8 @@ func (*BinConsRnd2) GenerateNewItem(index types.ConsensusIndex,
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *BinConsRnd2) Start() {
+func (sc *BinConsRnd2) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 	if sc.CheckMemberLocal() { // if the current node is a member then send an initial proposal
 		sc.NeedsProposal = true
@@ -312,6 +313,7 @@ func (sc *BinConsRnd2) CheckRound(nmt int, t int, round types.ConsensusRound,
 				panic("More than t faulty")
 			}
 			sc.Decided = int(coinVal)
+			sc.SetDecided()
 			// Only send next round msg after deciding if necessary
 			// TODO is other stopping mechanism better?
 			//if roundStruct.AuxBinNums[notCoin] == 0 || !valids[notCoin] || sc.StopOnCommit == types.Immediate {
@@ -695,10 +697,11 @@ func (sc *BinConsRnd2) ShouldCreatePartial(_ messages.HeaderID) bool {
 func (sc *BinConsRnd2) BroadcastCoin(coinMsg messages.MsgHeader,
 	mainChannel channelinterface.MainChannel) {
 
+	sts := sc.ConsItems.MC.MC.GetStats()
 	mainChannel.SendHeader(messages.AppendCopyMsgHeader(sc.PreHeaders, coinMsg),
 		messages.IsProposalHeader(sc.Index, coinMsg.(messages.InternalSignedMsgHeader).GetBaseMsgHeader()),
 		true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
-		sc.ConsItems.MC.MC.GetStats().IsRecordIndex(), sc.ConsItems.MC.MC.GetStats())
+		sts.IsRecordIndex(), sts)
 }
 
 /*// Broadcast an aux proof message.

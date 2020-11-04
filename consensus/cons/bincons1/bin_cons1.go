@@ -107,7 +107,8 @@ func (sc *BinCons1) GetCommitProof() []messages.MsgHeader {
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *BinCons1) Start() {
+func (sc *BinCons1) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 	if sc.CheckMemberLocal() { // if the current node is a member then send an initial proposal
 		sc.NeedsProposal = true
@@ -314,6 +315,7 @@ func (sc *BinCons1) CheckRound(nmt int, t int, round types.ConsensusRound,
 			panic("More than t faulty")
 		}
 		sc.Decided = int(mod)
+		sc.SetDecided()
 		// Only send next round msg after deciding if necessary
 		// TODO is other stopping mechanism better?
 		if sc.StopOnCommit == types.Immediate {

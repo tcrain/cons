@@ -25,12 +25,12 @@ import (
 	"github.com/tcrain/cons/consensus/types"
 )
 
-type RbBcast2Config struct {
+type Config struct {
 	cons.StandardMvConfig
 }
 
 // GetAllowNoSignatures returns true if the consensus can run without signatures
-func (RbBcast2Config) GetAllowNoSignatures(gt cons.GetOptionType) []bool { // []types.UseSignaturesType {
+func (Config) GetAllowNoSignatures(gt cons.GetOptionType) []bool { // []types.UseSignaturesType {
 	switch gt {
 	case cons.AllOptions:
 		// return []types.UseSignaturesType{types.ConsDependentSignatures, types.UseSignatures, types.NoSignatures}
@@ -44,7 +44,7 @@ func (RbBcast2Config) GetAllowNoSignatures(gt cons.GetOptionType) []bool { // []
 }
 
 // GetBroadcastFunc returns the broadcast function for the given byzantine type
-func (rb RbBcast2Config) GetBroadcastFunc(bt types.ByzType) consinterface.ByzBroadcastFunc {
+func (rb Config) GetBroadcastFunc(bt types.ByzType) consinterface.ByzBroadcastFunc {
 	switch bt {
 	case types.Mute: // We have to broadcast or will not terminate
 		return cons.BroadcastMuteExceptInit
@@ -60,7 +60,7 @@ func (rb RbBcast2Config) GetBroadcastFunc(bt types.ByzType) consinterface.ByzBro
 //	return []types.OrderingType{types.Causal}
 //}
 // GetIncludeProofTypes returns the values for if the consensus supports including proofs or not or both.
-func (RbBcast2Config) GetIncludeProofsTypes(gt cons.GetOptionType) []bool {
+func (Config) GetIncludeProofsTypes(cons.GetOptionType) []bool {
 	return types.WithFalse
 }
 
@@ -71,6 +71,6 @@ func (RbBcast2Config) GetIncludeProofsTypes(gt cons.GetOptionType) []bool {
 //}
 
 // GetByzTypes returns the fault types to test.
-func (RbBcast2Config) GetByzTypes(optionType cons.GetOptionType) []types.ByzType {
+func (Config) GetByzTypes(cons.GetOptionType) []types.ByzType {
 	return []types.ByzType{types.NonFaulty, types.Mute}
 }

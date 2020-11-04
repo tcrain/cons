@@ -85,7 +85,9 @@ type ConsItem interface {
 	// Start is called exactly once for each consensus instance, after start is called, the consensus may return
 	// true from GetProposalInfo as soon as it is ready for a proposal from the application.
 	// Note that messages may be sent to the consensus before Start is called, they should be processed as necessary.
-	Start()
+	// Finished last index is true once the last index has decided (some consensus instances may start after the last index
+	// has decided to ensure all items eventually decide)
+	Start(finishedLastIndex bool)
 	// HasStarted returns true if start has been called
 	HasStarted() bool
 	// GetProposalIndex returns the previous consensus index from which this index will use (must be at least 1
@@ -101,12 +103,20 @@ type ConsItem interface {
 		prevItem ConsItem, broadcastFunc ByzBroadcastFunc, gc *generalconfig.GeneralConfig) ConsItem
 	// SetNextConsItem gives a pointer to the next consensus item at the next consensus instance, it is called when the next instance is created
 	SetNextConsItem(next ConsItem)
-	// CanStartNext should return true if it is safe to start the next consensus instance (if parallel instances are enabled)
+	// CanStartNext should return true if it is safe to start the next consensus instance (if parallel instances are enabled),
+	// in most consensus algorithms this will always return true. In MvCons3 this will return true once this consensus instance
+	// know what instance it follows (i.e. the accepted init message points to), or when a timer has run out.
 	CanStartNext() bool
 	// GetNextInfo will be called after CanStartNext returns true.
-	// prevIdx should be the index that this cosensus index will follow (normally this is just idx - 1).
+	// It is used to get information about how the state machine for this instance will be generated.
+	// prevIdx should be the index that this consensus index will follow (normally this is just idx - 1).
 	// preDecision is either nil or the value that will be decided if a non-nil value is decided.
+	// hasInfo returns true if the values for proposer and preDecision are ready.
 	// If false is returned then the next is started, but the current instance has no state machine created.
+	// This function is mainly used for MvCons3 since the order of state machines depends on depends on the execution
+	// of the consensus instances.
+	// For other consensus algorithms prevIdx should return (idx - 1) and hasInfo should be false unless
+	// AllowConcurrent is enabled.
 	GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasInfo bool)
 	// SetInitialState should be called on the initial consensus index (1) to set the initial state.
 	SetInitialState([]byte)
@@ -114,6 +124,22 @@ type ConsItem interface {
 	// HasValidStarted returns true if this cons item has processed a valid proposal, or if it know other nodes
 	// have (i.e. if the binary reduction has terminated)
 	HasValidStarted() bool
+	// GetCustomRecoverMsg is called when there is no progress after a timeout. If the standard
+	// recovery message is used (messagetypes.NoProgressMessage) then the recovery is handled by the
+	// consensus state objects.
+	// Otherwise the returned message is sent to the peers and the consensus must handle
+	// the recovery itself.
+	// If createEmpty is true then the message will be used to deserialize a received message.
+	GetCustomRecoverMsg(createEmpty bool) messages.MsgHeader
+	// GetRecoverMsgType returns the HeaderID of the recovery messages used by this consensus.
+	// If messages.HdrNoProgress is returned then the default recover is used
+	GetRecoverMsgType() messages.HeaderID
+	// ProcessCustomRecoveryMessage is called when a valid custom recover message equal of the type
+	// returned by GetCustomRecoverMessage (that is not messagetypes.NoProgressMessage).
+	// The consensus should then perform the appropriate recovery.
+	// Note that the message is not checked with member checkers/signatures, etc.
+	ProcessCustomRecoveryMessage(item *deserialized.DeserializedItem,
+		senderChan *channelinterface.SendRecvChannel)
 	// GetCommitProof returns a signed message header that counts at the commit message for this consensus.
 	GetCommitProof() []messages.MsgHeader
 	// SetCommitProof takes the value returned from GetCommitProof of the previous consensus instance once it has decided.
@@ -147,6 +173,9 @@ type ConsItem interface {
 	GetConsType() types.ConsType
 	// Collect is called when the item is about to be garbage collected.
 	Collect()
+	// ForwardOldIndices should return true if messages from old consensus indices should be forwarded
+	// even after decision.
+	ForwardOldIndices() bool
 
 	///////////////////////////////////////////////////////////////////////////
 	// Static methods
@@ -215,6 +244,7 @@ func CreateGeneralConfig(testId int, eis generalconfig.ExtraInitState,
 	gc.RandForwardTimeout = to.RandForwardTimeout
 	gc.UseRandCoord = to.UseRandCoord
 	gc.BufferForwardType = to.BufferForwardType
+	gc.MvCons4BcastType = to.MvCons4BcastType
 
 	return gc
 }
@@ -261,7 +291,10 @@ func ProcessConsMessageList(isLocal types.LocalMessageType, unmarFunc types.Cons
 		deser, err := FinishUnwrapMessage(isLocal, hdrType, nxtMsg,
 			unmarFunc, ci, memberCheckerState)
 		if err != nil {
-			// logging.Info(err)
+			// if err != types.ErrAlreadyReceivedMessage {
+			//	panic(1)
+			// }
+			logging.Info(err)
 			errors = append(errors, err)
 			continue
 		}
@@ -289,11 +322,11 @@ func UnwrapMessage(msg sig.EncodedMsg,
 		logging.Info("Got a bad message", err)
 		return nil, []error{err}
 	}
+	var ret []*deserialized.DeserializedItem
 	switch ht { // Check for general headers not made by the consensus, but by the outer layer
 	case messages.HdrNoProgress:
 		// A no progress message means that a node has not made any progress after a timeout.
 		// If we have any more advanced state then we should send this information to that process.
-		var ret []*deserialized.DeserializedItem
 		for len(msg.GetBytes()) > 0 {
 			w := messagetypes.NewNoProgressMessage(types.ConsensusIndex{}, false, 0)
 			_, err := w.Deserialize(msg.Message, unmarFunc)
@@ -303,6 +336,25 @@ func UnwrapMessage(msg sig.EncodedMsg,
 			msg.Message.GetBytes()
 			ret = append(ret, &deserialized.DeserializedItem{
 				Index:          w.GetIndex(),
+				HeaderType:     ht,
+				Header:         w,
+				IsDeserialized: true})
+		}
+		return ret, nil
+	case consItem.GetRecoverMsgType():
+		for len(msg.GetBytes()) > 0 {
+			w := consItem.GetCustomRecoverMsg(true)
+			idx, err := w.PeekHeaders(msg.Message, unmarFunc)
+			if err != nil {
+				return ret, []error{err}
+			}
+			_, err = w.Deserialize(msg.Message, unmarFunc)
+			if err != nil {
+				return ret, []error{err}
+			}
+			msg.Message.GetBytes()
+			ret = append(ret, &deserialized.DeserializedItem{
+				Index:          idx,
 				HeaderType:     ht,
 				Header:         w,
 				IsDeserialized: true})
@@ -401,10 +453,10 @@ func DeserializeMessage(isLocal types.LocalMessageType, idx types.ConsensusIndex
 		_, err = w.Deserialize(msg.Message, unmarFunc)
 	}
 	if err != nil {
-		logging.Infof("deser error %v at index %v", err, idx)
+		logging.Infof("deserialization error %v at index %v", err, idx.Index)
 		return nil, err
 	}
-	logging.Info("Got a message of type:", w.GetID(), idx)
+	logging.Info("Got a message of type:", w.GetID(), idx.Index)
 
 	di := &deserialized.DeserializedItem{
 		IsLocal:        isLocal,

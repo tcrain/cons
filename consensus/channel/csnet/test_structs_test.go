@@ -41,6 +41,16 @@ type TestConsItem struct {
 	Index types.ConsensusIndex
 }
 
+func (sc *TestConsItem) GetCustomRecoverMsg(bool) messages.MsgHeader {
+	return nil
+}
+func (sc *TestConsItem) GetRecoverMsgType() (ret messages.HeaderID) {
+	return
+}
+func (sc *TestConsItem) ProcessCustomRecoveryMessage(*deserialized.DeserializedItem,
+	*channelinterface.SendRecvChannel) {
+}
+func (sc *TestConsItem) ForwardOldIndices() bool { return false }
 func (sc *TestConsItem) ShouldCreatePartial(messages.HeaderID) bool {
 	return false
 }
@@ -69,7 +79,7 @@ func (sc *TestConsItem) GetConsInterfaceItems() *consinterface.ConsInterfaceItem
 func (sc *TestConsItem) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasInfo bool) {
 	return
 }
-func (sc *TestConsItem) Start()                {}
+func (sc *TestConsItem) Start(bool)            {}
 func (sc *TestConsItem) HasStarted() bool      { return true }
 func (sc *TestConsItem) HasValidStarted() bool { return false }
 func (sc *TestConsItem) GetProposalIndex() (prevIdx types.ConsensusIndex, ready bool) {

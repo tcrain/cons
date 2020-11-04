@@ -126,7 +126,8 @@ func (sc *SimpleCons) GetProposalIndex() (prevIdx types.ConsensusIndex, ready bo
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *SimpleCons) Start() {
+func (sc *SimpleCons) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 	if sc.CheckMemberLocal() { // if the current node is a member then send an initial proposal
 		sc.NeedsProposal = true

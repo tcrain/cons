@@ -79,6 +79,9 @@ const (
 	HdrDualPub    // A dual pub message
 	HdrPartialMsg // A message that is broken into several parts
 	HdrHash       // A message that contains a hash
+	HdrIdx        // A message that contains an index for each node
+	HdrIdxRecover // Same as HdrIdx except used during recovery
+	HdrEventInfo  // A message that contains a hash event info
 	HdrVrfProof   // A message that contains a VRF proof
 	HdrQsafeSig   // A quantum safe signature
 	HdrQsafePub   // A quantum safe public key
@@ -182,6 +185,12 @@ func (hi HeaderID) String() string {
 		msg = "HdrHashMsg"
 	case HdrVrfProof:
 		msg = "HdrVrfProof"
+	case HdrEventInfo:
+		msg = "HdrEventInfo"
+	case HdrIdx:
+		msg = "HdrIdx"
+	case HdrIdxRecover:
+		msg = "HdrIdxRecover"
 	default:
 		msg = "UnknownHeaderID"
 	}

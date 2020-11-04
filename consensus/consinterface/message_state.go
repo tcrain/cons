@@ -66,7 +66,7 @@ type MessageState interface {
 	SetupUnsignedMessage(hdr messages.InternalSignedMsgHeader,
 		mc *MemCheckers) (*sig.UnsignedMessage, error)
 	// SetupSignedMessageDuplicates takes a list of headers that are assumed to have the same set of bytes to sign
-	// (i.e. the signed part are all the same though they may have different contents following the signed part,
+	// (i.e. the signed parts are all the same though they may have different contents following the signed part,
 	// for example this is true with partial messages)
 	SetupSignedMessagesDuplicates(combined *messagetypes.CombinedMessage, hdrs []messages.InternalSignedMsgHeader,
 		mc *MemCheckers) (combinedSigned *sig.MultipleSignedMessage, partialsSigned []*sig.MultipleSignedMessage, err error)

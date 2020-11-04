@@ -341,6 +341,7 @@ var multiSigCount = 10
 
 func TestBlsMerge(t *testing.T) {
 
+	sig.SetUseMultisig(true)
 	privs := make([]sig.Priv, multiSigCount)
 	sigs := make([]sig.Sig, multiSigCount)
 	sigMsg := []byte("sign this message")
@@ -510,6 +511,6 @@ func TestBlsSignTestMsgSerialize(t *testing.T) {
 func TestBlsSignMerge(t *testing.T) {
 	for _, nxt := range newBlsPrivFuncs {
 		sig.RunFuncWithConfigSetting(func() { sig.TestSigMerge(nxt, t) },
-			types.WithBothBool, types.WithBothBool, types.WithTrue, types.WithBothBool)
+			types.WithBothBool, types.WithTrue, types.WithTrue, types.WithBothBool)
 	}
 }

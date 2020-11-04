@@ -148,4 +148,6 @@ type ConfigOptions interface {
 	GetBroadcastFunc(types.ByzType) consinterface.ByzBroadcastFunc
 	// GetAllowNoSignatures returns true if the consensus can run without signatures
 	GetAllowNoSignatures(GetOptionType) []bool
+	// GetAllowsNonMembers returns true if there can be replicas that are not members of the consensus.
+	GetAllowsNonMembers() bool
 }

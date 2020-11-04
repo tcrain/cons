@@ -87,7 +87,7 @@ func genAll2AllSimple(folderName string, sleepCrypto bool, nxtID uint64) uint64 
 	ct.NoSignatures = true
 	ct.EncryptChannels = true
 	ct.RotateCord = true
-	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.RbBcast2Type}, []cons.ConfigOptions{rbbcast2.RbBcast2Config{}},
+	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.RbBcast2Type}, []cons.ConfigOptions{rbbcast2.Config{}},
 		optsSig, nil)
 
 	consTypes = []types.ConsType{types.MvBinConsRnd2Type}

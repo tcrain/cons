@@ -177,7 +177,7 @@ func (cs *CausalConsState) ProcessLocalMessage(rcvMsg *channelinterface.RcvMsg) 
 
 			// Inform the consensus that a proposal has been received from the local state machine.
 			if !ci.ConsItem.HasStarted() {
-				ci.ConsItem.Start()
+				ci.ConsItem.Start(false)
 			}
 			err = ci.ConsItem.GotProposal(deser.Header, cs.mainChannel)
 			if err != nil {
@@ -310,7 +310,7 @@ func (cs *CausalConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (retu
 			var binStates [][]byte
 			var err error
 			if binStates, err = cs.memberCheckerState.GenChildIndices(deser.Index,
-				deser.Header.(*messagetypes.NoProgressMessage).IsUnconsumedOutput, config.MaxRecovers); err != nil {
+				deser.Header.(*messagetypes.NoProgressMessage).IndexDecided, config.MaxRecovers); err != nil {
 
 				// don't include the index because it might just be a future index we have not see yet so not an error
 				switch err {
@@ -359,7 +359,7 @@ func (cs *CausalConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (retu
 			panic(err)
 		}
 		if !item.HasStarted() {
-			item.Start()
+			item.Start(false)
 		}
 		if !deser.IsDeserialized { // The message is not deserialized
 			if idxItem.MC.MC.IsReady() { // If the member checker is ready we can retry deserializing the message

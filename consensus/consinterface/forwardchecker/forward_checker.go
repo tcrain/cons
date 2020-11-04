@@ -23,14 +23,12 @@ ForwardCheckers keep track of successfully processes consensus messages and deci
 package forwardchecker
 
 import (
-	"fmt"
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/stats"
 	"github.com/tcrain/cons/consensus/types"
 	"math/rand"
-	"strings"
 	"time"
 
 	"github.com/tcrain/cons/consensus/auth/sig"
@@ -199,10 +197,10 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 		}
 		if (nxt.count >= nxt.nextThreshold && nxt.count > nxt.previousCount) || passedTimeout {
 
-			var info strings.Builder
-			info.WriteString(fmt.Sprintf("MsgID: %v, ", nxt.msgID))
-			info.WriteString(fmt.Sprintf("Passed thrsh: %v >= %v, Got new: %v > %v, Passed timeout: %v, ",
-				nxt.count, nxt.nextThreshold, nxt.count, nxt.previousCount, passedTimeout))
+			// var info strings.Builder
+			// info.WriteString(fmt.Sprintf("MsgID: %v, ", nxt.msgID))
+			// info.WriteString(fmt.Sprintf("Passed thrsh: %v >= %v, Got new: %v > %v, Passed timeout: %v, ",
+			//	nxt.count, nxt.nextThreshold, nxt.count, nxt.previousCount, passedTimeout))
 
 			nxt.sendTime = time.Now()
 			nxt.previousCount = nxt.count
@@ -217,15 +215,15 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 				nxt.forwardCount++
 			}
 
-			info.WriteString(fmt.Sprintf("Pass endThresh: %v >= %v, ", nxt.previousCount, nxt.endThreshold))
+			// info.WriteString(fmt.Sprintf("Pass endThresh: %v >= %v, ", nxt.previousCount, nxt.endThreshold))
 
 			// If we passed the current forward threshold then we go to the next
 			if nxt.count >= nxt.nextThreshold {
-				info.WriteString(fmt.Sprintf("PassedNxtThresh: %v >= %v, ", nxt.count, nxt.nextThreshold))
+				// info.WriteString(fmt.Sprintf("PassedNxtThresh: %v >= %v, ", nxt.count, nxt.nextThreshold))
 				if nxt.nextThreshold >= nxt.endThreshold || nxt.count >= nxt.endThreshold {
 
-					info.WriteString(fmt.Sprintf(
-						"PassedEndThrsh: %v/%v >= %v, ", nxt.nextThreshold, nxt.count, nxt.endThreshold))
+					//info.WriteString(fmt.Sprintf(
+					//	"PassedEndThrsh: %v/%v >= %v, ", nxt.nextThreshold, nxt.count, nxt.endThreshold))
 					// if we passed the end threshold, then our next threshold is just the max possible
 					nxt.nextThreshold = nxt.maxPossible
 				} else {
@@ -234,7 +232,7 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 					nxt.nextThreshold = utils.Min(nxt.nextThreshold*fwd.internalForwardChecker.GetFanOut(), nxt.endThreshold)
 					//nxt.nextThreshold = utils.Min(nxt.nextThreshold*2-1, nxt.endThreshold)
 				}
-				info.WriteString(fmt.Sprintf("Set NxtThrsh: %v, ", nxt.nextThreshold))
+				// info.WriteString(fmt.Sprintf("Set NxtThrsh: %v, ", nxt.nextThreshold))
 			}
 
 			// sendCount := fwd.internalForwardChecker.GetFanOut()
@@ -246,7 +244,7 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 			// }
 			nxt.totalForwards++
 
-			info.WriteString(fmt.Sprintf("TotalForwards: %v\n", nxt.totalForwards))
+			// info.WriteString(fmt.Sprintf("TotalForwards: %v\n", nxt.totalForwards))
 
 			// get the forward function for the index
 			// TODO may want to send to different number of nodes for different ways of propogation

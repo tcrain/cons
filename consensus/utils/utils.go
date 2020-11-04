@@ -64,6 +64,17 @@ func PanicNonNil(err error) {
 	}
 }
 
+func NonZeroCount(v [][][]byte) (count int) {
+	for _, a := range v {
+		for _, b := range a {
+			if len(b) > 0 {
+				count++
+			}
+		}
+	}
+	return
+}
+
 func EncodeUvarint(v uint64, writer io.Writer) (int, error) {
 	var arr [binary.MaxVarintLen64]byte
 	n := binary.PutUvarint(arr[:], v)
@@ -972,5 +983,23 @@ func GetUniqueCount(s1 sort.IntSlice) int {
 func CopyBuf(buf []byte) []byte {
 	ret := make([]byte, len(buf))
 	copy(ret, buf)
+	return ret
+}
+
+func TrueCount(arr []bool) (ret int) {
+	for _, nxt := range arr {
+		if nxt {
+			ret++
+		}
+	}
+	return
+}
+
+func AppendCopy(nxt int, arr []int) []int {
+	ret := make([]int, len(arr)+1)
+	for i, nxt := range arr {
+		ret[i] = nxt
+	}
+	ret[len(ret)-1] = nxt
 	return ret
 }

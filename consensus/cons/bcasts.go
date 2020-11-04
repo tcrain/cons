@@ -150,8 +150,9 @@ func DoConsBroadcast(nxtCoordPub sig.Pub, msg messages.InternalSignedMsgHeader, 
 			}
 		}
 		if nxtCoordPub != nil { // Only broadcast to the next coorindator
+			sts := ci.MC.MC.GetStats()
 			err = mainChannel.SendToPub(messages.AppendCopyMsgHeader(ci.ConsItem.GetPreHeader(), append(proofMsgs, sms)...), nxtCoordPub,
-				ci.MC.MC.GetStats().IsRecordIndex(), ci.MC.MC.GetStats())
+				sts.IsRecordIndex(), sts)
 			if err != nil { // TODO what to do with non all to all connections?
 				logging.Warningf("Error sending message to next coord %v, index %v, will broadcast message instead", err,
 					ci.ConsItem.GetIndex())
@@ -163,9 +164,10 @@ func DoConsBroadcast(nxtCoordPub sig.Pub, msg messages.InternalSignedMsgHeader, 
 		if msg != nil {
 			isProposal = messages.IsProposalHeader(ci.ConsItem.GetIndex(), msg)
 		}
+		sts := ci.MC.MC.GetStats()
 		mainChannel.SendHeader(messages.AppendCopyMsgHeader(ci.ConsItem.GetPreHeader(), append(proofMsgs, sms)...),
 			isProposal, true, forwardFunc,
-			ci.MC.MC.GetStats().IsRecordIndex(), ci.MC.MC.GetStats())
+			sts.IsRecordIndex(), sts)
 	}
 }
 
@@ -212,6 +214,7 @@ func PartialBroadcastFunc(partialType types.PartialMessageType, abi consinterfac
 	logging.Error("hashes2", combinedSigned.GetSignedHash(), partialsSigned[0].GetSignedHash())
 	mainChannel.SendToSelf(toSelf, 0)
 
+	sts := mc.MC.GetStats()
 	for i, nxt := range partialsSigned {
 		msg, err := messages.CreateMsg(abi.GetPreHeader())
 		if err != nil {
@@ -223,7 +226,7 @@ func PartialBroadcastFunc(partialType types.PartialMessageType, abi consinterfac
 			panic(err)
 		}
 
-		mainChannel.SendTo(msg.GetBytes(), destinations[i], mc.MC.GetStats().IsRecordIndex(), mc.MC.GetStats())
+		mainChannel.SendTo(msg.GetBytes(), destinations[i], sts.IsRecordIndex(), sts)
 	}
 	return nil
 }

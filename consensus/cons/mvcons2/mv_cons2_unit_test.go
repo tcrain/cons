@@ -223,7 +223,7 @@ func TestMvCons2UnitProcessMsg1(t *testing.T) {
 
 	// proposal
 	p := messagetypes.NewMvProposeMessage(idx, mvConsTestProposal)
-	bct.bcons.Start()
+	bct.bcons.Start(false)
 	assert.Nil(t, bct.bcons.GotProposal(p, bct.mainChannel))
 	testobjects.CheckInitMessage(bct.mainChannel, 1, 0, mvConsTestProposal, t)
 
@@ -388,7 +388,7 @@ func TestMvCons2UnitProcessMsg0(t *testing.T) {
 		panic(bct)
 	}
 
-	bct[1].bcons.Start()
+	bct[1].bcons.Start(false)
 
 	// No proposal
 	// No echos
