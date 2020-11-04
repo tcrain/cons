@@ -164,7 +164,7 @@ func TestBinCons1UnitProcessMsg1(t *testing.T) {
 
 	// proposal 1
 	p := messagetypes.NewBinProposeMessage(idx, 1)
-	bct.bcons.Start()
+	bct.bcons.Start(false)
 	assert.Nil(t, bct.bcons.GotProposal(p, bct.mainChannel))
 	testobjects.CheckAuxMessage(bct.mainChannel, 1, 0, 1, t)
 
@@ -245,7 +245,7 @@ func TestBinCons1UnitProcessMsg0(t *testing.T) {
 	bct := createBinConsTestItems(idx, to)
 
 	// proposal 0
-	bct.bcons.Start()
+	bct.bcons.Start(false)
 	p := messagetypes.NewBinProposeMessage(idx, 0)
 	assert.Nil(t, bct.bcons.GotProposal(p, bct.mainChannel))
 	testobjects.CheckAuxMessage(bct.mainChannel, 1, 0, 0, t)

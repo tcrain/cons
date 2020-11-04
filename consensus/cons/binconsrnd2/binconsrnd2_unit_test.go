@@ -150,7 +150,7 @@ func runBinConsBasicTest(proposal types.BinVal, t *testing.T) types.ConsensusRou
 
 	// proposal
 	p := messagetypes.NewBinProposeMessage(idx, proposal)
-	bct.bcons.Start()
+	bct.bcons.Start(false)
 	err := bct.bcons.GotProposal(p, bct.mainChannel)
 	assert.Nil(t, err)
 

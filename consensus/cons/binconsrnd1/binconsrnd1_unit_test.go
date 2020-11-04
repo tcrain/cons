@@ -154,7 +154,7 @@ func runBinConsBasicTest(proposal types.BinVal, supportCoin bool, t *testing.T) 
 
 	// proposal
 	p := messagetypes.NewBinProposeMessage(idx, proposal)
-	bct.bcons.Start()
+	bct.bcons.Start(false)
 	assert.Nil(t, bct.bcons.GotProposal(p, bct.mainChannel))
 	testobjects.CheckAuxMessage(bct.mainChannel, 1, 0, proposal, t)
 

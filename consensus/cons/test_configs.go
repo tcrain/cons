@@ -283,7 +283,7 @@ func RunRandMCTests(to types.TestOptions, consType types.ConsType, initItem cons
 		cTo.UseRandCoord = true
 		iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(BasicTestConfigs, cTo))
 		assert.Nil(t, err)
-		runIterTests(initItem, consConfigs, iter, toRun, t)
+		runIterTests(initItem, consConfigs, iter, []int{0}, t)
 	}
 
 	if runLocalRand {
@@ -415,7 +415,7 @@ func RunMultiSigTests(to types.TestOptions, consType types.ConsType, initItem co
 
 	iter, err = NewTestOptIter(AllOptions, consConfigs, NewSingleIter(SingleSMTest, to))
 	assert.Nil(t, err)
-	runIterTests(initItem, consConfigs, iter, toRun, t)
+	runIterTests(initItem, consConfigs, iter, []int{0}, t)
 }
 
 // RunConsType runs a test for the given configuration and inputs.

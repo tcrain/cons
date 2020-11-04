@@ -254,7 +254,7 @@ func TestMvCons3UnitDecide(t *testing.T) {
 		// proposal
 		idx := types.SingleComputeConsensusIDShort(i)
 		p := messagetypes.NewMvProposeMessage(idx, mvConsTestProposal)
-		bct[i-1].bcons.Start()
+		bct[i-1].bcons.Start(false)
 		if i == 1 {
 			if err := bct[i-1].bcons.GotProposal(p, bct[i-1].mainChannel); err != nil {
 				panic(err)
@@ -263,7 +263,7 @@ func TestMvCons3UnitDecide(t *testing.T) {
 		} else {
 			testobjects.CheckNoSend(bct[i-1].mainChannel, t)
 		}
-		bct2[i-1].bcons.Start()
+		bct2[i-1].bcons.Start(false)
 		if i == 2 {
 			if err := bct2[i-1].bcons.GotProposal(p, bct2[i-1].mainChannel); err != nil {
 				panic(err)
@@ -392,7 +392,7 @@ func TestMvCons3UnitDecideMissing(t *testing.T) {
 
 	// proposal
 	p := messagetypes.NewMvProposeMessage(types.SingleComputeConsensusIDShort(1), mvConsTestProposal)
-	bct[0].bcons.Start()
+	bct[0].bcons.Start(false)
 	err := bct[0].bcons.GotProposal(p, bct[0].mainChannel)
 	assert.Nil(t, err)
 	testobjects.CheckInitSupportMessage(bct[0].mainChannel, 1, 0, initialHash, mvConsTestProposal, t)
@@ -485,7 +485,7 @@ func TestMvCons3UnitDecideMissing(t *testing.T) {
 			}
 		}
 		if i < 5 {
-			bct[i].bcons.Start()
+			bct[i].bcons.Start(false)
 		}
 	}
 }
@@ -498,7 +498,7 @@ func TestMvCons3UnitDecideSkip(t *testing.T) {
 
 	// proposal
 	p := messagetypes.NewMvProposeMessage(types.SingleComputeConsensusIDShort(1), mvConsTestProposal)
-	bct[0].bcons.Start()
+	bct[0].bcons.Start(false)
 	err := bct[0].bcons.GotProposal(p, bct[0].mainChannel)
 	assert.Nil(t, err)
 	testobjects.CheckInitSupportMessage(bct[0].mainChannel, 1, 0, initialHash, mvConsTestProposal, t)
