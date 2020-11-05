@@ -142,13 +142,12 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 
 			if nxt.HeaderType == messages.HdrMvInitSupport {
 				// taken care of in MvCons3
-				rnd := mc.MC.GetRnd()
-				hsh := types.GetHash(rnd[:])
-				if bytes.Equal(hsh, make([]byte, 32)) {
-					panic(1)
-				}
-				if !bytes.Equal(hsh, w.InternalSignedMsgHeader.(*messagetypes.MvInitSupportMessage).RandHash) {
-					return nil, types.ErrInvalidHash
+				if includeRandHash(gc) { // we need to add a random hash to the message in case the members to change them later, to identify the messages for the new members
+					rnd := mc.MC.GetRnd()
+					hsh := types.GetHash(rnd[:])
+					if !bytes.Equal(hsh, w.InternalSignedMsgHeader.(*messagetypes.MvInitSupportMessage).RandHash) {
+						return nil, types.ErrInvalidHash
+					}
 				}
 			}
 		}
@@ -168,11 +167,12 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 			return nil, types.ErrInvalidRound
 		}
 		echoMsg := hdr[0].Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader.(*messagetypes.MvEchoHashMessage)
-		rndBytes := mc.MC.GetRnd()
-		if !bytes.Equal(types.GetHash(rndBytes[:]), echoMsg.RandHash) {
-			return nil, types.ErrInvalidHash
+		if includeRandHash(gc) { // we need to add a random hash to the message in case the members to change them later, to identify the messages for the new members
+			rndBytes := mc.MC.GetRnd()
+			if !bytes.Equal(types.GetHash(rndBytes[:]), echoMsg.RandHash) {
+				return nil, types.ErrInvalidHash
+			}
 		}
-
 		sms.mutex.Lock()
 
 		// update the message count
@@ -221,10 +221,12 @@ func (sms *MessageState) checkMvProofs(sigCount int,
 	if len(supportedEchoHash) == 0 || bytes.Equal(types.GetZeroBytesHashLength(), supportedEchoHash) {
 		err = types.ErrNoEchoHash
 	} else {
-		echoMsg := messagetypes.NewMvEchoHashMessage()
+		echoMsg := messagetypes.NewMvEchoHashMessage(includeRandHash(sms.Sms.GC))
 		echoMsg.ProposalHash = supportedEchoHash
-		rnd := mc.MC.GetRnd()
-		echoMsg.RandHash = types.GetHash(rnd[:])
+		if includeRandHash(sms.Sms.GC) { // we need to add a random hash to the message in case the members to change them later, to identify the messages for the new members
+			rnd := mc.MC.GetRnd()
+			echoMsg.RandHash = types.GetHash(rnd[:])
+		}
 		count, err = sms.GetSigCountMsgHeader(echoMsg, mc)
 		if count >= sigCount {
 			w = echoMsg

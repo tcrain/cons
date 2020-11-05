@@ -73,6 +73,7 @@ type GeneralConfig struct {
 	UseRandCoord                bool                       // If true round coordinators will be chosen using VRFs
 	BufferForwardType           types.BufferForwardType    // Type of buffer forwarder to use
 	MvCons4BcastType            types.MvCons4BcastType     // the type of message broadcast used by MvCons4
+	MCType                      types.MemberCheckerType    // if TestMemberCheckers is false, then test a specific type
 }
 
 type ExtraInitState interface {

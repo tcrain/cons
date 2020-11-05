@@ -305,6 +305,8 @@ func (mc MemberCheckerType) String() string {
 		return "BinRotateMC"
 	case CurrencyMC:
 		return "CurrencyMC"
+	case LaterMC:
+		return "LaterMC"
 	default:
 		return fmt.Sprintf("MemChecker%d", mc)
 	}

@@ -42,7 +42,7 @@ type SimpleMessageState struct {
 	index  types.ConsensusIndex
 	// myVrf         sig.VRFProof
 	partialMsgMap *partialMsgMap
-	gc            *generalconfig.GeneralConfig
+	GC            *generalconfig.GeneralConfig
 }
 
 // NewSimpleMessageState creates a new simple message state object for a single consensus index.
@@ -57,7 +57,7 @@ func NewSimpleMessageState(gc *generalconfig.GeneralConfig) *SimpleMessageState 
 		msgMap = &signedMsgMap{}
 	}
 	return &SimpleMessageState{
-		gc:            gc,
+		GC:            gc,
 		msgMap:        msgMap,
 		partialMsgMap: newPartialMsgMap()}
 }
@@ -296,7 +296,7 @@ func (sms *SimpleMessageState) GetIndex() types.ConsensusIndex {
 // New creates a new empty SimpleMessageState object for the consensus index idx.
 func (sms *SimpleMessageState) New(idx types.ConsensusIndex) consinterface.MessageState {
 	return &SimpleMessageState{
-		gc:            sms.gc,
+		GC:            sms.GC,
 		msgMap:        newSigMsgMap(sms.msgMap, idx),
 		msgs:          make([][]byte, 0, 10),
 		index:         idx,
@@ -349,7 +349,7 @@ func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 			validSigs := make([]*sig.SigItem, 0, len(allSigs))
 			for _, sigItem := range allSigs {
 				// Check which signatures are valid and which are invalid
-				err := consinterface.CheckMember(mc, deser.Index, sigItem, v, sms.gc)
+				err := consinterface.CheckMember(mc, deser.Index, sigItem, v, sms.GC)
 				if err == nil {
 					validSigs = append(validSigs, sigItem)
 				} else {
@@ -476,7 +476,7 @@ func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 }
 
 func (sms *SimpleMessageState) checkIndex(idx types.ConsensusIndex) error {
-	gc := sms.gc
+	gc := sms.GC
 	switch gc.Ordering {
 	case types.Total:
 		// Total order can only have a single index
@@ -492,7 +492,7 @@ func (sms *SimpleMessageState) checkIndex(idx types.ConsensusIndex) error {
 }
 
 func (sms *SimpleMessageState) addToMsgList(deser *deserialized.DeserializedItem) {
-	if sms.gc.UseFullBinaryState {
+	if sms.GC.UseFullBinaryState {
 		sms.Lock()
 		// for our message state, TODO remove messages state?
 		sms.msgs = append(sms.msgs, deser.Message.GetBytes())
@@ -509,7 +509,7 @@ func (sms *SimpleMessageState) GetMsgState(priv sig.Priv, localOnly bool,
 	bufferCountFunc consinterface.BufferCountFunc,
 	mc *consinterface.MemCheckers) ([]byte, error) {
 
-	if sms.gc.UseFullBinaryState && !localOnly {
+	if sms.GC.UseFullBinaryState && !localOnly {
 		sms.RLock()
 		i := 0
 		totalSize := 0
@@ -528,7 +528,7 @@ func (sms *SimpleMessageState) GetMsgState(priv sig.Priv, localOnly bool,
 	}
 	// send both the partials and the normal messages
 	// TODO howto handle partials
-	hdrs := append(sms.msgMap.getAllMsgSigs(priv, localOnly, bufferCountFunc, sms.gc, mc), sms.partialMsgMap.getAllPartials()...)
+	hdrs := append(sms.msgMap.getAllMsgSigs(priv, localOnly, bufferCountFunc, sms.GC, mc), sms.partialMsgMap.getAllPartials()...)
 	ret, err := messages.SerializeHeaders(hdrs)
 	if err != nil {
 		return nil, err

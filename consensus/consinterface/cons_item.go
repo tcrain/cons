@@ -245,6 +245,7 @@ func CreateGeneralConfig(testId int, eis generalconfig.ExtraInitState,
 	gc.UseRandCoord = to.UseRandCoord
 	gc.BufferForwardType = to.BufferForwardType
 	gc.MvCons4BcastType = to.MvCons4BcastType
+	gc.MCType = to.MCType
 
 	return gc
 }

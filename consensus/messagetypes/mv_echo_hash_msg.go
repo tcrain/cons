@@ -28,20 +28,22 @@ import (
 // plus an additional hash.
 // It implements messages.MsgHeader
 type MvEchoHashMessage struct {
-	ProposalHash types.HashBytes // The hash of the proposal being echo'd
-	RandHash     types.HashBytes
-	Round        types.ConsensusRound
+	ProposalHash    types.HashBytes // The hash of the proposal being echo'd
+	Round           types.ConsensusRound
+	RandHash        types.HashBytes // the hash to identify the unique set of members (when using types.LaterMC and random members)
+	IncludeRandHash bool            // if true we include the rand hash in the message
 }
 
 // NewMvEchoMessage creates a new mv echo message
-func NewMvEchoHashMessage() *MvEchoHashMessage {
-	return &MvEchoHashMessage{}
+func NewMvEchoHashMessage(includeRandHash bool) *MvEchoHashMessage {
+	return &MvEchoHashMessage{IncludeRandHash: includeRandHash}
 }
 
 func (mve *MvEchoHashMessage) ShallowCopy() messages.InternalSignedMsgHeader {
 	return &MvEchoHashMessage{ProposalHash: mve.ProposalHash,
-		Round:    mve.Round,
-		RandHash: mve.RandHash}
+		Round:           mve.Round,
+		IncludeRandHash: mve.IncludeRandHash,
+		RandHash:        mve.RandHash}
 }
 
 // NeedsSMValidation returns nil, since these messages do not need to be validated by the state machine.
@@ -73,14 +75,16 @@ func (mve *MvEchoHashMessage) SerializeInternal(m *messages.Message) (bytesWritt
 	}
 	bytesWritten += v
 
-	if len(mve.RandHash) != types.GetHashLen() {
-		panic(types.ErrInvalidHash)
+	if mve.IncludeRandHash {
+		if len(mve.RandHash) != types.GetHashLen() {
+			panic(types.ErrInvalidHash)
+		}
+		v, err = (*messages.MsgBuffer)(m).Write(mve.RandHash)
+		if err != nil {
+			return
+		}
+		bytesWritten += v
 	}
-	v, err = (*messages.MsgBuffer)(m).Write(mve.RandHash)
-	if err != nil {
-		return
-	}
-	bytesWritten += v
 
 	v, signEndOffset = (*messages.MsgBuffer)(m).AddConsensusRound(mve.Round)
 	bytesWritten += v
@@ -98,11 +102,14 @@ func (mve *MvEchoHashMessage) DeserializeInternal(m *messages.Message) (bytesRea
 		return
 	}
 	bytesRead += hashLen
-	mve.RandHash, err = (*messages.MsgBuffer)(m).ReadBytes(hashLen)
-	if err != nil {
-		return
+
+	if mve.IncludeRandHash {
+		mve.RandHash, err = (*messages.MsgBuffer)(m).ReadBytes(hashLen)
+		if err != nil {
+			return
+		}
+		bytesRead += hashLen
 	}
-	bytesRead += hashLen
 
 	// the round
 	var br int

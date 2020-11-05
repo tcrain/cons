@@ -121,19 +121,19 @@ func createMvSendItems(hdrType messages.HeaderID, idx types.ConsensusIndex, prop
 		var hdr, dser messages.InternalSignedMsgHeader
 		switch hdrType {
 		case messages.HdrMvInitSupport:
-			w := messagetypes.NewMvInitSupportMessage()
+			w := messagetypes.NewMvInitSupportMessage(false)
 			w.Proposal = proposal
 			w.SupportedIndex = supportIndex
 			w.SupportedHash = supportHash
 			w.RandHash = zeroHash
 			hdr = w
-			dser = messagetypes.NewMvInitSupportMessage()
+			dser = messagetypes.NewMvInitSupportMessage(false)
 		case messages.HdrMvEchoHash:
-			w := messagetypes.NewMvEchoHashMessage()
+			w := messagetypes.NewMvEchoHashMessage(false)
 			w.ProposalHash = supportHash
 			w.RandHash = zeroHash
 			hdr = w
-			dser = messagetypes.NewMvEchoHashMessage()
+			dser = messagetypes.NewMvEchoHashMessage(false)
 		default:
 			panic("invalid type")
 		}
@@ -292,7 +292,7 @@ func TestMvCons3UnitDecide(t *testing.T) {
 
 		// test with an invalid hash
 		invalidPrev := sig.NewMultipleSignedMsg(types.SingleComputeConsensusIDShort(i-1),
-			pubKeys[0].New(), messagetypes.NewMvInitSupportMessage())
+			pubKeys[0].New(), messagetypes.NewMvInitSupportMessage(false))
 		invalidPrev.Hash = types.GetHash([]byte("bad hash"))
 		initInvalidItems := createMvSendItems(messages.HdrMvInitSupport, types.SingleComputeConsensusIDShort(i),
 			mvConsTestProposal, invalidPrev, bct[i-1].ConsTestItems, t)

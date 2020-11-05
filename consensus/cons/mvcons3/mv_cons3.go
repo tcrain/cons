@@ -127,6 +127,10 @@ type MvCons3 struct {
 
 }
 
+func includeRandHash(gc *generalconfig.GeneralConfig) bool {
+	return gc.MCType == types.LaterMC
+}
+
 // SetInitialState sets the value that is supported by the inital index (1).
 func (sc *MvCons3) SetInitialState(value []byte) {
 	sc.initialHash = types.GetHash(value)
@@ -180,7 +184,7 @@ func (sc *MvCons3) GetPrevCommitProof() (coordPub sig.Pub, proof []messages.MsgH
 	}
 	if sc.CollectBroadcast != types.Full {
 		var err error
-		msg := messagetypes.NewMvInitSupportMessage()
+		msg := messagetypes.NewMvInitSupportMessage(includeRandHash(sc.GeneralConfig))
 		_, coordPub, err = consinterface.CheckCoord(nil, nxt.ConsItems.MC,
 			types.ConsensusRound(nxt.Index.Index.(types.ConsensusInt)), msg.GetMsgID())
 		if err != nil {
@@ -412,7 +416,7 @@ func (*MvCons3) GetHeader(emptyPub sig.Pub, gc *generalconfig.GeneralConfig, hea
 	switch headerType {
 	case messages.HdrMvInitSupport:
 		var internalMsg messages.InternalSignedMsgHeader
-		internalMsg = messagetypes.NewMvInitSupportMessage()
+		internalMsg = messagetypes.NewMvInitSupportMessage(includeRandHash(gc))
 		if gc.PartialMessageType != types.NoPartialMessages {
 			// if partials are used then MvInitSupport must always construct into combined messages
 			// TODO add test where a combined message is sent with a different internal header type
@@ -420,7 +424,7 @@ func (*MvCons3) GetHeader(emptyPub sig.Pub, gc *generalconfig.GeneralConfig, hea
 		}
 		return sig.NewMultipleSignedMsg(types.ConsensusIndex{}, emptyPub, internalMsg), nil
 	case messages.HdrMvEchoHash:
-		return sig.NewMultipleSignedMsg(types.ConsensusIndex{}, emptyPub, messagetypes.NewMvEchoHashMessage()), nil
+		return sig.NewMultipleSignedMsg(types.ConsensusIndex{}, emptyPub, messagetypes.NewMvEchoHashMessage(includeRandHash(gc))), nil
 	case messages.HdrMvRequestRecover:
 		return messagetypes.NewMvRequestRecoverMessage(), nil
 	case messages.HdrPartialMsg:
@@ -601,7 +605,7 @@ func (sc *MvCons3) startCons() error {
 	// Otherwise start timeout if we havent already received a proposal
 	// TODO fix way of getting coordpub
 	if sc.CheckMemberLocal() {
-		initMsg := messagetypes.NewMvInitSupportMessage()
+		initMsg := messagetypes.NewMvInitSupportMessage(includeRandHash(sc.GeneralConfig))
 		var err error
 		_, _, err = consinterface.CheckCoord(sc.ConsItems.MC.MC.GetMyPriv().GetPub(), sc.ConsItems.MC,
 			types.ConsensusRound(sc.Index.Index.(types.ConsensusInt)-1), initMsg.GetMsgID())
@@ -617,7 +621,9 @@ func (sc *MvCons3) startCons() error {
 			initMsg.SupportedIndex = supportIndex
 			initMsg.SupportedHash = supportHash
 			rnd := sc.ConsItems.MC.MC.GetRnd()
-			initMsg.RandHash = types.GetHash(rnd[:])
+			if includeRandHash(sc.GeneralConfig) { // we need to add a random hash to the message in case the members to change them later, to identify the messages for the new members
+				initMsg.RandHash = types.GetHash(rnd[:])
+			}
 			if supportIndex != sc.Index.Index.(types.ConsensusInt)-1 {
 				logging.Warningf("Have to skip an init support, supporting %v, at index %v", supportIndex, sc.Index)
 			}
@@ -913,10 +919,12 @@ func (sc *MvCons3) broadcastInit(initMsg *messagetypes.MvInitSupportMessage, pro
 func (sc *MvCons3) broadcastEcho(proposalHash []byte, proofMsg messages.MsgHeader,
 	mainChannel channelinterface.MainChannel) {
 
-	newMsg := messagetypes.NewMvEchoHashMessage()
+	newMsg := messagetypes.NewMvEchoHashMessage(includeRandHash(sc.GeneralConfig))
 	newMsg.ProposalHash = proposalHash
 	rndHash := sc.ConsItems.MC.MC.GetRnd()
-	newMsg.RandHash = types.GetHash(rndHash[:])
+	if includeRandHash(sc.GeneralConfig) { // we need to add a random hash to the message in case the members to change them later, to identify the messages for the new members
+		newMsg.RandHash = types.GetHash(rndHash[:])
+	}
 
 	// the next coordinator
 	var coordPub sig.Pub
@@ -924,7 +932,7 @@ func (sc *MvCons3) broadcastEcho(proposalHash []byte, proofMsg messages.MsgHeade
 	if sc.ConsItems.MC.MC.RandMemberType() != types.NonRandom {
 	} else {
 		if sc.GeneralConfig.CollectBroadcast != types.Full { // we broadcast to the parent
-			msg := messagetypes.NewMvInitSupportMessage()
+			msg := messagetypes.NewMvInitSupportMessage(includeRandHash(sc.GeneralConfig))
 			_, coordPub, err = consinterface.CheckCoord(nil, sc.ConsItems.MC,
 				types.ConsensusRound(sc.Index.Index.(types.ConsensusInt)), msg.GetMsgID())
 		}
