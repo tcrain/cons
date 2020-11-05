@@ -641,7 +641,7 @@ func TestMvInitSupportMsgSerialize(t *testing.T) {
 	randHash := types.GetHash([]byte("some rand bytes"))
 
 	createMsgFunc := func(createEmpty bool) messages.InternalSignedMsgHeader {
-		hdr := NewMvInitSupportMessage()
+		hdr := NewMvInitSupportMessage(true)
 		if !createEmpty {
 			hdr.Proposal = mvinitproposal
 			hdr.SupportedIndex = mvinitsupportindex
@@ -765,7 +765,7 @@ func TestMvEchoHashMsgSerialize(t *testing.T) {
 	randHash := types.GetHash([]byte("some rand bytes"))
 
 	createMsgFunc := func(createEmpty bool) messages.InternalSignedMsgHeader {
-		hdr := NewMvEchoHashMessage()
+		hdr := NewMvEchoHashMessage(true)
 		if !createEmpty {
 			hdr.ProposalHash = proposalHash
 			hdr.Round = round
