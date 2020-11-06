@@ -117,7 +117,7 @@ func GenAll2AllSimpleRand() {
 	consTypes = []types.ConsType{types.MvCons2Type}
 
 	ct := mvAll2All
-	ct.MCType = types.TrueMC
+	ct.MCType = types.CurrentTrueMC
 	ct.StopOnCommit = types.Immediate
 	ct.IncludeProofs = false
 	ct.SleepCrypto = true
@@ -140,6 +140,7 @@ func GenAll2AllSimpleRand() {
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
 		optsSig, nil)
 
+	ct.MCType = types.LaterMC
 	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.MvCons3Type}, []cons.ConfigOptions{mvcons3.MvCons3Config{}},
 		optsSig, nil)
 

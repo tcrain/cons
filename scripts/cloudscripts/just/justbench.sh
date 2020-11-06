@@ -1,7 +1,10 @@
 set -e
 set -o pipefail
 
-config=${1}
+config=${1} # name of the configuration file to use
+# If `$doInitialSetup` is `1` then the benchmark nodes and binarys will be started/restarted.
+# This must be `1` the first time a test is run, afterwards it can be set to `0` allowing the config
+# to be run without restarting the nodes/binaries.
 doInitialSetup=${2:-1}
 
 vars=()
