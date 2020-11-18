@@ -40,7 +40,7 @@ func TestMvCons4BasicNormal(t *testing.T) {
 	to := mvTO
 	to.MvCons4BcastType = types.Normal
 	cons.RunBasicTests(to,
-		types.MvCons4Type, &MvCons4{}, Config{}, []int{1}, t)
+		types.MvCons4Type, &MvCons4{}, Config{}, []int{}, t)
 }
 
 func TestMvCons4BasicDirect(t *testing.T) {

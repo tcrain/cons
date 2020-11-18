@@ -176,8 +176,7 @@ func (gms *globalMessageState) checkMsg(msg *sig.MultipleSignedMessage, mc *cons
 		err = nil
 	case nil:
 	default:
-		logging.Error("got invalid event ", ev, err)
-		panic(1) /// TODO remove me
+		logging.Info("got invalid event ", ev, err)
 	}
 	return err
 }
