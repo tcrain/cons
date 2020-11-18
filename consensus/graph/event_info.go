@@ -9,12 +9,38 @@ import (
 
 type Event struct {
 	EventInfo
-	MyHash         types.HashBytes
-	localAncestor  *Event
-	remoteAncestor []*Event
-	round          IndexType
-	wi             *witnessInfo // non-nil if this Event is a witness, nil otherwise
+	MyHash              types.HashBytes
+	localAncestor       *Event
+	remoteAncestor      []*Event
+	round               IndexType
+	WI                  *witnessInfo // non-nil if this Event is a witness, nil otherwise
+	known               []*Event     // first event at each id reachable from this node
+	allAncestorsDecided bool         // set to true when all the ancestors witnesses of this event has decided
+	seen                seen         // used during traversal
+	seesForks           []*forkInfo
 }
+
+func (ev *Event) seesFork(id IndexType) bool {
+	for _, nxt := range ev.seesForks {
+		if nxt.id == id {
+			return true
+		}
+	}
+	return false
+}
+
+type forkInfo struct {
+	id  IndexType
+	evs []*Event
+}
+
+type seen byte
+
+const (
+	notSeen seen = iota
+	falseSeen
+	trueSeen
+)
 
 type witnessInfo struct {
 	decided       decType

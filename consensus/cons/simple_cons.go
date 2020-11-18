@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 	"strconv"
 
@@ -78,7 +79,7 @@ func (sc *SimpleCons) GetProposeHeaderID() messages.HeaderID {
 }
 
 // NeedsConcurrent returns 1.
-func (sc *SimpleCons) NeedsConcurrent() types.ConsensusInt {
+func (sc *SimpleCons) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -143,7 +144,7 @@ func (sc *SimpleCons) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *SimpleCons) SetInitialState([]byte) {}
+func (sc *SimpleCons) SetInitialState([]byte, storage.StoreInterface) {}
 
 // GotProposal takes the proposal, creates a SimpleConsMessage and broadcasts it.
 func (sc *SimpleCons) GotProposal(_ messages.MsgHeader, mainChannel channelinterface.MainChannel) error {

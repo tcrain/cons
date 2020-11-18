@@ -564,9 +564,9 @@ const (
 type MvCons4BcastType int
 
 const (
-	Direct  MvCons4BcastType = iota // create new events when you receive a new event
+	Normal  MvCons4BcastType = iota // wait for n-t event before creating a new one at each index
+	Direct                          // create new events when you receive a new event
 	Indices                         // first send your current indices to another node then is replies with any newer events and creates an event
-	Normal                          // wait for n-t event before creating a new one at each index
 )
 
 func (mv MvCons4BcastType) String() string {

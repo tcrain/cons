@@ -41,6 +41,7 @@ func GetYIndex(value string) string {
 
 var YIndexMap = map[string]string{"MsgsSent": "Messages Sent", "RoundDecide": "Decision Round", "BytesSent": "Bytes Sent"}
 
+var MvCons4BcastTypeMap = map[string]string{"Normal": "", "Direct": "Direct", "Indices": "Sync"}
 var SocMap = map[string]string{"NextRound": "nr", "SendProof": "sp"}
 var RndCTMap = map[string]string{
 	"BinConsRnd1":   "BC:s1",
@@ -89,10 +90,14 @@ var ActTitle = "Time Per Decision (ms)"
 var ConsTitle = "Time Per Consensus (ms)"
 var MultiPlotTitles = map[string]int{ActTitle: 1, "BytesSent": 2, "MsgsSent": 3, "RoundDecide": 4}
 var MultiPlotTitles2 = map[string]int{ActTitle: 1, ConsTitle: 2, "ConsBytesSent": 3, "ConsMsgsSent": 4}
+var MultiPlotTitles3 = map[string]int{ActTitle: 1, ConsTitle: 2, "ConsBytesSent": 3, "Signed": 4}
+var MultiPlotTitles4 = map[string]int{ActTitle: 1, "ConsMsgsSent": 2, "ConsBytesSent": 3, "Signed": 4}
 var MultiPlotFile = "./scripts/graphscripts/multiplotfile.gp"
 var MultiPlotFile2 = "./scripts/graphscripts/multiplotfile2.gp"
-var AllMultiPlotTitles = []map[string]int{MultiPlotTitles, MultiPlotTitles2}
-var AllMultipPlotFiles = []string{MultiPlotFile, MultiPlotFile2}
+var MultiPlotFile3 = "./scripts/graphscripts/multiplotfile3.gp"
+var MultiPlotFile4 = "./scripts/graphscripts/multiplotfile4.gp"
+var AllMultiPlotTitles = []map[string]int{MultiPlotTitles, MultiPlotTitles2, MultiPlotTitles3, MultiPlotTitles4}
+var AllMultipPlotFiles = []string{MultiPlotFile, MultiPlotFile2, MultiPlotFile3, MultiPlotFile4}
 var SigMsgMap = map[string]string{"true": "y", "false": "n"}
 
 var GenPerNodeByRndMemberType = GenSet{
@@ -133,6 +138,17 @@ var GenPerNodeByConsBuffFwd = GenSet{
 	GenItems: []GenItem{{VaryField: VaryField{VaryField: "NodeCount"}, ExtraFields: []VaryField{
 		{VaryField: "ConsType", NameMap: RndCTMap},
 		{VaryField: "BufferForwardType", Title: "BFT"},
+		// {VaryField: "NoSignatures", Title: "SM:", NameMap: SigMsgMap},
+		// {VaryField: "CoinType", Title: "CI:", NameMap: CoinMap},
+	}}},
+}
+
+var GenPerNodeByConsMvCons4BcastType = GenSet{
+	Name:             "NodeCount",
+	BoolFilterFields: []FilterBoolField{PerProcFilter, TotalFilter},
+	GenItems: []GenItem{{VaryField: VaryField{VaryField: "NodeCount"}, ExtraFields: []VaryField{
+		{VaryField: "ConsType", NameMap: RndCTMap},
+		{VaryField: "MvCons4BcastType", Title: "nil", NameMap: MvCons4BcastTypeMap},
 		// {VaryField: "NoSignatures", Title: "SM:", NameMap: SigMsgMap},
 		// {VaryField: "CoinType", Title: "CI:", NameMap: CoinMap},
 	}}},
@@ -409,6 +425,9 @@ func (vf VaryField) GetValue(value interface{}) interface{} {
 }
 
 func (vf VaryField) GetTitle() string {
+	if vf.Title == "nil" {
+		return ""
+	}
 	if vf.Title != "" {
 		return vf.Title
 	}

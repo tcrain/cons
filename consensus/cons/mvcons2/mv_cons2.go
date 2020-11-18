@@ -34,6 +34,7 @@ import (
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
 	"sort"
@@ -621,7 +622,7 @@ func (sc *MvCons2) isInitValid(round types.ConsensusRound, nmt int) (
 }
 
 // NeedsConcurrent returns 1.
-func (sc *MvCons2) NeedsConcurrent() types.ConsensusInt {
+func (sc *MvCons2) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -894,7 +895,7 @@ func (sc *MvCons2) broadcastCommit(nmt int, proposalHash []byte, round types.Con
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *MvCons2) SetInitialState([]byte) {}
+func (sc *MvCons2) SetInitialState([]byte, storage.StoreInterface) {}
 
 // Collect is called when the item is being garbage collected.
 func (sc *MvCons2) Collect() {

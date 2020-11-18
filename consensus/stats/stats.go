@@ -69,6 +69,7 @@ type StatsInterface interface {
 	StartRecording(profileCPU, profileMem bool, testIndex int, testID uint64) // StartRecording starts recording the stats.
 	DoneRecording()                                                           // DoneRecording stops recording the stats.
 	AddStartTime()                                                            // AddStartTime is called each time a new consesnsus instance is started.
+	AddCustomStartTime(time.Time)                                             // AddStartTime is called each time a new consesnsus instance is started.
 	// AddFinishTime()                                                           // AddFinishTime is called time a consensus instance decides.
 	SignedItem()                                                 // SignedItem is called each time consensus signs a message.
 	ValidatedItem()                                              // ValidatedItem is called each time consensus validates a signature.
@@ -468,8 +469,10 @@ func mergeInternal(to types.TestOptions, local bool, items []StatsObjBasic) (reT
 
 	var prevTime time.Time
 	// For MvCons3 we measure from the start of the 3rd instance since were are measuring time per decision
-	if local && (to.ConsType == types.MvCons3Type || to.ConsType == types.MvCons4Type) && len(items) > 3 {
+	if local && (to.ConsType == types.MvCons3Type) && len(items) > 3 {
 		prevTime = items[3].StartTime
+	} else if local && (to.ConsType == types.MvCons4Type) && len(items) > 2 {
+		prevTime = items[2].StartTime
 	} else {
 		prevTime = items[0].StartTime
 	}
@@ -703,8 +706,10 @@ func mapToSlice(m map[messages.MsgIDInfo]uint64) (ret []MsgIDInfoCount) {
 func getFirstSinceTime(to types.TestOptions, startTimes []time.Time) time.Time {
 	// For MvCons3 we measure from the start of the 3rd instance since were are measuring time per decision
 
-	if (to.ConsType == types.MvCons3Type || to.ConsType == types.MvCons4Type) && len(startTimes) > 3 {
+	if to.ConsType == types.MvCons3Type && len(startTimes) > 3 {
 		return startTimes[3]
+	} else if to.ConsType == types.MvCons4Type && len(startTimes) > 2 {
+		return startTimes[2]
 	} else {
 		return startTimes[0]
 	}
@@ -973,6 +978,10 @@ func (bs *BasicStats) New(index types.ConsensusIndex) StatsInterface {
 		bs.globalStats.stats = append(bs.globalStats.stats, ret)
 	}
 	return ret
+}
+
+func (bs *BasicStats) AddCustomStartTime(t time.Time) {
+	bs.StartTime = t
 }
 
 // AddStartTime is called each time a new consesnsus instance is started.

@@ -283,7 +283,7 @@ func (bid *UvarintBitID) Decode(reader io.Reader) (n int, err error) {
 	return
 }
 func (bid *UvarintBitID) Deserialize(msg *messages.Message) (n int, err error) {
-	n, bid.arr, err = utils.DecodeHelperMsg((*messages.MsgBuffer)(msg))
+	n, bid.arr, err = messages.DecodeHelperMsg((*messages.MsgBuffer)(msg))
 	if err != nil {
 		return
 	}

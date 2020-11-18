@@ -35,6 +35,7 @@ import (
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 )
 
@@ -156,7 +157,7 @@ func (sc *BinConsRnd6) GetMVInitialRoundBroadcast(types.BinVal) messages.Interna
 }
 
 // NeedsConcurrent returns 1.
-func (sc *BinConsRnd6) NeedsConcurrent() types.ConsensusInt {
+func (sc *BinConsRnd6) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -243,7 +244,7 @@ func (sc *BinConsRnd6) CanSkipMvTimeout() bool {
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *BinConsRnd6) SetInitialState([]byte) {}
+func (sc *BinConsRnd6) SetInitialState([]byte, storage.StoreInterface) {}
 
 // CheckRound checks for the given round if enough messages have been received to progress to the next round
 // and return true if it can.

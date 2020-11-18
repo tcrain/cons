@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 
 	"github.com/tcrain/cons/consensus/auth/sig"
@@ -166,7 +167,7 @@ func (sc *BinCons1) GotProposal(hdr messages.MsgHeader, mainChannel channelinter
 }
 
 // NeedsConcurrent returns 1.
-func (sc *BinCons1) NeedsConcurrent() types.ConsensusInt {
+func (sc *BinCons1) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -232,7 +233,7 @@ func (sc *BinCons1) ProcessMessage(
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *BinCons1) SetInitialState([]byte) {}
+func (sc *BinCons1) SetInitialState([]byte, storage.StoreInterface) {}
 
 func (sc *BinCons1) checkDone(round types.ConsensusRound, nmt, t int) bool {
 	_, _ = t, nmt

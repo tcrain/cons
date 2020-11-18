@@ -82,7 +82,7 @@ func createMvConsTestItems(privKeys []sig.Priv, pubKeys []sig.Pub, privKeyIdx in
 	}
 	sci := (&MvCons3{}).GenerateNewItem(idx, consItems, mmc, nil,
 		MvCons3Config{}.GetBroadcastFunc(types.NonFaulty), gc).(*MvCons3)
-	sci.SetInitialState(initialState)
+	sci.SetInitialState(initialState, nil)
 	return &mvCons1TestItems{
 		ConsTestItems: cons.ConsTestItems{
 			PrivKeys: privKeys,

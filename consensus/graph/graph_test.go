@@ -21,12 +21,12 @@ package graph
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/types"
 	"math/rand"
 	"testing"
+	"time"
 )
 
 const (
@@ -103,13 +103,13 @@ func TestGraphWitness(t *testing.T) {
 		switch ev.LocalInfo.Index {
 		case 0:
 			assert.Equal(t, IndexType(0), ev.round)
-			assert.NotNil(t, ev.wi)
+			assert.NotNil(t, ev.WI)
 		case 1, 2, 3:
 			assert.Equal(t, IndexType(0), ev.round)
-			assert.Nil(t, ev.wi)
+			assert.Nil(t, ev.WI)
 		case 4:
 			assert.Equal(t, IndexType(1), ev.round)
-			assert.NotNil(t, ev.wi)
+			assert.NotNil(t, ev.WI)
 		}
 	})
 }
@@ -147,20 +147,17 @@ func TestGraphVisible(t *testing.T) {
 	})
 }
 
-func TestGraphByz(t *testing.T) {
-	// g := InitGraph(n, nmt)
-
-}
-
 func TestGrraphGetMoreRecent(t *testing.T) {
 	g := InitGraph(n, nmt, initHash)
 	initIds := g.GetIndices()
 	idx := makeAllStronglySee(g, 0, t)
-	ev, err := g.GetMoreRecent(g.GetIndices())
+	ev, ids, err := g.GetMoreRecent(g.GetIndices())
 	assert.Nil(t, err)
+	assert.Nil(t, ids)
 	assert.Equal(t, 0, len(ev))
-	ev, err = g.GetMoreRecent(initIds)
+	ev, ids, err = g.GetMoreRecent(initIds)
 	assert.Nil(t, err)
+	assert.Nil(t, ids)
 	assert.Equal(t, idx*n, IndexType(len(ev)))
 }
 
@@ -171,7 +168,7 @@ func TestGraphGetDec(t *testing.T) {
 	startIndex = makeAllStronglySee(g, startIndex, t)
 	startIndex = makeAllStronglySee(g, startIndex, t)
 
-	dec, _, _, _, _ := g.GetDecision(1)
+	dec, _, _, _, _, _ := g.GetDecision(1)
 	assert.True(t, dec)
 
 	ev := g.getDecisionEventInfo(1)
@@ -180,7 +177,7 @@ func TestGraphGetDec(t *testing.T) {
 	assert.Equal(t, 0, len(rem))
 	assert.Equal(t, 0, len(inv))
 
-	dec, _, _, _, _ = g2.GetDecision(1)
+	dec, _, _, _, _, _ = g2.GetDecision(1)
 	assert.True(t, dec)
 }
 
@@ -204,7 +201,7 @@ func TestGraphEncode(t *testing.T) {
 	// assert.Equal(t, node, node1)
 	assert.Equal(t, node, node1)
 
-	dec, _, _, _, _ := g.GetDecision(1)
+	dec, _, _, _, _, _ := g.GetDecision(1)
 	assert.True(t, dec)
 
 	ev := g.getDecisionEventInfo(1)
@@ -213,7 +210,7 @@ func TestGraphEncode(t *testing.T) {
 	assert.Equal(t, 0, len(rem))
 	assert.Equal(t, 0, len(inv))
 
-	dec, _, _, _, _ = g2.GetDecision(1)
+	dec, _, _, _, _, _ = g2.GetDecision(1)
 	assert.True(t, dec)
 }
 
@@ -268,16 +265,16 @@ func TestGraphDecided(t *testing.T) {
 			addEvent(i, idx, (i+1)%n, idx-1, g, nil, t)
 		}
 	}
-	dec, _, _, _, _ := g.GetDecision(1)
+	dec, _, _, _, _, _ := g.GetDecision(1)
 	assert.True(t, dec)
 	traverseGraph(g, func(ev *Event) {
 		switch ev.LocalInfo.Index {
 		case 0, 4:
-			assert.Equal(t, yesDec, ev.wi.decided)
+			assert.Equal(t, yesDec, ev.WI.decided)
 		case 8, 12:
-			assert.Equal(t, unknownDec, ev.wi.decided)
+			assert.Equal(t, unknownDec, ev.WI.decided)
 		default:
-			assert.Nil(t, ev.wi)
+			assert.Nil(t, ev.WI)
 		}
 	})
 }
@@ -290,20 +287,20 @@ func TestGraphDecideNo(t *testing.T) {
 			addEvent(i, idx, (i+1)%(n-1), idx-1, g, nil, t)
 		}
 	}
-	dec, _, _, _, _ := g.GetDecision(1)
+	dec, _, _, _, _, _ := g.GetDecision(1)
 	assert.True(t, dec)
 	traverseGraph(g, func(ev *Event) {
 		switch ev.LocalInfo.Index {
 		case 0, 4:
 			if ev.LocalInfo.ID == n-1 && ev.LocalInfo.Index == 4 {
-				assert.Equal(t, noDec, ev.wi.decided)
+				assert.Equal(t, noDec, ev.WI.decided)
 			} else {
-				assert.Equal(t, yesDec, ev.wi.decided)
+				assert.Equal(t, yesDec, ev.WI.decided)
 			}
 		case 8, 12:
-			assert.Equal(t, unknownDec, ev.wi.decided)
+			assert.Equal(t, unknownDec, ev.WI.decided)
 		default:
-			assert.Nil(t, ev.wi)
+			assert.Nil(t, ev.WI)
 		}
 	})
 }
@@ -342,11 +339,11 @@ func TestGraphDecideRound2(t *testing.T) {
 	// Generate 2 more rounds of witnesses
 	// Witness round 1, ID 3 should not decide until the later round, while the others should decide in the first round
 	idx = makeAllStronglySee(g, idx, t)
-	dec, _, _, _, _ := g.GetDecision(1)
+	dec, _, _, _, _, _ := g.GetDecision(1)
 	assert.False(t, dec)
 	idx = makeAllStronglySee(g, idx, t)
 
-	dec, _, _, _, _ = g.GetDecision(1)
+	dec, _, _, _, _, _ = g.GetDecision(1)
 	assert.True(t, dec)
 }
 
@@ -389,7 +386,7 @@ func TestMissingDecision(t *testing.T) {
 		}
 	}
 	// we know ID n-1 will decide No at round 1, since there are no witnesses for it visible yet
-	dec, _, _, _, _ := g.GetDecision(1)
+	dec, _, _, _, _, _ := g.GetDecision(1)
 	assert.True(t, dec)
 }
 
@@ -447,7 +444,7 @@ func recTraverseGraph(ev *Event, g *Graph, checkFunc func(*Event), m map[*Event]
 
 const (
 	rndSeed = 1
-	numDec  = 10
+	numDec  = 100
 )
 
 func TestRandGen(t *testing.T) {
@@ -457,6 +454,8 @@ func TestRandGen(t *testing.T) {
 	eventCounts := make([]int, numDec)
 	decisionCounts := make([]int, numDec)
 	decisionRounds := make([][]IndexType, numDec)
+
+	decTimes := make([]time.Time, numDec)
 
 	var decidedIdx IndexType
 	proposers := make([]IndexType, n)
@@ -477,13 +476,15 @@ func TestRandGen(t *testing.T) {
 		g.CreateEvent(nxtLocal, nxtRemote, []byte{byte(nxtLocal)}, false)
 		eventCounts[decidedIdx]++
 		for true {
-			decided, dec, decRound, _, _ := g.GetDecision(decidedIdx + 1)
+			decided, dec, decRound, _, _, _ := g.GetDecision(decidedIdx + 1)
 			if decided {
 				if decidedIdx >= IndexType(len(decisionCounts)) {
 					decisionCounts = append(decisionCounts, 0)
 					decisions = append(decisions, nil)
 					decisionRounds = append(decisionRounds, nil)
+					decTimes = append(decTimes, time.Time{})
 				}
+				decTimes[decidedIdx] = time.Now()
 				decisionRounds[decidedIdx] = decRound
 				decisions[decidedIdx] = dec
 				for _, nxt := range dec {
@@ -498,6 +499,13 @@ func TestRandGen(t *testing.T) {
 		}
 	}
 	t.Logf("Decisions: %v, events per decision %v, decision rounds %v", decisionCounts, eventCounts, decisionRounds)
+	var sinceTimes []time.Duration
+	prevTime := decTimes[0]
+	for _, nxt := range decTimes[1:] {
+		sinceTimes = append(sinceTimes, nxt.Sub(prevTime))
+		prevTime = nxt
+	}
+	t.Log(sinceTimes)
 }
 
 func TestRandGenAll2All(t *testing.T) {
@@ -522,7 +530,7 @@ func TestRandGenAll2All(t *testing.T) {
 		}
 		eventCounts[decidedIdx]++
 		for true {
-			decided, dec, decRound, _, _ := g.GetDecision(decidedIdx + 1)
+			decided, dec, decRound, _, _, _ := g.GetDecision(decidedIdx + 1)
 			if decided {
 				if decidedIdx >= IndexType(len(decisionCounts)) {
 					decisionCounts = append(decisionCounts, 0)
@@ -572,7 +580,6 @@ func makeAllStronglySee(g *Graph, startIndex IndexType, t *testing.T) (newIndex 
 	}
 	// Index 0 to the first half
 	for i := IndexType(1); i < n/2; i++ {
-		fmt.Println(i)
 		addEvent(0, startIndex+n+i-1, i, startIndex+n-1, g, nil, t)
 	}
 	// Index n-1 to the second half
@@ -647,7 +654,7 @@ func TestGraphGetDecAll2All(t *testing.T) {
 	startIndex = makeAllStronglySeeAll2All(g, startIndex, t)
 	startIndex = makeAllStronglySeeAll2All(g, startIndex, t)
 
-	dec, _, _, _, _ := g.GetDecision(1)
+	dec, _, _, _, _, _ := g.GetDecision(1)
 	assert.True(t, dec)
 
 	evs := g.getDecisionEventInfo(1)
@@ -656,7 +663,7 @@ func TestGraphGetDecAll2All(t *testing.T) {
 	assert.Equal(t, 0, len(rem))
 	assert.Equal(t, 0, len(inv))
 
-	dec, _, _, _, _ = g2.GetDecision(1)
+	dec, _, _, _, _, _ = g2.GetDecision(1)
 	assert.True(t, dec)
 }
 
@@ -666,4 +673,173 @@ func TestMaxIndices(t *testing.T) {
 	c := []IndexType{1, 1, 1, 1, 1, 1, 1}
 
 	assert.Equal(t, []IndexType{1, 1, 3, 3, 100, 5, 7}, MaxIndices(a, b, c))
+}
+
+func TestGraphGC(t *testing.T) {
+	g := InitGraph(n, nmt, initHash)
+	var startIndex IndexType
+	ids := [][]IndexType{g.GetIndices()}
+	for i := 0; i < 4; i++ { // enough to decide index 2
+		startIndex = makeAllStronglySeeAll2All(g, startIndex, t)
+		ids = append(ids, g.GetIndices())
+	}
+	var dec bool
+	dec, _, _, _, _, _ = g.GetDecision(1)
+	assert.True(t, dec)
+	dec, _, _, _, _, _ = g.GetDecision(2)
+	assert.True(t, dec)
+	dec, _, _, _, _, _ = g.GetDecision(3)
+	assert.False(t, dec)
+
+	for i, nxt := range ids {
+		evs, idxs, err := g.GetMoreRecent(nxt)
+		assert.Nil(t, err)
+		assert.Equal(t, 0, len(idxs))
+		if i < len(ids)-1 {
+			assert.True(t, len(evs) > 0)
+		}
+	}
+	// gc the first decision
+	g.CheckGCIndex(1, func(*Event) bool { return true })
+	evs, idxs, err := g.GetMoreRecent(ids[0])
+	assert.Nil(t, err)
+	assert.Equal(t, []IndexType{1}, idxs)
+	assert.True(t, len(evs) > 0)
+	evs, idxs, err = g.GetMoreRecent(ids[1])
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(idxs))
+	assert.True(t, len(evs) > 0)
+
+	// decide again so we can gc the 2nd decision
+	startIndex = makeAllStronglySeeAll2All(g, startIndex, t)
+	dec, _, _, _, _, _ = g.GetDecision(3)
+	assert.True(t, dec)
+	// gc the second decision
+	g.CheckGCIndex(2, func(*Event) bool { return true })
+
+	evs, idxs, err = g.GetMoreRecent(ids[0])
+	assert.Nil(t, err)
+	assert.Equal(t, []IndexType{1}, idxs)
+	assert.True(t, len(evs) > 0)
+	evs, idxs, err = g.GetMoreRecent(ids[1])
+	assert.Nil(t, err)
+	assert.Equal(t, []IndexType{1}, idxs)
+	assert.True(t, len(evs) > 0)
+	evs, idxs, err = g.GetMoreRecent(ids[2])
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(idxs))
+	assert.True(t, len(evs) > 0)
+
+	// decide again so we can gc the thrid decision
+	startIndex = makeAllStronglySeeAll2All(g, startIndex, t)
+	dec, _, _, _, _, _ = g.GetDecision(4)
+	assert.True(t, dec)
+	// gc the third decision
+	g.CheckGCIndex(3, func(*Event) bool { return true })
+
+	for i := 0; i < 3; i++ {
+		evs, idxs, err = g.GetMoreRecent(ids[i])
+		assert.Nil(t, err)
+		assert.Equal(t, []IndexType{2, 1}, idxs)
+		assert.True(t, len(evs) > 0)
+	}
+	evs, idxs, err = g.GetMoreRecent(ids[3])
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(idxs))
+	assert.True(t, len(evs) > 0)
+
+	nxtIds := g.GetIndices()
+	nxtIds[0]++
+	evs, idxs, err = g.GetMoreRecent(nxtIds)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(idxs))
+	assert.True(t, len(evs) == 0)
+
+	nxtIds[1]--
+	evs, idxs, err = g.GetMoreRecent(nxtIds)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(idxs))
+	assert.True(t, len(evs) == 1)
+}
+
+func TestGraphFork(t *testing.T) {
+	g := InitGraph(n, nmt, initHash)
+	var idx IndexType = 1
+	// create a fork at id 0, index 1
+	addEvent(0, idx, 1, idx-1, g, nil, t)
+	addEvent(0, idx, 2, idx-1, g, nil, t)
+	// we should have a fork
+	assert.Equal(t, 1, len(g.forks))
+
+	// add two events at ID 1, seeing each fork, be sure the 2nd sees the fork
+	ev1 := EventInfo{
+		LocalInfo: EventPointer{
+			ID:    1,
+			Index: 1,
+			Hash:  g.tails[1][0].MyHash,
+		},
+		RemoteAncestors: []EventPointer{{
+			ID:    0,
+			Index: 1,
+			Hash:  g.tails[0][0].MyHash,
+		}},
+	}
+	addEventInfo(ev1, false, g, nil, t)
+	assert.Equal(t, 0, len(g.tails[1][0].seesForks))
+
+	ev2 := EventInfo{
+		LocalInfo: EventPointer{
+			ID:    1,
+			Index: 2,
+			Hash:  g.tails[1][0].MyHash,
+		},
+		RemoteAncestors: []EventPointer{{
+			ID:    0,
+			Index: 1,
+			Hash:  g.tails[0][1].MyHash,
+		}},
+	}
+	addEventInfo(ev2, false, g, nil, t)
+	assert.Equal(t, 1, len(g.tails[1][0].seesForks))
+
+	// add an event that sees this event, it should see a fork
+	addEvent(2, 1, 1, 2, g, nil, t)
+	assert.Equal(t, 1, len(g.tails[2][0].seesForks))
+}
+
+func TestGraphDecideFork(t *testing.T) {
+	g := InitGraph(n, nmt, initHash)
+	var idx IndexType = 1
+	// create a fork at id 0, index 1
+	addEvent(0, idx, 1, idx-1, g, nil, t)
+	addEvent(0, idx, 2, idx-1, g, nil, t)
+	// we should have a fork
+	assert.Equal(t, 1, len(g.forks))
+	// have some events see the first and others the second
+	for i := IndexType(1); i < n; i++ {
+		ev := EventInfo{
+			LocalInfo: EventPointer{
+				ID:    i,
+				Index: 1,
+				Hash:  g.tails[i][0].MyHash,
+			},
+			RemoteAncestors: []EventPointer{{
+				ID:    0,
+				Index: 1,
+				Hash:  g.tails[0][i%2].MyHash, // have half point to the different events of the fork
+			}},
+		}
+		addEventInfo(ev, false, g, nil, t)
+	}
+	// make enough events to decide
+	idx = makeAllStronglySee(g, idx, t)
+	idx = makeAllStronglySee(g, idx, t)
+
+	dec, _, _, _, _, bools := g.GetDecision(1)
+	assert.True(t, dec)
+	assert.False(t, bools[0])       // the 0 index should decide false because of the fork
+	for _, nxt := range bools[1:] { // the other indices should decide true
+		assert.True(t, nxt)
+	}
+
 }

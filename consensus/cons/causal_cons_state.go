@@ -70,7 +70,7 @@ func NewCausalConsState(initIitem consinterface.ConsItem,
 	cs.memberCheckerState = memberCheckerState
 	cs.timeoutTime = time.Millisecond * time.Duration(generalConfig.ProgressTimeout)
 
-	if initIitem.NeedsConcurrent() > 1 {
+	if initIitem.NeedsCompletionConcurrentProposals() > 1 {
 		panic("cannot have needs concurrent for causal")
 	}
 

@@ -137,15 +137,15 @@ func makeTable(inputFiles []string, folderPath, xLabel, title string) (err error
 			logging.Error(err)
 			return
 		}
-		lines := strings.Split(string(buf), "\n")
+		newLines := strings.Split(string(buf), "\n")
 		var rows [][3]interface{}
-		for _, nxtLine := range lines[1:] {
+		for _, nxtLine := range newLines[1:] {
 			fields := strings.Fields(nxtLine)
 			if len(fields) > 0 {
 				rows = append(rows, [3]interface{}{fields[1], fields[2], fields[3]})
 			}
 		}
-		if _, err = tab.AddRow(strings.Fields(lines[0])[1], rows, 1); err != nil {
+		if _, err = tab.AddRow(strings.Fields(newLines[0])[1], rows, 1); err != nil {
 			return
 		}
 	}

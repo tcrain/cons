@@ -169,6 +169,7 @@ func (pt *PrintTable) AddRow(title interface{}, values [][3]interface{}, roundTo
 	pt.n = 0
 
 	if len(values) != len(pt.headers) {
+		fmt.Println(title, values, pt.headers)
 		panic("must have same number of rows as headers")
 	}
 	var mStr string

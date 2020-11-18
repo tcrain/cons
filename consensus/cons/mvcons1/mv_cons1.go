@@ -37,6 +37,7 @@ import (
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 )
 
@@ -131,12 +132,12 @@ func (sc *MvCons1) HasValidStarted() bool {
 }
 
 // NeedsConcurrent returns 1.
-func (sc *MvCons1) NeedsConcurrent() types.ConsensusInt {
+func (sc *MvCons1) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *MvCons1) SetInitialState([]byte) {}
+func (sc *MvCons1) SetInitialState([]byte, storage.StoreInterface) {}
 
 // Start allows GetProposalIndex to return true.
 func (sc *MvCons1) Start(finishedLastRound bool) {

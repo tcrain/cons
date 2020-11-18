@@ -28,6 +28,7 @@ import (
 	"github.com/tcrain/cons/consensus/cons/bincons1"
 	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 
 	"github.com/tcrain/cons/consensus/auth/sig"
@@ -153,7 +154,7 @@ func (sc *BinConsRnd2) GotProposal(hdr messages.MsgHeader, mainChannel channelin
 }
 
 // NeedsConcurrent returns 1.
-func (sc *BinConsRnd2) NeedsConcurrent() types.ConsensusInt {
+func (sc *BinConsRnd2) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -229,7 +230,7 @@ func (sc *BinConsRnd2) CanSkipMvTimeout() bool {
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *BinConsRnd2) SetInitialState([]byte) {}
+func (sc *BinConsRnd2) SetInitialState([]byte, storage.StoreInterface) {}
 
 // CheckRound checks for the given round if enough messages have been received to progress to the next round
 // and return true if it can.

@@ -39,5 +39,5 @@ plot for [file in filenames3] file using ($3/1000):($3/1000):($3/1000):xtic(1) t
 unset ytics
 set y2tics mirror
 set xlabel xlab4
-set ylabel "Messages Sent (hundreds)"
+set ylabel "Messages Signed"
 plot for [file in filenames4] file using ($3/100):($3/100):($3/100):xtic(1) title word(system('head -1 '.file), 2) axes x1y2

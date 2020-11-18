@@ -52,8 +52,9 @@ func (Config) GetMemberCheckerTypes(cons.GetOptionType) []types.MemberCheckerTyp
 
 // GetAllowConcurrentTypes returns the values for if the consensus supports running concurrent consensus instances
 // when using total ordering or not or both.
+// MvCons4 must run instances concurrently.
 func (Config) GetAllowConcurrentTypes(cons.GetOptionType) []bool {
-	return types.WithFalse
+	return types.WithTrue
 }
 
 // GetCollectBroadcast returns the values for if the consensus supports broadcasting the commit message

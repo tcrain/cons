@@ -33,6 +33,7 @@ import (
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/stats"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 )
 
@@ -119,7 +120,7 @@ type ConsItem interface {
 	// AllowConcurrent is enabled.
 	GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasInfo bool)
 	// SetInitialState should be called on the initial consensus index (1) to set the initial state.
-	SetInitialState([]byte)
+	SetInitialState([]byte, storage.StoreInterface)
 	GetIndex() types.ConsensusIndex // GetIndex returns the consensus index of the item.
 	// HasValidStarted returns true if this cons item has processed a valid proposal, or if it know other nodes
 	// have (i.e. if the binary reduction has terminated)
@@ -181,8 +182,12 @@ type ConsItem interface {
 	// Static methods
 	///////////////////////////////////////////////////////////////////////////
 
-	// NeedsConcurrent returns the number of concurrent instances the consensus needs to run correctly (this is usually 1).
-	NeedsConcurrent() types.ConsensusInt
+	// NeedsCompletionConcurrentProposals returns the number of concurrent instances the consensus needs to run correctly where
+	// the possible value that can be decided must be known before the next proposal is made (i.e. either that
+	// value or nil is decided). Normally this returns 1.
+	// Currently only MvCons3 needs a higher value since it makes concurrent proposals once the possible value
+	// of the previous proposal is known.
+	NeedsCompletionConcurrentProposals() types.ConsensusInt
 	// ComputeDecidedValue is a static method that should return the decided value, state comes from ConsItem.GetBinState, decision comes from ConsItem.GetDecision.
 	ComputeDecidedValue(state []byte, decision []byte) []byte
 	// GetProposeHeaderID returns the HeaderID for the message type that will be input to GotProposal.

@@ -433,7 +433,7 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 	}
 
 	if to.SigType == TBLS && (to.UseMultisig || to.BlsMultiNew || !to.UsePubIndex) {
-		err = fmt.Errorf("For bls thrsh (TBLS) must not use multi sig or bls multi new and must use put index, useMultiSig: %v, BlsMultiNew: %v, UsePubIndex %v",
+		err = fmt.Errorf("for bls thrsh (TBLS) must not use multi sig or bls multi new and must use put index, useMultiSig: %v, BlsMultiNew: %v, UsePubIndex %v",
 			to.UseMultisig, to.BlsMultiNew, to.UsePubIndex)
 		return
 	}
@@ -639,12 +639,16 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 			err = fmt.Errorf("when using MvCons3/4 generalconfig.KeepFuture must be at least 5")
 			return
 		}
-		if to.AllowConcurrent != 0 {
-			err = fmt.Errorf("when using MvCons3/4 AllowConcurrent must be 0")
-			return
-		}
 	}
 	if consType == MvCons4Type {
+		if to.AllowConcurrent < 4 {
+			err = fmt.Errorf("when using MvCons4 AllowConcurrent must be at least 4")
+			return
+		}
+		if to.RotateCord {
+			err = fmt.Errorf("MvCons4 does not support rotate coord")
+			return
+		}
 		if to.MCType != TrueMC {
 			err = fmt.Errorf("TrueMC must be used with MvCons4")
 			return
@@ -686,6 +690,10 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		//}
 	}
 	if consType == MvCons3Type {
+		if to.AllowConcurrent != 0 {
+			err = fmt.Errorf("when using MvCons3 AllowConcurrent must be 0")
+			return
+		}
 		switch to.MCType {
 		case TrueMC, LaterMC: // ok
 		default:

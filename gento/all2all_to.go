@@ -24,6 +24,7 @@ import (
 	"github.com/tcrain/cons/consensus/cons/mvbinconsrnd2"
 	"github.com/tcrain/cons/consensus/cons/mvcons2"
 	"github.com/tcrain/cons/consensus/cons/mvcons3"
+	"github.com/tcrain/cons/consensus/cons/mvcons4"
 	"github.com/tcrain/cons/consensus/cons/rbbcast1"
 	"github.com/tcrain/cons/consensus/cons/rbbcast2"
 	"github.com/tcrain/cons/consensus/types"
@@ -81,8 +82,16 @@ func genAll2AllSimple(folderName string, sleepCrypto bool, nxtID uint64) uint64 
 		optsSig, nil)
 
 	ct.RotateCord = false
+	optsSigNxt := optsSig
+	optsSigNxt.RotateCoordTypes = types.WithFalse
 	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.MvCons3Type}, []cons.ConfigOptions{mvcons3.MvCons3Config{}},
-		optsSig, nil)
+		optsSigNxt, nil)
+
+	mv4ct := ct
+	mv4ct.MvCons4BcastType = types.Normal
+	mv4ct.KeepPast = 10
+	nxtID = genTO(nxtID, folderName, mv4ct, []types.ConsType{types.MvCons4Type}, []cons.ConfigOptions{mvcons4.Config{}},
+		optsSigNxt, nil)
 
 	ct.NoSignatures = true
 	ct.EncryptChannels = true

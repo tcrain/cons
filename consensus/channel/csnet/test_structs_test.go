@@ -28,6 +28,7 @@ import (
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/stats"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 	"time"
 )
@@ -85,8 +86,8 @@ func (sc *TestConsItem) HasValidStarted() bool { return false }
 func (sc *TestConsItem) GetProposalIndex() (prevIdx types.ConsensusIndex, ready bool) {
 	return
 }
-func (sc *TestConsItem) SetInitialState([]byte) {}
-func (sc *TestConsItem) NeedsConcurrent() types.ConsensusInt {
+func (sc *TestConsItem) SetInitialState([]byte, storage.StoreInterface) {}
+func (sc *TestConsItem) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 func (*TestConsItem) GenerateMessageState(*generalconfig.GeneralConfig) consinterface.MessageState {

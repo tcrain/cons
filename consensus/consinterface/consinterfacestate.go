@@ -410,7 +410,7 @@ func (mcs *ConsInterfaceState) DoneIndex(nextIdxID, supportIndex, futureDependen
 		if mcs.allowConcurrent > 0 { // when running concurrent we always do the SM 1 at a time at decision
 			pi.DoneClear()
 			pi = nil
-		} else if mcs.initItem.NeedsConcurrent() > 1 && len(dec) == 0 { // if we need concurrent and decide nil, then this instance wont be used
+		} else if mcs.initItem.NeedsCompletionConcurrentProposals() > 1 && len(dec) == 0 { // if we need concurrent and decide nil, then this instance wont be used
 			pi.DoneClear()
 		} else if preDec, ok := mcs.PreDecisions[nextIdx]; ok {
 			// if we have a preDecision and it is the same as decision the we have already called pi.HasDecided
@@ -434,7 +434,7 @@ func (mcs *ConsInterfaceState) DoneIndex(nextIdxID, supportIndex, futureDependen
 	// then we keep the SM
 	if len(dec) > 0 || // non-nil decision
 		mcs.allowConcurrent > 0 || // concurrency allowed
-		(mcs.allowConcurrent == 0 && mcs.initItem.NeedsConcurrent() == 1) { // no concurrency or need concurrent
+		(mcs.allowConcurrent == 0 && mcs.initItem.NeedsCompletionConcurrentProposals() == 1) { // no concurrency or need concurrent
 
 		if pi == nil {
 			pi = mcs.allocSM(supportIndex.(types.ConsensusInt), nextIdx)
@@ -482,7 +482,7 @@ func (mcs *ConsInterfaceState) DoneIndex(nextIdxID, supportIndex, futureDependen
 
 func (mcs *ConsInterfaceState) allocSM(supportIndex, nextIdx types.ConsensusInt) StateMachineInterface {
 	prvSM := mcs.ProposalInfo[supportIndex]
-	if !prvSM.GetDecided() && mcs.initItem.NeedsConcurrent() > 1 {
+	if !prvSM.GetDecided() && mcs.initItem.NeedsCompletionConcurrentProposals() > 1 {
 		panic("idx")
 	}
 	pi := prvSM.StartIndex(nextIdx)

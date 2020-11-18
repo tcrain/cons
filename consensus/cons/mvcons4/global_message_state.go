@@ -28,9 +28,11 @@ import (
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/stats"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
 	"sync"
+	"time"
 )
 
 type globalMessageState struct {
@@ -50,10 +52,13 @@ type globalMessageState struct {
 	decidedRounds       [][]graph.IndexType
 	proposals           [][]byte // slice of proposals
 	latestStats         stats.StatsInterface
+	startTimes          []time.Time
+	store               storage.StoreInterface
+	maxStartedIndex     types.ConsensusInt // the largest consensus index that has started (received a proposal)
 }
 
 func initGlobalMessageState(nodeCount, nmt, participantCount int, myID int, initHash types.HashBytes,
-	stats stats.StatsInterface, gc *generalconfig.GeneralConfig) *globalMessageState {
+	store storage.StoreInterface, stats stats.StatsInterface, gc *generalconfig.GeneralConfig) *globalMessageState {
 
 	maxSentIndices := make([][]graph.IndexType, participantCount)
 	for i := 0; i < len(maxSentIndices); i++ {
@@ -73,13 +78,16 @@ func initGlobalMessageState(nodeCount, nmt, participantCount int, myID int, init
 		decisions:       [][][][]byte{nil},
 		proposals:       [][]byte{nil},
 		latestStats:     stats,
+		store:           store,
+		// startTimes: make([]time.Time, 1),
 	}
 }
 
-func (gms *globalMessageState) addProposal(proposal []byte) {
+func (gms *globalMessageState) addProposal(index types.ConsensusIndex, proposal []byte) {
 	gms.mutex.Lock()
 	defer gms.mutex.Unlock()
 
+	gms.maxStartedIndex = index.Index.(types.ConsensusInt)
 	gms.proposals = append(gms.proposals, proposal)
 }
 
@@ -99,7 +107,7 @@ func (gms *globalMessageState) addCreateMessageOnIndices(idx []graph.IndexType) 
 
 	gms.sendMessageOnIndex = append(gms.sendMessageOnIndex, idx)
 
-	evs, err := gms.graph.GetMoreRecent(idx)
+	evs, _, err := gms.graph.GetMoreRecent(idx)
 	utils.PanicNonNil(err)
 	localHasNewer = len(evs) > 0
 	return
@@ -221,6 +229,20 @@ func (gms *globalMessageState) storeMsg(msg *sig.MultipleSignedMessage, alreadyL
 	return err
 }
 
+func (gms *globalMessageState) GetStartTime(index types.ConsensusIndex) time.Time {
+	gms.mutex.RLock()
+	gms.mutex.RUnlock()
+
+	idx := index.Index.(types.ConsensusInt)
+	if idx == 1 {
+		gms.startTimes = append(gms.startTimes, time.Now())
+	}
+	if int(idx-1) >= len(gms.startTimes) {
+		return time.Now()
+	}
+	return gms.startTimes[idx-1]
+}
+
 func (gms *globalMessageState) checkCreateEventAll2Al(mc *consinterface.MemCheckers) (msgs []messages.MsgHeader) {
 	gms.mutex.Lock()
 	defer gms.mutex.Unlock()
@@ -228,6 +250,9 @@ func (gms *globalMessageState) checkCreateEventAll2Al(mc *consinterface.MemCheck
 	if gms.graph.GetLargerIndexCount(graph.IndexType(gms.myID)) >= mc.MC.GetMemberCount()-mc.MC.GetFaultCount() {
 		// create the new local event
 		ev := gms.graph.CreateEventIndex(graph.IndexType(gms.myID), gms.getProposal(), false)
+		if ev.WI != nil { // we started the next consensus
+			gms.startTimes = append(gms.startTimes, time.Now())
+		}
 		// create and sign the message
 		msg := messagetypes.NewEventMessage()
 		msg.Event = ev.EventInfo
@@ -243,15 +268,20 @@ func (gms *globalMessageState) checkCreateEventAll2Al(mc *consinterface.MemCheck
 	return
 }
 
-func (gms *globalMessageState) getRecoverReply(indices []graph.IndexType) []messages.MsgHeader {
-
+func (gms *globalMessageState) getRecoverReply(indices []graph.IndexType) ([]messages.MsgHeader, []byte) {
 	gms.mutex.Lock()
 	defer gms.mutex.Unlock()
 
-	evs, err := gms.graph.GetMoreRecent(indices)
+	evs, ids, err := gms.graph.GetMoreRecent(indices)
 	utils.PanicNonNil(err)
 	msgs := gms.eventsToMsgs(evs)
-	return msgs
+	var decBytes []byte
+	for _, nxt := range ids {
+		st, _, err := gms.store.Read(types.ConsensusInt(nxt))
+		utils.PanicNonNil(err)
+		decBytes = append(decBytes, st...)
+	}
+	return msgs, decBytes
 }
 
 func (gms *globalMessageState) createEventFromIndices(createNewEvent bool, mc *consinterface.MemCheckers,
@@ -270,7 +300,7 @@ func (gms *globalMessageState) createEventFromIndices(createNewEvent bool, mc *c
 		// use the max of that and the given Indices, and those you have sent the node so far
 		maxIndices = graph.MaxIndices(evIds, indices, gms.maxSentIndices[destID])
 	}
-	evs, err := gms.graph.GetMoreRecent(maxIndices)
+	evs, _, err := gms.graph.GetMoreRecent(maxIndices) // TODO should we also include the garbage collected events?
 	utils.PanicNonNil(err)
 
 	ret := gms.createEvent(createNewEvent, gms.checkEqual(gms.graph.GetIndices(), gms.lastCreateIndices, true),
@@ -295,7 +325,7 @@ func (gms *globalMessageState) createEventFromID(createEvent bool, mc *consinter
 		// check against what has been sent to that node so far
 		maxIndices = graph.MaxIndices(gms.maxSentIndices[destID], gms.graph.ComputeDiffIDIndex(graph.IndexType(destID)))
 	}
-	evs, err := gms.graph.GetMoreRecent(maxIndices)
+	evs, _, err := gms.graph.GetMoreRecent(maxIndices) // TODO should we also include the garbage collected events?
 	utils.PanicNonNil(err)
 
 	ret := gms.createEvent(createEvent, false, mc, myId, otherID, evs)
@@ -373,9 +403,13 @@ func (gms *globalMessageState) createEvent(createNewEvent bool,
 	myId, otherID sig.PubKeyIndex, otherEvents []*graph.Event) []messages.MsgHeader {
 
 	ret := gms.eventsToMsgs(otherEvents)
-	if createNewEvent && !useLastEvent {
+	// we only want to create an event if we haven't decided all our started indices
+	if createNewEvent && !useLastEvent && gms.maxStartedIndex >= gms.maxDecidedIndex.Index.(types.ConsensusInt) {
 		// create our new local event
 		ev := gms.graph.CreateEvent(graph.IndexType(myId), graph.IndexType(otherID), gms.getProposal(), false)
+		if ev.WI != nil { // we started the next consensus
+			gms.startTimes = append(gms.startTimes, time.Now())
+		}
 		// create and sign the message
 		msg := messagetypes.NewEventMessage()
 		msg.Event = ev.EventInfo
@@ -439,12 +473,16 @@ func (gms *globalMessageState) canStartNext(index types.ConsensusIndex) bool {
 	gms.mutex.RLock()
 	defer gms.mutex.RUnlock()
 
-	idx := index.Index.(types.ConsensusInt)
-	if idx == 1 {
-		return true
-	}
-	if len(gms.decisions) >= int(idx) {
-		return true
+	idx := graph.IndexType(index.Index.(types.ConsensusInt))
+	wts := gms.graph.GetWitnesses(idx)
+	if gms.myID < len(wts) { // if I am a member start the next when a witness has been created for the index
+		return len(wts[gms.myID]) > 0
+	} else { // if we are not a member start when any witness is computed for the current index
+		for _, nxt := range wts {
+			if len(nxt) > 0 {
+				return true
+			}
+		}
 	}
 	return false
 }
@@ -460,7 +498,7 @@ func (gms *globalMessageState) hasDecided(index types.ConsensusIndex, mc *consin
 		return false
 	}
 
-	dec, decs, _, decIdxs, decCount := gms.graph.GetDecision(idx)
+	dec, decs, _, decIdxs, decCount, decBools := gms.graph.GetDecision(idx)
 	if dec && idx+1 > graph.IndexType(gms.maxDecidedIndex.Index.(types.ConsensusInt)) {
 		gms.maxDecidedIndex = types.SingleComputeConsensusIDShort(types.ConsensusInt(idx) + 1)
 	}
@@ -484,12 +522,30 @@ func (gms *globalMessageState) hasDecided(index types.ConsensusIndex, mc *consin
 		} else {
 			checkID = gms.myID
 		}
-		logging.Info("dec round", decIdxs[checkID], gms.decidedRounds[idx-1][checkID], idx, checkID)
-		mc.MC.GetStats().AddFinishRoundSet(types.ConsensusRound(decIdxs[checkID]-gms.decidedRounds[idx-1][checkID]),
-			decCount)
+		logging.Info("dec round", decIdxs[checkID], gms.decidedRounds[idx-1][checkID], idx, decBools, checkID)
+		var decRounds graph.IndexType
+		if decIdxs[checkID] > gms.decidedRounds[idx-1][checkID] {
+			decRounds = decIdxs[checkID] - gms.decidedRounds[idx-1][checkID]
+		}
+		mc.MC.GetStats().AddFinishRoundSet(types.ConsensusRound(decRounds), decCount)
 	}
 
 	return dec
+}
+
+func (gms *globalMessageState) performGC(index types.ConsensusIndex) {
+	gms.mutex.Lock()
+	defer gms.mutex.Unlock()
+
+	gms.graph.CheckGCIndex(graph.IndexType(index.Index.(types.ConsensusInt)),
+		func(ev *graph.Event) bool {
+			hsh := types.HashStr(ev.MyHash)
+			if msg, ok := gms.messagesByEventHash[hsh]; ok {
+				delete(gms.messagesByEventHash, hsh)
+				delete(gms.messages, msg.GetHashString())
+			}
+			return true
+		})
 }
 
 func (gms *globalMessageState) getConsensusIndexMessages(index types.ConsensusIndex) []messages.MsgHeader {
@@ -497,7 +553,8 @@ func (gms *globalMessageState) getConsensusIndexMessages(index types.ConsensusIn
 	defer gms.mutex.RUnlock()
 
 	idx := graph.IndexType(index.Index.(types.ConsensusInt))
-	events := gms.graph.GetDecisionEvents(idx)
+	events, err := gms.graph.GetDecisionEvents(idx)
+	utils.PanicNonNil(err)
 	ret := make([]messages.MsgHeader, len(events))
 	for i, nxt := range events {
 		msg, ok := gms.messagesByEventHash[types.HashStr(nxt.MyHash)]

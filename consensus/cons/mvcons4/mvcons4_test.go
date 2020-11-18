@@ -34,13 +34,13 @@ func getMvConsStateMachineTypes() []types.StateMachineType {
 	return []types.StateMachineType{types.CounterProposer}
 }
 
-var mvTO = types.TestOptions{MCType: types.TrueMC, EncryptChannels: true}
+var mvTO = types.TestOptions{MCType: types.TrueMC, EncryptChannels: true, AllowConcurrent: 5}
 
 func TestMvCons4BasicNormal(t *testing.T) {
 	to := mvTO
 	to.MvCons4BcastType = types.Normal
 	cons.RunBasicTests(to,
-		types.MvCons4Type, &MvCons4{}, Config{}, []int{}, t)
+		types.MvCons4Type, &MvCons4{}, Config{}, []int{1}, t)
 }
 
 func TestMvCons4BasicDirect(t *testing.T) {

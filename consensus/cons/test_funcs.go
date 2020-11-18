@@ -761,7 +761,7 @@ func GenTBLSDualDSSThresh(to types.TestOptions) (blsSharedPrimary, blsSharedSeco
 
 // computeLastIndex returns the largest consensus instance a process should participate in.
 func computeLasIndex(to types.TestOptions, initItem consinterface.ConsItem) types.ConsensusInt {
-	return types.ConsensusInt(to.MaxRounds) + initItem.NeedsConcurrent() - 1 + types.ConsensusInt(to.WarmUpInstances)
+	return types.ConsensusInt(to.MaxRounds) + initItem.NeedsCompletionConcurrentProposals() - 1 + types.ConsensusInt(to.WarmUpInstances)
 }
 
 // computeSMFinish returns the index a normal state machine should send on the done channel.

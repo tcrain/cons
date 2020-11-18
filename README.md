@@ -144,7 +144,11 @@ will be generated.
 - Now to run a binary consensus benchmark locally run:
 ``./scripts/Bench.sh 127.0.0.1 "{foldername}" "" "{nodecount}" none ipfile none 4534 0``
 Where ``{foldername}`` is the name of the folder with the test configurations generated in the previous step
-and ``{nodecount}`` is the number of consensus nodes (processes) that willrun the benchmark.
+and ``{nodecount}`` is the number of consensus nodes (processes) that will run the benchmark.
+It can be a list with each element containing 1, 2, or 3 integers.
+The first is the total number of nodes (see NumTotalProcs in testoptions.go),
+The second is the network fan out if gossip is enabled (see FanOut in testoptions.go).
+The third is the number of the random members used (see RndMemberCount in testoptions.go).
 - The results can be found in ```./benchresults/```
 
 ## To run benchmarks on Google Cloud Compute

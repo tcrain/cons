@@ -35,6 +35,7 @@ import (
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 )
 
@@ -132,7 +133,7 @@ func includeRandHash(gc *generalconfig.GeneralConfig) bool {
 }
 
 // SetInitialState sets the value that is supported by the inital index (1).
-func (sc *MvCons3) SetInitialState(value []byte) {
+func (sc *MvCons3) SetInitialState(value []byte, _ storage.StoreInterface) {
 	sc.initialHash = types.GetHash(value)
 }
 
@@ -794,7 +795,7 @@ func (sc *MvCons3) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub
 }
 
 // NeedsConcurrent returns 4.
-func (sc *MvCons3) NeedsConcurrent() types.ConsensusInt {
+func (sc *MvCons3) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 20
 }
 

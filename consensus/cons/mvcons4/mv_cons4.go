@@ -34,6 +34,7 @@ import (
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
 	"math/rand"
@@ -54,7 +55,7 @@ type MvCons4 struct {
 }
 
 // SetInitialState sets the value that is supported by the inital index (1).
-func (sc *MvCons4) SetInitialState(value []byte) {
+func (sc *MvCons4) SetInitialState(value []byte, store storage.StoreInterface) {
 	sc.initialHash = types.GetHash(value)
 	if sc.Index.Index.(types.ConsensusInt) != 1 {
 		panic("should be called on index 1")
@@ -65,7 +66,7 @@ func (sc *MvCons4) SetInitialState(value []byte) {
 	n := sc.ConsItems.MC.MC.GetMemberCount()
 	nmt := n - sc.ConsItems.MC.MC.GetFaultCount()
 	participantCount := len(sc.ConsItems.MC.MC.GetAllPubs())
-	sc.gs = initGlobalMessageState(n, nmt, participantCount, sc.GeneralConfig.TestIndex, sc.initialHash,
+	sc.gs = initGlobalMessageState(n, nmt, participantCount, sc.GeneralConfig.TestIndex, sc.initialHash, store,
 		sc.ConsItems.MC.MC.GetStats(), sc.GeneralConfig)
 	sc.ConsItems.MsgState.(*MessageState).gs = sc.gs
 }
@@ -88,6 +89,9 @@ func (sc *MvCons4) GetPrevCommitProof() (coordPub sig.Pub, proof []messages.MsgH
 
 // Start allows GetProposalIndex to return true.
 func (sc *MvCons4) Start(finishedLastRound bool) {
+	sc.Started = true
+	logging.Infof("Starting consensus index %v", sc.Index)
+
 	sc.AbsConsItem.AbsStart()
 	sc.finishedLastRound = finishedLastRound
 	logging.Infof("Got local start multivalue index %v", sc.Index)
@@ -199,11 +203,13 @@ func (sc *MvCons4) ProcessCustomRecoveryMessage(item *deserialized.DeserializedI
 	sendChan *channelinterface.SendRecvChannel) {
 
 	ids := item.Header.(*messagetypes.IndexRecoverMsg).Indices
-	msgs := sc.gs.getRecoverReply(ids)
+	msgs, byts := sc.gs.getRecoverReply(ids)
 	if sc.MvCons4BcastType != types.Normal { // if it a no progress message then we include an indices messages to trigger a sync
 		msgs = append(msgs, sc.gs.getMyIndicesMsg(false, sc.ConsItems.MC))
 	}
-	sndMsg, err := messages.CreateMsg(msgs)
+	sndMsg, err := messages.CreateMsgFromBytes(byts)
+	utils.PanicNonNil(err)
+	sndMsg, err = messages.AppendHeaders(sndMsg, msgs)
 	utils.PanicNonNil(err)
 	sts := sc.gs.getStats(sc.ConsItems.MC.MC)
 	sendChan.MainChan.SendTo(sndMsg.GetBytes(), sendChan.ReturnChan, sts.IsRecordIndex(),
@@ -296,27 +302,27 @@ func (sc *MvCons4) GotProposal(hdr messages.MsgHeader, _ channelinterface.MainCh
 	}
 	sc.ConsItems.MC.MC.GetStats().BroadcastProposal()
 
-	sc.gs.addProposal(sc.myProposal.Proposal)
+	sc.gs.addProposal(sc.Index, sc.myProposal.Proposal)
 	// sc.gs.addCreateMessageOnIndices(make([]graph.IndexType, sc.ConsItems.MC.MC.GetMemberCount()))
 	// sc.doBroadcast(nil, mainChannel)
-	if sc.Index.Index.(types.ConsensusInt) == 1 {
-		switch sc.broadcastType {
-		case types.Normal:
-			sc.checkBroadcastNormal()
-		case types.Direct:
-			sc.broadcastEventInfoFromEvent(nil, sc.MainChannel)
-		case types.Indices:
-			sc.broadcastEventInfoFromIndices(sc.ConsItems.MC.MC.GetMyPriv().GetPub(), true, nil,
-				sc.gs.getMyIndices(), graph.IndexType(sc.getRandReceiver(false).GetIndex()))
-		default:
-			panic(sc.broadcastType)
-		}
+	// if sc.Index.Index.(types.ConsensusInt) == 1 {
+	switch sc.broadcastType {
+	case types.Normal:
+		sc.checkBroadcastNormal()
+	case types.Direct:
+		sc.broadcastEventInfoFromEvent(nil, sc.MainChannel)
+	case types.Indices:
+		sc.broadcastEventInfoFromIndices(sc.ConsItems.MC.MC.GetMyPriv().GetPub(), true, nil,
+			sc.gs.getMyIndices(), graph.IndexType(sc.getRandReceiver(false).GetIndex()))
+	default:
+		panic(sc.broadcastType)
 	}
+	// }
 	return nil
 }
 
 func (sc *MvCons4) checkBroadcastNormal() {
-	if !sc.CheckMemberLocal() { // check if we are a member
+	if !sc.checkCreateEvent() { // check if we are a member
 		return
 	}
 	if msgs := sc.gs.checkCreateEventAll2Al(sc.ConsItems.MC); len(msgs) > 0 {
@@ -344,6 +350,7 @@ func (sc *MvCons4) doBroadcast(fromMsg *messagetypes.EventMessage, mainChannel c
 
 func (sc *MvCons4) checkDecidedInternal() {
 	if !sc.hasDecided && sc.gs.hasDecided(sc.Index, sc.ConsItems.MC) {
+		sc.ConsItems.MC.MC.GetStats().AddCustomStartTime(sc.gs.GetStartTime(sc.Index))
 		sc.hasDecided = true
 		sc.SetDecided()
 	}
@@ -409,7 +416,7 @@ func (sc *MvCons4) ProcessMessage(
 
 // CanStartNext returns true
 func (sc *MvCons4) CanStartNext() bool {
-	return true
+	return sc.gs.canStartNext(sc.Index)
 }
 
 // GetNextInfo will be called after CanStartNext returns true.
@@ -422,7 +429,7 @@ func (sc *MvCons4) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub
 }
 
 // NeedsConcurrent returns 1.
-func (sc *MvCons4) NeedsConcurrent() types.ConsensusInt {
+func (sc *MvCons4) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -558,4 +565,5 @@ func (*MvCons4) GenerateMessageState(gc *generalconfig.GeneralConfig) consinterf
 func (sc *MvCons4) Collect() {
 	sc.prev = nil
 	sc.AbsConsItem.Collect()
+	sc.gs.performGC(sc.Index)
 }

@@ -94,7 +94,7 @@ func (bid *MultiBitID) Encode(writer io.Writer) (n int, err error) {
 }
 func (bid *MultiBitID) Deserialize(msg *messages.Message) (n int, err error) {
 	var buff []byte
-	n, buff, err = utils.DecodeHelperMsg((*messages.MsgBuffer)(msg))
+	n, buff, err = messages.DecodeHelperMsg((*messages.MsgBuffer)(msg))
 	if err != nil {
 		return
 	}

@@ -122,7 +122,7 @@ func GenGraph(title, xLabel, yLabel, folderPath string, extraNames []VaryField, 
 		_ = file.Close()
 
 		// Sort the lines
-		if len(lines) < 1 {
+		if len(lines) < 1 || lines == nil {
 			panic("empty file")
 		}
 		afterLines := lines[1:]
@@ -235,7 +235,7 @@ func GenMultiPlot(idx int, folderPath, gnuPlotFile string, properties []GraphPro
 		cmd.Stderr = &out
 		if err := cmd.Run(); err != nil {
 			logging.Errorf("Error running command %s: %v, %v", cmd.Args, err, cmd.Stderr)
-			return err
+			// return err
 		}
 		logging.Print("Ran command successfully", cmd.Args)
 	}

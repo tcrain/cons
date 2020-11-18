@@ -31,6 +31,7 @@ import (
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 )
 
@@ -347,7 +348,7 @@ func (sc *RbBcast1) ProcessMessage(
 }
 
 // NeedsConcurrent returns 1.
-func (sc *RbBcast1) NeedsConcurrent() types.ConsensusInt {
+func (sc *RbBcast1) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -433,7 +434,7 @@ func (sc *RbBcast1) broadcastEcho(nmt int, proposalHash []byte,
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *RbBcast1) SetInitialState([]byte) {}
+func (sc *RbBcast1) SetInitialState([]byte, storage.StoreInterface) {}
 
 //////////////////////////////////////////////////////////////////////////////////////////
 //

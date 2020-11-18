@@ -26,7 +26,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"github.com/tcrain/cons/config"
-	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
 	"io"
 	"math"
@@ -916,22 +915,7 @@ func DecodeHelper(reader io.Reader) (n int, buff []byte, err error) {
 	return
 }
 
-func DecodeHelperMsg(msg *messages.MsgBuffer) (n int, buff []byte, err error) {
-	var n1 int
-	var size uint64
-	size, n1, err = ReadUvarintByteReader(msg)
-	n += n1
-	if err != nil {
-		return
-	}
-	if size == 0 {
-		return
-	}
-	buff, err = msg.ReadBytes(int(size))
-	n += int(size)
-	return
-}
-
+// EncodeHelper writes the size of the bytes followed by the bytes to the writer.
 func EncodeHelper(arr []byte, writer io.Writer) (n int, err error) {
 	var n1 int
 	n1, err = EncodeUvarint(uint64(len(arr)), writer)

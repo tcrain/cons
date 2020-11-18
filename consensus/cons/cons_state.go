@@ -75,7 +75,7 @@ func NewConsState(initIitem consinterface.ConsItem,
 	cs.memberCheckerState = memberCheckerState
 	cs.timeoutTime = time.Millisecond * time.Duration(generalConfig.ProgressTimeout)
 
-	if initIitem.NeedsConcurrent() > 1 && allowConcurrent > 0 {
+	if initIitem.NeedsCompletionConcurrentProposals() > 1 && allowConcurrent > 0 {
 		panic("cannot have both needs concurrent and allow concurrent")
 	}
 
@@ -92,7 +92,7 @@ func NewConsState(initIitem consinterface.ConsItem,
 		panic(err)
 	}
 	cs.firstItem = firstItem.ConsItem
-	firstItem.ConsItem.SetInitialState(initStateMachine.GetInitialState())
+	firstItem.ConsItem.SetInitialState(initStateMachine.GetInitialState(), store)
 	firstItem.ConsItem.PrevHasBeenReset()
 
 	cs.futureMessages = make(map[types.ConsensusInt][]*channelinterface.RcvMsg)
@@ -266,7 +266,7 @@ func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg 
 
 		// we only execute the loop for the current index if the item only needs 1 concurrent instance
 		var runLoopOnce bool
-		if cs.initItem.NeedsConcurrent() <= 1 && !cs.initItem.ForwardOldIndices() {
+		if cs.initItem.NeedsCompletionConcurrentProposals() <= 1 && !cs.initItem.ForwardOldIndices() {
 			runLoopOnce = true
 		}
 
@@ -320,7 +320,7 @@ func (cs *ConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg 
 			// then we send it what we have
 			// var returnMessages [][]byte
 			// For each index that it is missing we send back the messages we have received for that index
-			stopAt := utils.MinConsensusIndex(endidx+config.MaxRecovers, myIndex+cs.initItem.NeedsConcurrent(),
+			stopAt := utils.MinConsensusIndex(endidx+config.MaxRecovers, myIndex+cs.initItem.NeedsCompletionConcurrentProposals(),
 				cs.memberCheckerState.StartedIndex+1)
 			logging.Infof("Got a header no change for idx %v, my idx is %v, started index is %v, will send until %v, my test id %v, sender test id is %v",
 				endidx, myIndex, cs.memberCheckerState.StartedIndex, stopAt, cs.generalConfig.TestIndex, deser.Header.(*messagetypes.NoProgressMessage).TestID)
@@ -613,7 +613,7 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 	}
 
 	// now start concurrent instances if enabled, or if the cons needs concurrent instances
-	if !cs.isInStorageInit && (cs.initItem.NeedsConcurrent() > 1 || cs.allowConcurrent > 0) {
+	if !cs.isInStorageInit && (cs.initItem.NeedsCompletionConcurrentProposals() > 1 || cs.allowConcurrent > 0) {
 
 		// for cs.startedIndex < cs.memberCheckerState.LocalIndex ||
 
@@ -621,7 +621,7 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 		// Or until the max concurrent instances allowed
 		for cs.memberCheckerState.StartedIndex < cs.memberCheckerState.LocalIndex+config.KeepFuture &&
 			(cs.memberCheckerState.StartedIndex < cs.memberCheckerState.LocalIndex+cs.allowConcurrent-1 ||
-				cs.initItem.NeedsConcurrent() > 1) {
+				cs.initItem.NeedsCompletionConcurrentProposals() > 1) {
 
 			// if the current started index is not ready to start the next then we dont continue
 			nxtItem, err := cs.memberCheckerState.GetMemberChecker(
@@ -683,7 +683,7 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 	}
 
 	// if idx <= cs.localIndex {
-	if idx < cs.memberCheckerState.LocalIndex+cs.initItem.NeedsConcurrent() { // TODO how should this work for MvCons3?
+	if idx < cs.memberCheckerState.LocalIndex+cs.initItem.NeedsCompletionConcurrentProposals() { // TODO how should this work for MvCons3?
 		// we have made some sort of progress so update time
 		cs.localIndexTime = time.Now()
 	}
