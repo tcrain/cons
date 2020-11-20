@@ -1566,7 +1566,7 @@ func CheckDecisions(decidedValues [][][]byte, pi consinterface.StateMachineInter
 	for j := types.ConsensusInt(0); j < types.ConsensusInt(to.MaxRounds)+types.ConsensusInt(to.WarmUpInstances); j++ {
 		initial := decidedValues[0][j]
 		decs = append(decs, initial)
-		logging.Infof("Decided cons %v, %v", j, initial)
+		logging.Infof("Decided cons %v, %v", j, initial[:utils.Min(10, len(initial))])
 		for i := 1; i < to.NumTotalProcs; i++ {
 			next := decidedValues[i][j]
 			if !bytes.Equal(initial, next) {

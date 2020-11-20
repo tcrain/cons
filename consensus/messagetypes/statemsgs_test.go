@@ -332,6 +332,42 @@ func TestNoProgressMsgSerialize(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestIndexRecoverMsgSerialize(t *testing.T) {
+	indices := []graph.IndexType{0, 3, 12, 41, 428, 928}
+	ev := graph.EventPointer{
+		ID:    1,
+		Index: 2,
+		Hash:  types.GetHash([]byte("some msg")),
+	}
+	hdr := NewIndexRecoverMsg(types.SingleComputeConsensusIDShort(tstMsgIndex))
+	hdr.Indices = indices
+	hdr.MissingDependencies = []graph.EventPointer{ev, ev, ev}
+	// hdr := &NoProgressMessage{0, true, basicMessage{tstMsgIdxObj}}
+	hdrs := make([]messages.MsgHeader, 1)
+	hdrs[0] = hdr
+
+	msg := messages.InitMsgSetup(hdrs, t)
+	l := msg.Len()
+
+	ht, err := msg.PeekHeaderType()
+	assert.Nil(t, err)
+	assert.Equal(t, ht, hdr.GetID())
+
+	idx, err := hdr.PeekHeaders(msg, types.IntIndexFuns)
+	assert.Nil(t, err)
+	assert.Equal(t, tstMsgIndex, idx.Index)
+	assert.Equal(t, nil, idx.FirstIndex)
+	assert.Equal(t, []types.ConsensusID(nil), idx.AdditionalIndices)
+
+	newHdr := &IndexRecoverMsg{}
+	n, err := newHdr.Deserialize(msg, types.IntIndexFuns)
+	assert.Equal(t, l, n)
+	assert.Equal(t, tstMsgIndex, newHdr.GetIndex().Index)
+	assert.Equal(t, hdr.MissingDependencies, newHdr.MissingDependencies)
+	assert.Equal(t, indices, newHdr.Indices)
+	assert.Nil(t, err)
+}
+
 func TestSimpleConsMsgSerialize(t *testing.T) {
 
 	priv, err := ec.NewEcpriv()

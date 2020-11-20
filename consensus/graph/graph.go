@@ -66,6 +66,34 @@ type Graph struct {
 	forks           []*forkInfo               // the forks that have been created so far
 }
 
+// containsEventPointer returns true if the event pointer is contained in the graph
+func (g *Graph) ContainsEventPointer(ev EventPointer) bool {
+	for _, nxt := range g.tails[ev.ID] {
+		for nxt != nil && nxt.LocalInfo.Index > ev.Index {
+			nxt = nxt.localAncestor
+		}
+		if nxt != nil && nxt.LocalInfo.Index == ev.Index && bytes.Equal(ev.Hash, nxt.MyHash) {
+			return true
+		}
+	}
+	return false
+}
+
+// getMissingDependencies returns the ancestors that of ev that are not in the graph.
+func (g *Graph) GetMissingDependencies(ev EventInfo) (ret []EventPointer) {
+	li := ev.LocalInfo
+	li.Index-- // we decrement the index since we want the ancestor info
+	if !g.ContainsEventPointer(li) {
+		ret = append(ret, li)
+	}
+	for _, nxt := range ev.RemoteAncestors {
+		if !g.ContainsEventPointer(nxt) {
+			ret = append(ret, nxt)
+		}
+	}
+	return
+}
+
 func (g *Graph) validate(ev EventInfo) error {
 	if ev.LocalInfo.ID >= IndexType(len(g.tails)) {
 		return types.ErrInvalidPubIndex
@@ -164,22 +192,25 @@ func (g *Graph) GetLargerIndexCount(localID IndexType) (count int) {
 // as remote dependencies.
 func (g *Graph) CreateEventIndex(localID IndexType, buff []byte, checkOnly bool) *Event {
 	prevLocal := g.tails[localID][0]
-	myIdx := prevLocal.LocalInfo.Index
+	// myIdx := prevLocal.LocalInfo.Index
 
 	var remoteEv []EventPointer
 	for i, t := range g.tails {
 		if i == int(localID) {
 			continue
 		}
-		for _, nxt := range t {
-			if nxt.LocalInfo.Index >= myIdx {
+		// use the tail with the maximum index
+		nxtRemote := t[0].LocalInfo
+		// use the hash of the event, not the previous hash
+		nxtRemote.Hash = t[0].MyHash
+		for _, nxt := range t[1:] {
+			if nxt.LocalInfo.Index > nxtRemote.Index {
+				nxtRemote = nxt.LocalInfo
 				// use the hash of the event, not the previous hash
-				nxtRemote := nxt.LocalInfo
 				nxtRemote.Hash = nxt.MyHash
-				remoteEv = append(remoteEv, nxtRemote)
-				break
 			}
 		}
+		remoteEv = append(remoteEv, nxtRemote)
 	}
 	evInfo := EventInfo{
 		LocalInfo: EventPointer{
@@ -231,10 +262,7 @@ func (g *Graph) checkFork(ev *Event, fork *forkInfo) bool {
 	var forkEvsSeen []*Event
 	g.recCheckFork(ev, fork, &forkEvsSeen)
 	// unmark the traversed nodes
-	for _, nxt := range g.seen {
-		nxt.seen = notSeen
-	}
-	g.seen = g.seen[:0]       // reset the seen list to 0 (but don't gc since we will reuse it)
+	g.resetSeen()
 	if len(forkEvsSeen) > 1 { // we have seen the fork
 		return true
 	}
@@ -681,7 +709,8 @@ func (g *Graph) findWitnesses(r int, ev *Event, found []*Event) {
 // checkDecided checks if the Event has caused any previous events to decide
 func (g *Graph) checkDecided(ev *Event) {
 	var valDecided bool
-	g.recCheckDecided(ev, make(map[*Event]bool), &valDecided)
+	g.recCheckDecided(ev, &valDecided)
+	g.resetSeen()
 	if valDecided {
 		for dec, _, _, _, _, _ := g.GetDecision(g.lastDecided + 1); dec; dec, _, _, _, _, _ = g.GetDecision(g.lastDecided + 1) {
 			if dec {
@@ -718,18 +747,24 @@ func (g *Graph) GetWitnesses(idx IndexType) [][]*Event {
 
 // recCheckDecided is a recursive call that performs a depth first traversal, checking if witnesses can decide,
 // starting from the oldest, a witness can only decide if all the witnesses it can see have decided.
-func (g *Graph) recCheckDecided(ev *Event, checked map[*Event]bool, newDecided *bool) (ret bool) {
+func (g *Graph) recCheckDecided(ev *Event, newDecided *bool) (ret bool) {
 	if ev.allAncestorsDecided {
 		return true
 	}
-	if val, ok := checked[ev]; ok {
-		return val
+	switch ev.seen {
+	case notSeen:
+	case trueSeen:
+		return true
+	case falseSeen:
+		return false
 	}
 	defer func() {
-		if _, ok := checked[ev]; ok {
-			panic(1)
+		if ret {
+			ev.seen = trueSeen
+		} else {
+			ev.seen = falseSeen
 		}
-		checked[ev] = ret
+		g.seen = append(g.seen, ev)
 	}()
 
 	if ev.WI != nil && ev.WI.decided != unknownDec { // if we have decided then all of our ancestors have decided, so return
@@ -737,10 +772,10 @@ func (g *Graph) recCheckDecided(ev *Event, checked map[*Event]bool, newDecided *
 		return
 	}
 	// we check all ancestors before returning so we generate the info during the traversal
-	localDec := g.recCheckDecided(ev.localAncestor, checked, newDecided)
+	localDec := g.recCheckDecided(ev.localAncestor, newDecided)
 	remoteDec := true
 	for _, nxt := range ev.remoteAncestor {
-		if nxtRemoteDec := g.recCheckDecided(nxt, checked, newDecided); !nxtRemoteDec {
+		if nxtRemoteDec := g.recCheckDecided(nxt, newDecided); !nxtRemoteDec {
 			remoteDec = false
 		}
 	}
@@ -830,8 +865,8 @@ func (g *Graph) computeDecided(ev *Event) {
 						ev.WI.decidedRound = witness.round
 						ev.WI.decided = yesDec
 						logging.Infof("from Event Index %v, round %v, ID %v from Event"+
-							" decided %v at Index %v, round %v, ID %v", witness.LocalInfo.Index, witness.round, witness.LocalInfo.ID,
-							ev.WI.decided, ev.LocalInfo.Index, ev.round, ev.LocalInfo.ID)
+							" decided at Index %v, round %v, ID %v", witness.LocalInfo.Index, witness.round, witness.LocalInfo.ID,
+							ev.LocalInfo.Index, ev.round, ev.LocalInfo.ID)
 						return
 					}
 					if noVotes >= g.nmt {
@@ -841,8 +876,8 @@ func (g *Graph) computeDecided(ev *Event) {
 						ev.WI.decidedRound = witness.round
 						ev.WI.decided = noDec
 						logging.Infof("from Event Index %v, round %v, ID %v from Event"+
-							"decided %v at Index %v, round %v, ID %v", witness.LocalInfo.Index, witness.round, witness.LocalInfo.ID,
-							ev.WI.decided, ev.LocalInfo.Index, ev.round, ev.LocalInfo.ID)
+							"decided at Index %v, round %v, ID %v", witness.LocalInfo.Index, witness.round, witness.LocalInfo.ID,
+							ev.LocalInfo.Index, ev.round, ev.LocalInfo.ID)
 						return
 					}
 				}
@@ -1038,18 +1073,22 @@ func (g *Graph) stronglySees(from, to *Event) bool {
 		return false
 	}
 	sees := make([]bool, len(g.tails))
-	g.recStronglySees(from, to, sees, make(map[*Event]bool))
-	for _, nxt := range g.seen {
-		nxt.seen = notSeen
-	}
-	g.seen = g.seen[:0] // reset the seen list to 0 (but don't gc since we will reuse it)
+	g.recStronglySees(from, to, sees)
+	g.resetSeen()
 	val := utils.TrueCount(sees) >= g.nmt
 	return val
 }
 
+func (g *Graph) resetSeen() {
+	for _, nxt := range g.seen {
+		nxt.seen = notSeen
+	}
+	g.seen = g.seen[:0] // reset the seen list to 0 (but don't gc since we will reuse it)
+}
+
 // recStronglySees is the recursive call of stronglySees
 // passed map is true if the event has a path to the node, false if not
-func (g *Graph) recStronglySees(from, to *Event, sees []bool, passed map[*Event]bool) bool {
+func (g *Graph) recStronglySees(from, to *Event, sees []bool) bool {
 	if to == nil {
 		return false
 	}
@@ -1072,11 +1111,11 @@ func (g *Graph) recStronglySees(from, to *Event, sees []bool, passed map[*Event]
 	// see if we can reach the end from any of our ancestors
 	var remote bool
 	for _, nxt := range to.remoteAncestor {
-		if g.recStronglySees(from, nxt, sees, passed) {
+		if g.recStronglySees(from, nxt, sees) {
 			remote = true
 		}
 	}
-	local := g.recStronglySees(from, to.localAncestor, sees, passed)
+	local := g.recStronglySees(from, to.localAncestor, sees)
 	g.seen = append(g.seen, to)
 	if remote || local {
 		// passed[to] = true

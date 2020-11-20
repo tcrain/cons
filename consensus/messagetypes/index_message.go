@@ -30,6 +30,7 @@ import (
 // IndexRecoverMsg is used for MvCons4 recovery
 type IndexRecoverMsg struct {
 	IndexMessage
+	MissingDependencies []graph.EventPointer
 	basicMessage
 }
 
@@ -40,23 +41,53 @@ func NewIndexRecoverMsg(index types.ConsensusIndex) *IndexRecoverMsg {
 }
 
 // Serialize appends a serialized header to the message m, and returns the size of bytes written
-func (npm *IndexRecoverMsg) Serialize(m *messages.Message) (int, error) {
-	l, err := npm.basicMessage.serializeID(m, npm.GetID())
+func (npm *IndexRecoverMsg) Serialize(m *messages.Message) (n int, err error) {
+	var n1 int
+	n1, err = npm.basicMessage.serializeID(m, npm.GetID())
 	if err != nil {
-		return l, err
+		return
 	}
-	v, _, err := npm.SerializeInternal(m)
-	return v + l, err
+	n += n1
+	n1, _ = (*messages.MsgBuffer)(m).AddUvarint(uint64(len(npm.MissingDependencies)))
+	n += n1
+	for _, nxt := range npm.MissingDependencies {
+		if n, err = nxt.Encode((*messages.MsgBuffer)(m)); err != nil {
+			return
+		}
+		n += n1
+	}
+	n1, _, err = npm.SerializeInternal(m)
+	if err != nil {
+		return
+	}
+	n += n1
+	return
 }
 
 // Deserialize deserialzes a header into the object, returning the number of bytes read
-func (npm *IndexRecoverMsg) Deserialize(m *messages.Message, unmarFunc types.ConsensusIndexFuncs) (int, error) {
-	l, err := npm.basicMessage.deserializeID(m, npm.GetID(), unmarFunc.ConsensusIDUnMarshaler)
-	if err != nil {
-		return l, err
+func (npm *IndexRecoverMsg) Deserialize(m *messages.Message, unmarFunc types.ConsensusIndexFuncs) (n int, err error) {
+	var n1 int
+	if n1, err = npm.basicMessage.deserializeID(m, npm.GetID(), unmarFunc.ConsensusIDUnMarshaler); err != nil {
+		return
 	}
-	br, _, err := npm.DeserializeInternal(m)
-	return br, err
+	n += n1
+	var v uint64
+	if v, n1, err = (*messages.MsgBuffer)(m).ReadUvarint(); err != nil {
+		return
+	}
+	n += n1
+	npm.MissingDependencies = make([]graph.EventPointer, v)
+	for i := uint64(0); i < v; i++ {
+		if n1, err = npm.MissingDependencies[i].Decode((*messages.MsgBuffer)(m)); err != nil {
+			return
+		}
+		n += n1
+	}
+	if n1, _, err = npm.DeserializeInternal(m); err != nil {
+		return
+	}
+	n += n1
+	return
 }
 
 // GetID returns the header id for this header

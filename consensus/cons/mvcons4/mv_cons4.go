@@ -202,18 +202,20 @@ func (sc *MvCons4) ForwardOldIndices() bool {
 func (sc *MvCons4) ProcessCustomRecoveryMessage(item *deserialized.DeserializedItem,
 	sendChan *channelinterface.SendRecvChannel) {
 
-	ids := item.Header.(*messagetypes.IndexRecoverMsg).Indices
-	msgs, byts := sc.gs.getRecoverReply(ids)
+	rcvMsg := item.Header.(*messagetypes.IndexRecoverMsg)
+	msgs, byts := sc.gs.getRecoverReply(rcvMsg.Indices, rcvMsg.MissingDependencies)
 	if sc.MvCons4BcastType != types.Normal { // if it a no progress message then we include an indices messages to trigger a sync
 		msgs = append(msgs, sc.gs.getMyIndicesMsg(false, sc.ConsItems.MC))
 	}
-	sndMsg, err := messages.CreateMsgFromBytes(byts)
-	utils.PanicNonNil(err)
-	sndMsg, err = messages.AppendHeaders(sndMsg, msgs)
-	utils.PanicNonNil(err)
-	sts := sc.gs.getStats(sc.ConsItems.MC.MC)
-	sendChan.MainChan.SendTo(sndMsg.GetBytes(), sendChan.ReturnChan, sts.IsRecordIndex(),
-		sts)
+	if len(byts) > 0 || len(msgs) > 0 {
+		sndMsg, err := messages.CreateMsgFromBytes(byts)
+		utils.PanicNonNil(err)
+		sndMsg, err = messages.AppendHeaders(sndMsg, msgs)
+		utils.PanicNonNil(err)
+		sts := sc.gs.getStats(sc.ConsItems.MC.MC)
+		sendChan.MainChan.SendTo(sndMsg.GetBytes(), sendChan.ReturnChan, sts.IsRecordIndex(),
+			sts)
+	}
 }
 
 // GetProposeHeaderID returns the HeaderID messages.HdrMvPropose that will be input to GotProposal.
@@ -408,7 +410,7 @@ func (sc *MvCons4) ProcessMessage(
 					msg.Indices, destID)
 			}
 		}
-		return false, false
+		return true, false
 	default:
 		panic("unknown msg type")
 	}

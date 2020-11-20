@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package mvcons4
 
 import (
+	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/generalconfig"
@@ -81,6 +82,38 @@ func initGlobalMessageState(nodeCount, nmt, participantCount int, myID int, init
 		store:           store,
 		// startTimes: make([]time.Time, 1),
 	}
+}
+
+// getUnableToProcessDependencies returns the dependencies of unprocessed messages.
+// These are the messages that cannot be captured by sending the nodes indices
+// (i.e. those of faulty nodes).
+func (gms *globalMessageState) getUnableToProcessDependencies() (ret []graph.EventPointer) {
+	// first find all the missing dependencies
+	var missing []graph.EventPointer
+	for _, nxt := range gms.toProcess {
+		missing = append(missing, gms.graph.GetMissingDependencies(nxt)...)
+	}
+	// now only take the ones that won't be covered by a indices message
+	ids := gms.graph.GetIndices()
+	for _, nxt := range missing {
+		if nxt.Index <= ids[nxt.ID] {
+			ret = append(ret)
+		}
+	}
+	return
+}
+
+// getRecoverMsg returns an IndexRecover message that contains the current indices and missing
+// dependencies for pending events at this node.
+func (gms *globalMessageState) getRecoverMsg() messages.MsgHeader {
+	gms.mutex.RLock()
+	defer gms.mutex.RUnlock()
+
+	msg := messagetypes.NewIndexRecoverMsg(gms.maxDecidedIndex)
+	msg.Indices = gms.graph.GetIndices()
+	msg.MissingDependencies = gms.getUnableToProcessDependencies()
+
+	return msg
 }
 
 func (gms *globalMessageState) addProposal(index types.ConsensusIndex, proposal []byte) {
@@ -246,7 +279,9 @@ func (gms *globalMessageState) checkCreateEventAll2Al(mc *consinterface.MemCheck
 	gms.mutex.Lock()
 	defer gms.mutex.Unlock()
 
-	if gms.graph.GetLargerIndexCount(graph.IndexType(gms.myID)) >= mc.MC.GetMemberCount()-mc.MC.GetFaultCount() {
+	if gms.graph.GetLargerIndexCount(graph.IndexType(gms.myID)) >= mc.MC.GetMemberCount()-mc.MC.GetFaultCount() &&
+		gms.maxStartedIndex >= gms.maxDecidedIndex.Index.(types.ConsensusInt) {
+
 		// create the new local event
 		ev := gms.graph.CreateEventIndex(graph.IndexType(gms.myID), gms.getProposal(), false)
 		if ev.WI != nil { // we started the next consensus
@@ -267,19 +302,35 @@ func (gms *globalMessageState) checkCreateEventAll2Al(mc *consinterface.MemCheck
 	return
 }
 
-func (gms *globalMessageState) getRecoverReply(indices []graph.IndexType) ([]messages.MsgHeader, []byte) {
+func (gms *globalMessageState) getRecoverReply(indices []graph.IndexType, missingDeps []graph.EventPointer) ([]messages.MsgHeader, []byte) {
 	gms.mutex.Lock()
 	defer gms.mutex.Unlock()
 
 	evs, ids, err := gms.graph.GetMoreRecent(indices)
 	utils.PanicNonNil(err)
-	msgs := gms.eventsToMsgs(evs)
+
+	var msgs []messages.MsgHeader
+	for _, nxt := range missingDeps { // find the missing dependencies first
+		if m, ok := gms.messagesByEventHash[types.HashStr(nxt.Hash)]; ok {
+			msgs = append(msgs, m)
+		} else {
+			logging.Info("did not find missing dependency message, TODO recover from this message from disk")
+		}
+	}
 	var decBytes []byte
-	for _, nxt := range ids {
+	var idsCount int
+	for _, nxt := range ids[:utils.Min(config.MvCons4MaxRecoverIndices, len(ids))] {
 		st, _, err := gms.store.Read(types.ConsensusInt(nxt))
 		utils.PanicNonNil(err)
 		decBytes = append(decBytes, st...)
+		idsCount++
 	}
+	// if we had less that the max recover indices than we send the remaining events
+	if idsCount <= config.MvCons4MaxRecoverIndices {
+		msgs = append(msgs, gms.eventsToMsgs(evs)...)
+		return msgs[:utils.Min(config.MvCons4MaxRecoverEvents, len(msgs))], decBytes
+	}
+	// otherwise we just send the missing dependencies
 	return msgs, decBytes
 }
 
@@ -434,16 +485,6 @@ func (gms *globalMessageState) getMyIndices() []graph.IndexType {
 	defer gms.mutex.RUnlock()
 
 	return gms.graph.GetIndices()
-}
-
-func (gms *globalMessageState) getRecoverMsg() messages.MsgHeader {
-	gms.mutex.RLock()
-	defer gms.mutex.RUnlock()
-
-	msg := messagetypes.NewIndexRecoverMsg(gms.maxDecidedIndex)
-	msg.Indices = gms.graph.GetIndices()
-
-	return msg
 }
 
 func (gms *globalMessageState) getMyIndicesMsg(isReply bool,

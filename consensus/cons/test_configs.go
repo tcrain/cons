@@ -473,7 +473,6 @@ func RunFailureTests(to types.TestOptions, consType types.ConsType, initItem con
 	if config.AllowConcurrentTests {
 		t.Parallel()
 	}
-
 	to.FailRounds = config.MaxRounds / 2
 	to.MaxRounds = config.MaxRounds
 	to.NumTotalProcs = config.ProcCount

@@ -156,6 +156,12 @@ const (
 	// Number of instances in the future past the supporting instance that made the supported index commit for which membership
 	// is fixed (when using random membership changed)
 	FixedMemberFuture = 5
+
+	// For MvCons4
+	// When a slow node is recovering, send up to this many indices of events that the node is missing
+	MvCons4MaxRecoverIndices = 2
+	// When a slow node is recovering, send up to this many events that the node is missing
+	MvCons4MaxRecoverEvents = 100
 )
 
 var Encoding = binary.LittleEndian // encoding for marshalling

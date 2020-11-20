@@ -149,7 +149,9 @@ func (cs *ConnStatus) Close() {
 		}
 	}
 	// wait for our wait group
+	cs.mutex.Lock()
 	cs.myWg.Wait()
+	cs.mutex.Unlock()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////

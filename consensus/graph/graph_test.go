@@ -35,6 +35,48 @@ const (
 	nmt = n - t
 )
 
+func TestGraphContains(t *testing.T) {
+	g := InitGraph(n, nmt, initHash)
+	initHashes := make([]types.HashBytes, n)
+	for i, nxt := range g.tails {
+		initHashes[i] = nxt[0].MyHash
+	}
+
+	addEvent(0, 1, 1, 0, g, nil, t)
+	ev := EventInfo{
+		LocalInfo: EventPointer{Index: 2,
+			Hash: g.tails[0][0].MyHash},
+		RemoteAncestors: []EventPointer{
+			{ID: 1,
+				Hash: initHashes[1]},
+		},
+	}
+	// event should have all dependencies in the graph
+	assert.Equal(t, 0, len(g.GetMissingDependencies(ev)))
+	addEventInfo(ev, false, g, nil, t)
+	assert.Equal(t, 0, len(g.GetMissingDependencies(ev)))
+
+	ev2 := EventInfo{ // event is too far in future
+		LocalInfo: EventPointer{Index: 4,
+			Hash: g.tails[0][0].MyHash},
+		RemoteAncestors: []EventPointer{
+			{ID: 2,
+				Hash: initHashes[1]},
+		},
+	}
+	assert.Equal(t, 2, len(g.GetMissingDependencies(ev2)))
+
+	ev3 := EventInfo{ // has a missing hash for the local ancestor
+		LocalInfo: EventPointer{Index: 2,
+			Hash: initHashes[0]},
+		RemoteAncestors: []EventPointer{
+			{ID: 1,
+				Hash: initHashes[1]},
+		},
+	}
+	assert.Equal(t, 1, len(g.GetMissingDependencies(ev3)))
+}
+
 func TestGraphAdd(t *testing.T) {
 	g := InitGraph(n, nmt, initHash)
 	initHashes := make([]types.HashBytes, n)

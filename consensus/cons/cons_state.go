@@ -465,150 +465,150 @@ func (cs *ConsState) checkProgress(cidx types.ConsensusID) {
 
 		// Check if the current index needs a proposal
 		cs.memberCheckerState.CheckProposalNeeded(idx)
+	}
 
-		// start from the current index and check if can advance the state
-		item, err := cs.memberCheckerState.GetMemberChecker(types.SingleComputeConsensusIDShort(cs.memberCheckerState.LocalIndex))
-		utils.PanicNonNil(err)
-		nextIdx := cs.memberCheckerState.LocalIndex
-		nextIdxItem := types.SingleComputeConsensusIDShort(nextIdx)
-		nextItem := item
+	// start from the current index and check if can advance the state
+	item, err := cs.memberCheckerState.GetMemberChecker(types.SingleComputeConsensusIDShort(cs.memberCheckerState.LocalIndex))
+	utils.PanicNonNil(err)
+	nextIdx := cs.memberCheckerState.LocalIndex
+	nextIdxItem := types.SingleComputeConsensusIDShort(nextIdx)
+	nextItem := item
+	cs.memberCheckerState.CheckProposalNeeded(nextIdx)
+	// Loop on any decided instances
+	for nextItem.ConsItem.HasDecided() {
+		// memC, _, fwdChecker, err := cs.memberCheckerState.GetMemberChecker(nextIdxItem)
+		// if err != nil { // sanity check
+		//	panic(fmt.Sprint(err, nextIdx, cs.memberCheckerState.LocalIndex))
+		//}
+
+		if nextIdx >= cs.maxInstances {
+			cs.decidedLastIndex = true
+		}
+
+		bs, err := nextItem.ConsItem.GetBinState(false)
+		if err != nil {
+			panic(err)
+		}
+		proposer, dec, supportIndex, futureDependentIndex := nextItem.ConsItem.GetDecision()
+		_, preProposer, preDec, nextReady := nextItem.ConsItem.GetNextInfo()
+		if len(preDec) > 0 && !nextReady {
+			panic("should be ready after decision")
+		}
+		// If both dec and preDec are non nil then they must be equal
+		if len(preDec) > 0 && len(dec) > 0 {
+			if !bytes.Equal(dec, preDec) {
+				panic("preDec and dec should be equal after commit")
+			}
+			if proposer != nil && preProposer != nil {
+				str, err := proposer.GetPubString()
+				if err != nil {
+					panic(err)
+				}
+				pstr, err := preProposer.GetPubString()
+				if err != nil {
+					panic(err)
+				}
+				if str != pstr {
+					panic("got different proposers")
+				}
+			}
+		}
+
+		// Forward any additional items
+		nextItem.FwdChecker.ConsDecided(nextItem.MC.MC.GetStats())
+		sendForward(types.SingleComputeConsensusIDShort(nextIdx), cs.memberCheckerState, cs.mainChannel)
+
+		// Store the decided value
+		// Update the storage if we are not initializing
+		if !cs.isInStorageInit {
+			err := cs.store.Write(nextIdx, bs, dec)
+			if err != nil {
+				panic(err)
+			}
+			nextItem.MC.MC.GetStats().DiskStore(len(bs) + len(dec))
+		}
+
+		// Update the member checker
+		finishedLastRound = cs.memberCheckerState.DoneIndex(nextIdx, supportIndex.Index, futureDependentIndex.Index, proposer, dec)
+		logging.Infof("Decided cons state index %v", nextIdx)
+
+		// Update the state index
+		nextIdx++
+		nextIdxItem = types.SingleComputeConsensusIDShort(nextIdx)
+
+		newNextItem, err := cs.memberCheckerState.GetMemberChecker(nextIdxItem)
+		if err != nil {
+			panic(err)
+		}
+		if !newNextItem.MC.MC.IsReady() {
+			panic("mc should be ready")
+		}
+
+		// Give the next instance the CommitProof from the instance
+		var prf []messages.MsgHeader
+		if cs.generalConfig.CollectBroadcast != types.Full || cs.generalConfig.IncludeProofs {
+			prf = nextItem.ConsItem.GetCommitProof()
+			if len(prf) > 0 {
+				newNextItem.ConsItem.SetCommitProof(prf)
+			}
+		}
+
+		// we are done with the previous instance
+		nextItem = newNextItem
+
+		// Start the next cons instance if ready
+		if cs.memberCheckerState.StartedIndex < cs.memberCheckerState.LocalIndex {
+			if cs.memberCheckerState.StartedIndex != cs.memberCheckerState.LocalIndex-1 {
+				panic("bad order of starting consensus")
+			}
+			//cs.memberCheckerState.
+			cs.memberCheckerState.IncrementStartedIndex()
+			logging.Info("Starting cons index ", cs.memberCheckerState.StartedIndex)
+			if cs.memberCheckerState.StartedIndex != nextIdx {
+				panic(1)
+			}
+			//pi := cs.proposalInfo[prvIdx].StartIndex(cs.startedIndex)
+			//pi.GetProposal()
+			//cs.proposalInfo[cs.startedIndex] = pi
+			startIdx, err := cs.memberCheckerState.GetMemberChecker(
+				types.SingleComputeConsensusIDShort(cs.memberCheckerState.LocalIndex))
+			if err != nil {
+				panic(err)
+			}
+			startIdx.ConsItem.Start(finishedLastRound)
+		}
+
+		// If this was the last round then we broadcast the commit proof so all can finish (since we won't
+		// broadcast an init for the next round).
+		if finishedLastRound &&
+			(cs.generalConfig.CollectBroadcast != types.Full ||
+				(cs.generalConfig.IncludeProofs && cs.generalConfig.StopOnCommit == types.Immediate)) {
+
+			nxtCoordPub, commitProof := nextItem.ConsItem.GetPrevCommitProof()
+			if cs.generalConfig.CollectBroadcast == types.Full { // we always broadcast
+				nxtCoordPub = nil
+			}
+			// only if we are the expected coordinator for the next round
+			if nxtCoordPub == nil || sig.CheckPubsEqual(nextItem.MC.MC.GetMyPriv().GetPub(), nxtCoordPub) {
+				cs.mainChannel.SendHeader(messages.AppendCopyMsgHeader(nextItem.ConsItem.GetPreHeader(),
+					commitProof...), false, false, nextItem.FwdChecker.GetNewForwardListFunc(),
+					true, nil)
+			}
+		}
+
+		// Check if the index needs a proposal
 		cs.memberCheckerState.CheckProposalNeeded(nextIdx)
-		// Loop on any decided instances
-		for nextItem.ConsItem.HasDecided() {
-			// memC, _, fwdChecker, err := cs.memberCheckerState.GetMemberChecker(nextIdxItem)
-			// if err != nil { // sanity check
-			//	panic(fmt.Sprint(err, nextIdx, cs.memberCheckerState.LocalIndex))
-			//}
 
-			if nextIdx >= cs.maxInstances {
-				cs.decidedLastIndex = true
+		// (2) Update the state of the next item
+		// Process any messages in case membership was not ready from before
+		if val, ok := cs.futureMessages[nextIdx]; ok {
+			for _, rcvMsg := range val {
+				cs.mainChannel.ReprocessMessage(rcvMsg)
 			}
-
-			bs, err := nextItem.ConsItem.GetBinState(false)
-			if err != nil {
-				panic(err)
-			}
-			proposer, dec, supportIndex, futureDependentIndex := nextItem.ConsItem.GetDecision()
-			_, preProposer, preDec, nextReady := nextItem.ConsItem.GetNextInfo()
-			if len(preDec) > 0 && !nextReady {
-				panic("should be ready after decision")
-			}
-			// If both dec and preDec are non nil then they must be equal
-			if len(preDec) > 0 && len(dec) > 0 {
-				if !bytes.Equal(dec, preDec) {
-					panic("preDec and dec should be equal after commit")
-				}
-				if proposer != nil && preProposer != nil {
-					str, err := proposer.GetPubString()
-					if err != nil {
-						panic(err)
-					}
-					pstr, err := preProposer.GetPubString()
-					if err != nil {
-						panic(err)
-					}
-					if str != pstr {
-						panic("got different proposers")
-					}
-				}
-			}
-
-			// Forward any additional items
-			nextItem.FwdChecker.ConsDecided(nextItem.MC.MC.GetStats())
-			sendForward(types.SingleComputeConsensusIDShort(nextIdx), cs.memberCheckerState, cs.mainChannel)
-
-			// Store the decided value
-			// Update the storage if we are not initializing
-			if !cs.isInStorageInit {
-				err := cs.store.Write(nextIdx, bs, dec)
-				if err != nil {
-					panic(err)
-				}
-				nextItem.MC.MC.GetStats().DiskStore(len(bs) + len(dec))
-			}
-
-			// Update the member checker
-			finishedLastRound = cs.memberCheckerState.DoneIndex(nextIdx, supportIndex.Index, futureDependentIndex.Index, proposer, dec)
-			logging.Infof("Decided cons state index %v", nextIdx)
-
-			// Update the state index
-			nextIdx++
-			nextIdxItem = types.SingleComputeConsensusIDShort(nextIdx)
-
-			newNextItem, err := cs.memberCheckerState.GetMemberChecker(nextIdxItem)
-			if err != nil {
-				panic(err)
-			}
-			if !newNextItem.MC.MC.IsReady() {
-				panic("mc should be ready")
-			}
-
-			// Give the next instance the CommitProof from the instance
-			var prf []messages.MsgHeader
-			if cs.generalConfig.CollectBroadcast != types.Full || cs.generalConfig.IncludeProofs {
-				prf = nextItem.ConsItem.GetCommitProof()
-				if len(prf) > 0 {
-					newNextItem.ConsItem.SetCommitProof(prf)
-				}
-			}
-
-			// we are done with the previous instance
-			nextItem = newNextItem
-
-			// Start the next cons instance if ready
-			if cs.memberCheckerState.StartedIndex < cs.memberCheckerState.LocalIndex {
-				if cs.memberCheckerState.StartedIndex != cs.memberCheckerState.LocalIndex-1 {
-					panic("bad order of starting consensus")
-				}
-				//cs.memberCheckerState.
-				cs.memberCheckerState.IncrementStartedIndex()
-				logging.Info("Starting cons index ", cs.memberCheckerState.StartedIndex)
-				if cs.memberCheckerState.StartedIndex != nextIdx {
-					panic(1)
-				}
-				//pi := cs.proposalInfo[prvIdx].StartIndex(cs.startedIndex)
-				//pi.GetProposal()
-				//cs.proposalInfo[cs.startedIndex] = pi
-				startIdx, err := cs.memberCheckerState.GetMemberChecker(
-					types.SingleComputeConsensusIDShort(cs.memberCheckerState.LocalIndex))
-				if err != nil {
-					panic(err)
-				}
-				startIdx.ConsItem.Start(finishedLastRound)
-			}
-
-			// If this was the last round then we broadcast the commit proof so all can finish (since we won't
-			// broadcast an init for the next round).
-			if finishedLastRound &&
-				(cs.generalConfig.CollectBroadcast != types.Full ||
-					(cs.generalConfig.IncludeProofs && cs.generalConfig.StopOnCommit == types.Immediate)) {
-
-				nxtCoordPub, commitProof := nextItem.ConsItem.GetPrevCommitProof()
-				if cs.generalConfig.CollectBroadcast == types.Full { // we always broadcast
-					nxtCoordPub = nil
-				}
-				// only if we are the expected coordinator for the next round
-				if nxtCoordPub == nil || sig.CheckPubsEqual(nextItem.MC.MC.GetMyPriv().GetPub(), nxtCoordPub) {
-					cs.mainChannel.SendHeader(messages.AppendCopyMsgHeader(nextItem.ConsItem.GetPreHeader(),
-						commitProof...), false, false, nextItem.FwdChecker.GetNewForwardListFunc(),
-						true, nil)
-				}
-			}
-
-			// Check if the index needs a proposal
-			cs.memberCheckerState.CheckProposalNeeded(nextIdx)
-
-			// (2) Update the state of the next item
-			// Process any messages in case membership was not ready from before
-			if val, ok := cs.futureMessages[nextIdx]; ok {
-				for _, rcvMsg := range val {
-					cs.mainChannel.ReprocessMessage(rcvMsg)
-				}
-				delete(cs.futureMessages, nextIdx)
-			}
-			if cs.futureMessagesMinIndex <= nextIdx {
-				cs.futureMessagesMinIndex = nextIdx + 1
-			}
+			delete(cs.futureMessages, nextIdx)
+		}
+		if cs.futureMessagesMinIndex <= nextIdx {
+			cs.futureMessagesMinIndex = nextIdx + 1
 		}
 	}
 
