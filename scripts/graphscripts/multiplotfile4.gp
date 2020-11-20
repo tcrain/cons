@@ -26,7 +26,7 @@ plot for [file in filenames1] file using ($3/1000):($3/1000):($3/1000):xtic(1) t
 unset ytics
 set y2tics mirror
 set ylabel "Messages Sent (hundreds)"
-plot for [file in filenames2] file using ($3/1000):($3/1000):($3/1000):xtic(1) title word(system('head -1 '.file), 2) axes x1y2
+plot for [file in filenames2] file using ($3/1000):($3m/1000):($3/1000):xtic(1) title word(system('head -1 '.file), 2) axes x1y2
 
 # unset y2label
 unset y2tics
@@ -40,4 +40,4 @@ unset ytics
 set y2tics mirror
 set xlabel xlab4
 set ylabel "Messages Signed"
-plot for [file in filenames4] file using ($3/100):($3/100):($3/100):xtic(1) title word(system('head -1 '.file), 2) axes x1y2
+plot for [file in filenames4] file using ($3):($3):($3):xtic(1) title word(system('head -1 '.file), 2) axes x1y2

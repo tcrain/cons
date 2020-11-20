@@ -14,5 +14,6 @@
     "SleepCrypto": true,
     "WarmUpInstances": 2,
     "KeepPast": 10,
-    "MvCons4BcastType": 2
+    "AllowConcurrent": 5,
+    "MvCons4BcastType": 0
 }

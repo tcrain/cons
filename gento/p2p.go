@@ -89,6 +89,7 @@ func genP2PTest(folderName string, genMvCons4, sleepCrypto, buffFwd bool, nxtID 
 		ct.FanOut = 0
 		ct.KeepPast = 10
 		ct.WarmUpInstances = 4
+		ct.AllowConcurrent = 5
 		nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.MvCons4Type}, []cons.ConfigOptions{mvcons4.Config{}},
 			nxtOptsSig, nil)
 
@@ -133,6 +134,7 @@ func genP2PMVCons4Test(folderName string, sleepCrypto bool, nxtID uint64) uint64
 	ct.RotateCord = false
 	ct.MCType = types.TrueMC
 	ct.KeepPast = 10
+	ct.AllowConcurrent = 5
 
 	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.MvCons4Type}, []cons.ConfigOptions{mvcons4.Config{}},
 		optsSig, nil)

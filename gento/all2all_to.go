@@ -90,6 +90,7 @@ func genAll2AllSimple(folderName string, sleepCrypto bool, nxtID uint64) uint64 
 	mv4ct := ct
 	mv4ct.MvCons4BcastType = types.Normal
 	mv4ct.KeepPast = 10
+	mv4ct.AllowConcurrent = 5
 	nxtID = genTO(nxtID, folderName, mv4ct, []types.ConsType{types.MvCons4Type}, []cons.ConfigOptions{mvcons4.Config{}},
 		optsSigNxt, nil)
 
