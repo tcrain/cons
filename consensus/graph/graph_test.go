@@ -885,3 +885,29 @@ func TestGraphDecideFork(t *testing.T) {
 	}
 
 }
+
+func TestGetMissingEvents(t *testing.T) {
+	g := InitGraph(n, nmt, initHash)
+
+	addEvent(0, 1, 1, 0, g, nil, t)
+	addEvent(1, 1, 0, 1, g, nil, t)
+	addEvent(0, 2, 1, 1, g, nil, t)
+
+	e1 := g.tails[0][0]
+	ids := g.GetIndices()
+
+	maxIDs, evs := g.GetMissingEvents(e1, ids)
+	assert.Equal(t, 0, len(evs))
+
+	checkIDs := make([]IndexType, len(g.tails))
+	checkIDs[0] = 2
+	checkIDs[1] = 1
+	assert.Equal(t, checkIDs, maxIDs)
+
+	ids[0] = 1
+	ids[1] = 0
+	maxIDs, evs = g.GetMissingEvents(e1, ids)
+	assert.Equal(t, 2, len(evs))
+	assert.Equal(t, checkIDs, maxIDs)
+
+}

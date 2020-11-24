@@ -9,11 +9,13 @@ pregport=$5
 benchfolder=$6
 nwtest=$7
 tofolder=$8
+enableprofile=$9
 
 echo "Running: mkdir $benchfolder"
 mkdir -p "$benchfolder"
 
 echo "Building"
+bash ./scripts/benchscripts/profilesetup.sh "$enableprofile"
 bash ./scripts/buildgo.sh 1
 bash ./scripts/benchscripts/resetconfigs.sh "$tofolder"
 

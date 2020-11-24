@@ -13,6 +13,7 @@ credentialPath=${9:-$OAUTHPATH}
 ipfile=${10:-./benchIPfile}
 pregport=${11:-4534}
 nwtest=${12:-1}
+enableprofile=${13:-0}
 
 benchid=$(date +"%m-%d-%y_%T")
 
@@ -31,6 +32,7 @@ $project
 $credentialPath
 $singleZoneCmd
 $regions
-$tofolders" > .lastrun
+$tofolders
+$enableprofile" > .lastrun
 
 bash ./scripts/cloudscripts/retrybench.sh

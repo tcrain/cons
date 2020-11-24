@@ -43,6 +43,7 @@ const (
 )
 
 type witnessInfo struct {
+	votes         [][]bool // the nodes that have path to this node from the follow round
 	decided       decType
 	decidedRound  IndexType // the round of the witness that caused this witness to decide
 	stronglySeees []bool    // size n, true in Index i means the witness strongly sees the witness of round r-1 from node i

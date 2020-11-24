@@ -41,10 +41,10 @@ type globalMessageState struct {
 	messages            map[types.HashStr]*sig.MultipleSignedMessage // all messages received by their signed message hash
 	messagesByEventHash map[types.HashStr]*sig.MultipleSignedMessage // all messages received by their event hash
 	toProcess           []graph.EventInfo                            // slice of events which are missing dependencies
-	toProcessMap        map[types.HashStr]*sig.MultipleSignedMessage // same an toProcess except in a map
 	graph               *graph.Graph
 	sendMessageOnIndex  [][]graph.IndexType // list of index messages we have received but not yet received all dependencies
 	lastCreateIndices   []graph.IndexType   // indicies of the last created local message
+	lastCreateEvent     *graph.Event        // our last created local message
 	maxSentIndices      [][]graph.IndexType // Indices for each node of the maximum Indices of events sent
 	myID                int                 // my consensus id
 	gc                  *generalconfig.GeneralConfig
@@ -55,6 +55,7 @@ type globalMessageState struct {
 	latestStats         stats.StatsInterface
 	startTimes          []time.Time
 	store               storage.StoreInterface
+	nodeCount           int
 	maxStartedIndex     types.ConsensusInt // the largest consensus index that has started (received a proposal)
 }
 
@@ -68,19 +69,17 @@ func initGlobalMessageState(nodeCount, nmt, participantCount int, myID int, init
 	return &globalMessageState{
 		messages:            make(map[types.HashStr]*sig.MultipleSignedMessage),
 		messagesByEventHash: make(map[types.HashStr]*sig.MultipleSignedMessage),
-		toProcessMap:        make(map[types.HashStr]*sig.MultipleSignedMessage),
-		// msgsByID: make([][]*graph.EventInfo, nodeCount),
-		graph:           graph.InitGraph(nodeCount, nmt, initHash),
-		myID:            myID,
-		maxSentIndices:  maxSentIndices,
-		gc:              gc,
-		maxDecidedIndex: types.SingleComputeConsensusIDShort(1),
-		decidedRounds:   [][]graph.IndexType{make([]graph.IndexType, nodeCount)},
-		decisions:       [][][][]byte{nil},
-		proposals:       [][]byte{nil},
-		latestStats:     stats,
-		store:           store,
-		// startTimes: make([]time.Time, 1),
+		graph:               graph.InitGraph(nodeCount, nmt, initHash),
+		myID:                myID,
+		maxSentIndices:      maxSentIndices,
+		gc:                  gc,
+		maxDecidedIndex:     types.SingleComputeConsensusIDShort(1),
+		decidedRounds:       [][]graph.IndexType{make([]graph.IndexType, nodeCount)},
+		decisions:           [][][][]byte{nil},
+		proposals:           [][]byte{nil},
+		latestStats:         stats,
+		store:               store,
+		nodeCount:           nodeCount,
 	}
 }
 
@@ -240,23 +239,14 @@ func (gms *globalMessageState) storeMsg(msg *sig.MultipleSignedMessage, alreadyL
 	case types.ErrPrevIndexNotFound:
 		err = nil
 		gms.toProcess = append(gms.toProcess, ev)
-		gms.toProcessMap[types.HashStr(msg.GetBaseMsgHeader().(*messagetypes.EventMessage).GetEventInfoHash())] = msg
 	default:
 		panic(err)
 	}
 	// since the state changed, we check if we can add the other events
 	var invalid []graph.EventInfo
-	var added []*graph.Event
-	added, gms.toProcess, invalid = gms.graph.AddEvents(gms.toProcess)
+	_, gms.toProcess, invalid = gms.graph.AddEvents(gms.toProcess)
 	if len(invalid) > 0 {
 		logging.Error("got invalid events", invalid)
-	}
-	for _, nxt := range added {
-		hsh := types.HashStr(nxt.MyHash)
-		//prevMsg := gms.toProcessMap[hsh]
-		delete(gms.toProcessMap, hsh)
-		//gms.messages[prevMsg.GetHashString()] = prevMsg
-		//gms.messagesByEventHash[hsh] = prevMsg
 	}
 	return err
 }
@@ -297,7 +287,9 @@ func (gms *globalMessageState) checkCreateEventAll2Al(mc *consinterface.MemCheck
 		gms.messagesByEventHash[types.HashStr(ev.MyHash)] = sm
 		// gms.lastCreated = sm
 		gms.lastCreateIndices = gms.graph.GetIndices()
+		gms.lastCreateEvent = ev
 		msgs = append(msgs, sm)
+		logging.Infof("Create event me %v, idx %v, wi %v, other idx %v\n", gms.myID, ev.LocalInfo.Index, ev.WI, ev.RemoteAncestors[0].Index)
 	}
 	return
 }
@@ -335,7 +327,8 @@ func (gms *globalMessageState) getRecoverReply(indices []graph.IndexType, missin
 }
 
 func (gms *globalMessageState) createEventFromIndices(createNewEvent bool, mc *consinterface.MemCheckers,
-	myId, fromID sig.PubKeyIndex, destID graph.IndexType, indices []graph.IndexType) []messages.MsgHeader {
+	myId, fromID sig.PubKeyIndex, destID graph.IndexType, indices []graph.IndexType) (evMessages []messages.MsgHeader,
+	evIdxs []graph.IndexType) {
 
 	gms.mutex.Lock()
 	defer gms.mutex.Unlock()
@@ -350,19 +343,13 @@ func (gms *globalMessageState) createEventFromIndices(createNewEvent bool, mc *c
 		// use the max of that and the given Indices, and those you have sent the node so far
 		maxIndices = graph.MaxIndices(evIds, indices, gms.maxSentIndices[destID])
 	}
-	evs, _, err := gms.graph.GetMoreRecent(maxIndices) // TODO should we also include the garbage collected events?
-	utils.PanicNonNil(err)
-
-	ret := gms.createEvent(createNewEvent, gms.checkEqual(gms.graph.GetIndices(), gms.lastCreateIndices, true),
-		mc, myId, fromID, evs)
-	// update the sent Indices for the destination
-	gms.maxSentIndices[destID] = gms.graph.GetIndices()
-
-	return ret
+	useLastEvent := gms.checkEqual(gms.graph.GetIndices(), gms.lastCreateIndices, true)
+	return gms.createEvent(createNewEvent, useLastEvent,
+		mc, myId, fromID, sig.PubKeyIndex(destID), maxIndices)
 }
 
 func (gms *globalMessageState) createEventFromID(createEvent bool, mc *consinterface.MemCheckers,
-	myId, otherID, destID sig.PubKeyIndex) []messages.MsgHeader {
+	myId, otherID, destID sig.PubKeyIndex) ([]messages.MsgHeader, []graph.IndexType) {
 
 	gms.mutex.Lock()
 	defer gms.mutex.Unlock()
@@ -375,13 +362,7 @@ func (gms *globalMessageState) createEventFromID(createEvent bool, mc *consinter
 		// check against what has been sent to that node so far
 		maxIndices = graph.MaxIndices(gms.maxSentIndices[destID], gms.graph.ComputeDiffIDIndex(graph.IndexType(destID)))
 	}
-	evs, _, err := gms.graph.GetMoreRecent(maxIndices) // TODO should we also include the garbage collected events?
-	utils.PanicNonNil(err)
-
-	ret := gms.createEvent(createEvent, false, mc, myId, otherID, evs)
-	// update the sent Indices for the destination
-	gms.maxSentIndices[destID] = gms.graph.GetIndices()
-	return ret
+	return gms.createEvent(createEvent, false, mc, myId, otherID, destID, maxIndices)
 }
 
 func (gms *globalMessageState) getStats(_ consinterface.MemberChecker) stats.StatsInterface {
@@ -450,9 +431,8 @@ func (gms *globalMessageState) eventsToMsgs(otherEvents []*graph.Event) []messag
 
 func (gms *globalMessageState) createEvent(createNewEvent bool,
 	useLastEvent bool, mc *consinterface.MemCheckers,
-	myId, otherID sig.PubKeyIndex, otherEvents []*graph.Event) []messages.MsgHeader {
+	myId, otherID, destID sig.PubKeyIndex, otherIndices []graph.IndexType) (ret []messages.MsgHeader, evIdxs []graph.IndexType) {
 
-	ret := gms.eventsToMsgs(otherEvents)
 	// we only want to create an event if we haven't decided all our started indices
 	if createNewEvent && !useLastEvent && gms.maxStartedIndex >= gms.maxDecidedIndex.Index.(types.ConsensusInt) {
 		// create our new local event
@@ -468,11 +448,40 @@ func (gms *globalMessageState) createEvent(createNewEvent bool,
 		// add the message to the map
 		gms.messages[sm.GetHashString()] = sm
 		gms.messagesByEventHash[types.HashStr(ev.MyHash)] = sm
-		// gms.lastCreated = sm
 		gms.lastCreateIndices = gms.graph.GetIndices()
-		ret = append(ret, sm)
+		gms.lastCreateEvent = ev
+		// get the missing events
+		newIdxs, evs := gms.graph.GetMissingEvents(ev, otherIndices)
+		ret = gms.eventsToMsgs(evs)
+		// update the sent Indices for the destination
+		gms.updateSentIndices(destID, newIdxs, otherIndices)
+		evIdxs = newIdxs
+		logging.Infof("Create event me %v, ances %v, dest %v, idx %v, wi %v, other idx %v\n", gms.myID, otherID, destID, ev.LocalInfo.Index, ev.WI, ev.RemoteAncestors[0].Index)
+	} else if useLastEvent { // we reuse the last event we created
+		ev := gms.lastCreateEvent
+		// get the missing events
+		newIdxs, evs := gms.graph.GetMissingEvents(ev, otherIndices)
+		ret = gms.eventsToMsgs(evs)
+		// update the sent Indices for the destination
+		gms.updateSentIndices(destID, newIdxs, otherIndices)
+		logging.Infof("Create event me %v, ances %v, dest %v, idx %v, wi %v, remote idx %v\n", gms.myID, otherID, destID, ev.LocalInfo.Index, ev.WI, ev.RemoteAncestors[0].Index)
+		evIdxs = newIdxs
+	} else { // if we didn't create an event, we just send the events we know the other node does not have
+		evs, _, err := gms.graph.GetMoreRecent(otherIndices) // TODO should we also include the garbage collected events?
+		utils.PanicNonNil(err)
+		ret = gms.eventsToMsgs(evs)
+		// update the sent Indices for the destination
+		gms.updateSentIndices(destID, gms.graph.GetIndices())
+		evIdxs = gms.graph.GetIndices()
+		logging.Infof("Create event me %v, dest %v, idx %v\n", gms.myID, destID, evIdxs)
+		// gms.maxSentIndices[destID] = gms.graph.GetIndices()
 	}
-	return ret
+
+	return
+}
+
+func (gms *globalMessageState) updateSentIndices(destID sig.PubKeyIndex, ids ...[]graph.IndexType) {
+	gms.maxSentIndices[destID] = graph.MaxIndices(append(ids, gms.maxSentIndices[destID])...)
 }
 
 func (gms *globalMessageState) startedIdx(_ types.ConsensusIndex, mc consinterface.MemberChecker) {
@@ -485,6 +494,20 @@ func (gms *globalMessageState) getMyIndices() []graph.IndexType {
 	defer gms.mutex.RUnlock()
 
 	return gms.graph.GetIndices()
+}
+
+func (gms *globalMessageState) createIndicesMsg(isReply bool, indices []graph.IndexType,
+	mc *consinterface.MemCheckers) (sm messages.MsgHeader) {
+
+	gms.mutex.RLock()
+	defer gms.mutex.RUnlock()
+
+	msg := messagetypes.NewIndexMessage()
+	msg.Indices = indices
+	msg.IsReply = isReply
+	sm = gms.setupMsg(mc, msg)
+
+	return sm
 }
 
 func (gms *globalMessageState) getMyIndicesMsg(isReply bool,
@@ -543,6 +566,7 @@ func (gms *globalMessageState) hasDecided(index types.ConsensusIndex, mc *consin
 		gms.maxDecidedIndex = types.SingleComputeConsensusIDShort(types.ConsensusInt(idx) + 1)
 	}
 	if dec {
+		logging.Info("decided graph", idx, time.Now())
 		if len(gms.decisions) != int(idx) {
 			panic("out of order decision")
 		}

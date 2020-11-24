@@ -137,5 +137,21 @@ set of messages to end the test).
   - Because of this (add see causal above) the call to start the SM happens before the loading
   from disk, instead of when start is called
   
-- MvCons4
-  - No checking for byzantine - if 2 witnesses are created, it will panic
+- **MvCons4**
+  - Messages from old indicies may not be processesed since they are GC'd, but
+  they should be processesed in case they are a missing dependency, should
+  add an extra path for this.
+  - (Note for MvCons4 we call a "broadcast loop", the operations executed by a node to
+  propagte messages in differnt ways. For MvCons4BroadcastType = Direct, this means a node
+  will create a new event, then broadcast it to a random node with any needed dependencies,
+  once this message is received at the destination the destination node repeats the process
+  for a differnt randomly chosen node. For MvCons4BroadcastType = Indices, this means a node
+  will pick a random node and send its current indices to this node. The receiver will
+  then create a new event and send it plus any missing dependencies back to the original node.
+  The original node will then repeat the process for a new randomly chosen node.)
+  - Should add a timeout on Sync event when using Direct or Indices type broadcasts?
+  - For example, new loops are created when a noprogress message is created, or can be 
+  created by Byzantine nodes, thus we can have multiple loops per node going at the same time.
+  - In the normal configruation each node starts a broadcast loop at the very beginning,
+  so we have n loops going at once, this may want to be lower or higher to have different
+  effects on the performance.

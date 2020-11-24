@@ -11,8 +11,10 @@ key=${7:-$KEYPATH}
 project=${8:-$PROJECTID}
 crednetialfile=${9:-$OAUTHPATH}
 launchNodes=${10:-1}
+enableprofile=${11:-0}
 
 # Build
+bash ./scripts/benchscripts/profilesetup.sh "$enableprofile"
 bash ./scripts/buildgo.sh 1
 
 if [ "$launchNodes" -eq 1 ]

@@ -98,6 +98,19 @@ func (sc *MvCons4) Start(finishedLastRound bool) {
 	if sc.CheckMemberLocal() {
 		sc.NeedsProposal = true
 	}
+	switch sc.MvCons4BcastType {
+	case types.Direct:
+		// The first index nodes must start broadcast loop
+		// Only non-members start here, since the others will start the loop in GotProposal
+		if !sc.CheckMemberLocal() && sc.Index.Index.(types.ConsensusInt) == 1 {
+			sc.broadcastEventInfoFromEvent(nil, sc.MainChannel)
+		}
+	case types.Indices:
+		// The first index all nodes must start a sync loop
+		if sc.Index.Index.(types.ConsensusInt) == 1 {
+			sc.doBroadcastIndices(sc.MainChannel)
+		}
+	}
 }
 
 // HasValidStarted is unsupported
@@ -204,8 +217,9 @@ func (sc *MvCons4) ProcessCustomRecoveryMessage(item *deserialized.DeserializedI
 
 	rcvMsg := item.Header.(*messagetypes.IndexRecoverMsg)
 	msgs, byts := sc.gs.getRecoverReply(rcvMsg.Indices, rcvMsg.MissingDependencies)
-	if sc.MvCons4BcastType != types.Normal { // if it a no progress message then we include an indices messages to trigger a sync
-		msgs = append(msgs, sc.gs.getMyIndicesMsg(false, sc.ConsItems.MC))
+	if sc.MvCons4BcastType != types.Normal { // if it a no progress message then we include an indices messages to trigger a sending loop
+		// when using indices broadcast type we set isReply = true so that the receiver node will start it's own sync loop
+		msgs = append(msgs, sc.gs.getMyIndicesMsg(sc.MvCons4BcastType == types.Indices, sc.ConsItems.MC))
 	}
 	if len(byts) > 0 || len(msgs) > 0 {
 		sndMsg, err := messages.CreateMsgFromBytes(byts)
@@ -305,21 +319,22 @@ func (sc *MvCons4) GotProposal(hdr messages.MsgHeader, _ channelinterface.MainCh
 	sc.ConsItems.MC.MC.GetStats().BroadcastProposal()
 
 	sc.gs.addProposal(sc.Index, sc.myProposal.Proposal)
-	// sc.gs.addCreateMessageOnIndices(make([]graph.IndexType, sc.ConsItems.MC.MC.GetMemberCount()))
-	// sc.doBroadcast(nil, mainChannel)
-	// if sc.Index.Index.(types.ConsensusInt) == 1 {
 	switch sc.broadcastType {
 	case types.Normal:
+		// We check if we have received n-t messages so we can broadcast the new proposal
 		sc.checkBroadcastNormal()
 	case types.Direct:
-		sc.broadcastEventInfoFromEvent(nil, sc.MainChannel)
+		// The first index all nodes must start broadcast loop
+		if sc.Index.Index.(types.ConsensusInt) == 1 {
+			sc.broadcastEventInfoFromEvent(nil, sc.MainChannel)
+		}
 	case types.Indices:
-		sc.broadcastEventInfoFromIndices(sc.ConsItems.MC.MC.GetMyPriv().GetPub(), true, nil,
-			sc.gs.getMyIndices(), graph.IndexType(sc.getRandReceiver(false).GetIndex()))
+		// we just wait for the sync loop started in Start() on the first index
+		//sc.broadcastEventInfoFromIndices(sc.ConsItems.MC.MC.GetMyPriv().GetPub(), true, nil,
+		//	sc.gs.getMyIndices(), graph.IndexType(sc.getRandReceiver(false).GetIndex()))
 	default:
 		panic(sc.broadcastType)
 	}
-	// }
 	return nil
 }
 
@@ -400,10 +415,7 @@ func (sc *MvCons4) ProcessMessage(
 			sc.checkBroadcastIndices(sc.MainChannel)     // check if indices satisfied
 		case types.Indices:
 			if msg.IsReply { // this is a reply from a sync done by a HdrIdx, so we will create a new sync when these Indices are satisfied
-				if sc.gs.addCreateMessageOnIndices(msg.Indices) { // we have new local events, so we send them back, without creating a new local event
-					sc.broadcastEventInfoFromIndices(sc.ConsItems.MC.MC.GetMyPriv().GetPub(), false, senderChan,
-						msg.Indices, destID)
-				}
+				sc.gs.addCreateMessageOnIndices(msg.Indices)
 				sc.checkBroadcastIndices(sc.MainChannel)
 			} else { // this a new msg for a sync, so we create a new local event and send it with the missing dependencies
 				sc.broadcastEventInfoFromIndices(sc.ConsItems.MC.MC.GetMyPriv().GetPub(), true, senderChan,
@@ -465,7 +477,7 @@ func (sc *MvCons4) doBroadcastIndices(mainChannel channelinterface.MainChannel) 
 	}
 }
 
-func (sc *MvCons4) getRandReceiver(justMembers bool) sig.Pub {
+func (sc *MvCons4) getRandReceiver(justMembers bool, invalidIDs ...sig.PubKeyIndex) sig.Pub {
 	myIdx := sc.ConsItems.MC.MC.GetMyPriv().GetPub().GetIndex()
 	var pubs []sig.Pub
 	if justMembers {
@@ -474,31 +486,42 @@ func (sc *MvCons4) getRandReceiver(justMembers bool) sig.Pub {
 		pubs = sc.ConsItems.MC.MC.GetAllPubs()
 	}
 	receiver := myIdx
-	for receiver == myIdx {
+	for receiver == myIdx || containsID(receiver, invalidIDs...) {
 		receiver = sig.PubKeyIndex(sc.rand.Intn(len(pubs)))
 	}
 	return pubs[receiver]
+}
+
+func containsID(check sig.PubKeyIndex, items ...sig.PubKeyIndex) bool {
+	for _, nxt := range items {
+		if check == nxt {
+			return true
+		}
+	}
+	return false
 }
 
 func (sc *MvCons4) broadcastEventInfoFromEvent(prevMsg *messagetypes.EventMessage,
 	mainChannel channelinterface.MainChannel) {
 
 	myIdx := sc.ConsItems.MC.MC.GetMyPriv().GetPub().GetIndex()
-	receiverPub := sc.getRandReceiver(false)
-	receiver := receiverPub.GetIndex()
-	var fromIdx sig.PubKeyIndex
+	var remoteAnces sig.PubKeyIndex
 	if prevMsg != nil { // the event that caused this new event to be created
-		fromIdx = sig.PubKeyIndex(prevMsg.Event.LocalInfo.ID)
-		if fromIdx == myIdx {
+		remoteAnces = sig.PubKeyIndex(prevMsg.Event.LocalInfo.ID)
+		if remoteAnces == myIdx {
 			return // we don't create events from our own messages
 		}
-	} else { // this event was created by receiving a proposal locally, so use the receiver as the fromIdx
-		fromIdx = sc.getRandReceiver(true).GetIndex()
+	} else {
+		// this event was created by receiving a proposal locally, so chose an random remote ancestor
+		remoteAnces = sc.getRandReceiver(true).GetIndex()
 	}
+	// we send the event to a random node, but we do not want it to the the same as the remote ancestor
+	receiverPub := sc.getRandReceiver(false, remoteAnces)
+	receiver := receiverPub.GetIndex()
 
 	createEvent := sc.checkCreateEvent()
-	msgs := append(sc.gs.createEventFromID(createEvent, sc.ConsItems.MC, myIdx, fromIdx, receiver),
-		sc.gs.getMyIndicesMsg(false, sc.ConsItems.MC))
+	msgs, evIdxs := sc.gs.createEventFromID(createEvent, sc.ConsItems.MC, myIdx, remoteAnces, receiver)
+	msgs = append(msgs, sc.gs.createIndicesMsg(false, evIdxs, sc.ConsItems.MC))
 	sts := sc.gs.getStats(sc.ConsItems.MC.MC)
 	err := mainChannel.SendToPub(msgs, receiverPub, sts.IsRecordIndex(), sts)
 	if err != nil {
@@ -522,16 +545,17 @@ func (sc *MvCons4) broadcastEventInfoFromIndices(
 	destID graph.IndexType) {
 
 	myIdx := myPub.GetIndex()
-	receiver := myIdx
-	for receiver == myIdx {
-		receiver = sig.PubKeyIndex(sc.rand.Intn(sc.ConsItems.MC.MC.GetMemberCount()))
+	// the remote ancestor of the event cannot by myself or the ID of the destination node
+	remoteAncestor := myIdx
+	for remoteAncestor == myIdx || remoteAncestor == sig.PubKeyIndex(destID) {
+		remoteAncestor = sig.PubKeyIndex(sc.rand.Intn(sc.ConsItems.MC.MC.GetMemberCount()))
 	}
-	msgs := sc.gs.createEventFromIndices(createNewEvent && sc.checkCreateEvent(),
-		sc.ConsItems.MC, myIdx, receiver, destID, indices)
+	msgs, evIdxs := sc.gs.createEventFromIndices(createNewEvent && sc.checkCreateEvent(),
+		sc.ConsItems.MC, myIdx, remoteAncestor, destID, indices)
 	if createNewEvent {
 		// logging.Info("created event", sc.gs.graph.GetIndices(), indices, myIdx)
 		// if we are creating a new event, then we append an index message for when the node can trigger a new sync
-		msgs = append(msgs, sc.gs.getMyIndicesMsg(true, sc.ConsItems.MC))
+		msgs = append(msgs, sc.gs.createIndicesMsg(true, evIdxs, sc.ConsItems.MC))
 		sc.checkDecidedInternal() // see if the new event made us decide
 	} else {
 		// otherwise we are just sending missing events, so we don't want to trigger a new sync

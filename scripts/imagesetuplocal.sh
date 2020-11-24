@@ -45,7 +45,7 @@ scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i $key $key
 # install packages
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i $key $user@$ip "
 echo Downloading packages;
-sudo apt-get -y install rsync wget emacs git htop gnuplot jq pkg-config autoconf automake libtool gcc libssl-dev python3-pytest unzip xsltproc doxygen graphviz make cmake ninja-build python3-pytest-xdist xsltproc;
+sudo apt-get -y install rsync wget emacs git tmux iftop iotop htop gnuplot jq pkg-config autoconf automake libtool gcc libssl-dev python3-pytest unzip xsltproc doxygen graphviz make cmake ninja-build python3-pytest-xdist xsltproc;
 "
 
 # update packages

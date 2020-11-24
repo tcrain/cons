@@ -38,7 +38,7 @@ import (
 	"runtime"
 	"sync"
 
-	_ "net/http/pprof"
+	// _ "net/http/pprof"
 
 	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/rpcsetup"
@@ -46,7 +46,7 @@ import (
 
 func init() {
 	go func() {
-		logging.Info(http.ListenAndServe("localhost:6060", nil))
+		// logging.Info(http.ListenAndServe("localhost:6060", nil))
 	}()
 }
 

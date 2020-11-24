@@ -16,6 +16,7 @@ user=${12:-$BENCHUSER} # user name to log onto instances
 key=${13:-$KEYPATH} # key to use to log onto instances
 project=${14:-$PROJECTID} # google cloud project to use
 credentialfile=${15:-$OAUTHPATH} # credential file for google cloud
+enableprofile=${16:-0} # set to 1 to enable profiling
 
 # regions="europe-north1 europe-west3 us-central1 us-west1"
 
@@ -91,7 +92,7 @@ bash ./scripts/cloudscripts/rsyncinit.sh "${inip}" "${user}" "${key}"
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$user"@"$inip" "
 bash --login -c \"
 cd ~/go/src/github.com/tcrain/cons/;
-echo Running: bash ./scripts/cloudscripts/just/justcloudsetup.sh ${inip} ${singleZoneCmd} ${regions} ${nodesperregion} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes};
-bash ./scripts/cloudscripts/just/justcloudsetup.sh ${inip} ${singleZoneCmd} ${regions} ${nodesperregion} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes}\""
+echo Running: bash ./scripts/cloudscripts/just/justcloudsetup.sh ${inip} ${singleZoneCmd} ${regions} ${nodesperregion} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${enableprofile};
+bash ./scripts/cloudscripts/just/justcloudsetup.sh ${inip} ${singleZoneCmd} ${regions} ${nodesperregion} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${enableprofile}\""
 
 

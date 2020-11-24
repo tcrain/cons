@@ -117,9 +117,9 @@ func genP2PMVCons4Test(folderName string, sleepCrypto bool, nxtID uint64) uint64
 	}, baseMVOptions)
 
 	ct := mvAll2All
-	ct.MaxRounds = 10
+	ct.MaxRounds = 100
 	ct.NetworkType = types.P2p
-	ct.FanOut = 8
+	ct.FanOut = 4
 	ct.StopOnCommit = types.Immediate
 	ct.IncludeProofs = false
 	ct.SleepCrypto = sleepCrypto

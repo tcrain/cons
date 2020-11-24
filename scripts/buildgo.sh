@@ -4,7 +4,6 @@ fullbuild=${1:-0}
 if [ "$fullbuild" -eq 1 ]
 then
   flags=()
-  # flags=(-gcflags="all=-N -l")
 fi
 
 set -e
