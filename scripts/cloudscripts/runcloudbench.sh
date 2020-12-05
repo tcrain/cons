@@ -14,9 +14,11 @@ project=${10:-$PROJECTID}
 crednetialfile=${11:-$OAUTHPATH}
 launchNodes=${12:-1}
 shutdownNodes=${13:-1}
-
+enableprofile=${14:-$PROF}
 
 # Build
+echo "Building"
+bash ./scripts/benchscripts/profilesetup.sh "$enableprofile"
 bash ./scripts/buildgo.sh 1
 
 # Launch the nodes

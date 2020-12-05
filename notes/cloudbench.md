@@ -58,6 +58,7 @@ the following is the full list of ordered arguments
 - key - ($KEYPATH) key to use to log onto instances
 - project - ($PROJECTID) google cloud project to use
 - credentialfile - ($OAUTHPATH) credential file for google cloud
+- profile - (0) enable or disable profiling and gdb debugging, 0 for disalbe, 1 for enable
 
 The benchmark consists of the following steps.
 
@@ -124,8 +125,16 @@ Some examples of benchmarks can be found in the
 #### Debugging
 Nodes running the benchmark can be attached to through
 the delve (https://github.com/go-delve/delve) debugger as follows:
+First enable debugging, either by
+1. Set the `profile` option to 1 in the script input option.
+
+Or:
+
 1. Before running the bechmark, uncomment the line ``flags=(-gcflags="all=-N -l")``
 in [buildgo.sh](../scripts/buildgo.sh).
+
+Next do the following:
+
 2. Run the benchark as normal.
 3. While a benchmark is running, run script
 ``bash ./scripts/cloudscripts/attachdebug.sh {ip}`` where {ip}
@@ -134,15 +143,26 @@ is the IP address of the node to attach to.
 To attach to the log output of a node run:
 ``bash ./scripts/cloudscripts/attachlog.sh {ip}`` where {ip}
 is the IP address of the node to attach to.
+To see the log, plus htop, iotop, and iftop in tmux panes, run:
+``bash scripts/cloudscripts/attachinfo.sh {ip}``
 
 #### Profiling
 
-First uncomment the lines needed to enable profiling (see (profile)[profile.md]).
+First enable profiling, either by either:
+
+i. Set the `profile` option to 1 in the script input option.
+
+Or:
+
+i. Uncomment the lines needed to enable profiling (see [profile](profile.md])).
 
 Now run the command:
 
 ``bash scripts/cloudscripts/attachprofile.sh {ip} {profile-type}``
 Where `{profile-type}` is either `heap`, `profile` or `allocs`.
+
+To see the three profile types in tmux panes run:
+``bash scripts/attachallprofile.sh {ip}``
 
 # Running tests one at a time on Google Cloud Compute
 

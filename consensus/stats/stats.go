@@ -169,6 +169,7 @@ type MergedStats struct {
 	FinishTimes                                                                                                                                                                      []time.Time
 	ConsTimes                                                                                                                                                                        []time.Duration
 	SinceTimes                                                                                                                                                                       []time.Duration // Time since the previous decided
+	MaxSinceTime, MinSinceTime                                                                                                                                                       time.Duration
 	MaxConsTime, MinConsTime                                                                                                                                                         time.Duration
 	ConsTime                                                                                                                                                                         time.Duration
 	MaxValidatedCoin, MaxCoinCreated, MaxDecidedNil, MaxDiskStorage, MaxSigned, MaxValidated, MaxVRFValidated, MaxVRFCreated, MaxRoundDecide, MaxRoundParticipation, MaxThrshCreated uint64
@@ -412,6 +413,11 @@ func (bs *BasicStats) AddFinishRoundSet(r types.ConsensusRound, decisionCount in
 	bs.Decided = true
 	bs.ValuesDecidedCount += uint64(decisionCount)
 	bs.FinishTime = time.Now()
+
+	if bs.FinishTime.Sub(bs.StartTime) < 0 {
+		panic(1)
+	}
+
 	bs.RoundDecide = uint64(r)
 	bs.AddParticipationRound(r)
 }
@@ -471,8 +477,8 @@ func mergeInternal(to types.TestOptions, local bool, items []StatsObjBasic) (reT
 	// For MvCons3 we measure from the start of the 3rd instance since were are measuring time per decision
 	if local && (to.ConsType == types.MvCons3Type) && len(items) > 3 {
 		prevTime = items[3].StartTime
-	} else if local && (to.ConsType == types.MvCons4Type) && len(items) > 2 {
-		prevTime = items[2].StartTime
+	} else if local && (to.ConsType == types.MvCons4Type) && len(items) > 1 {
+		prevTime = items[1].StartTime
 	} else {
 		prevTime = items[0].StartTime
 	}
@@ -543,6 +549,8 @@ func mergeInternal(to types.TestOptions, local bool, items []StatsObjBasic) (reT
 	reTotal.ConsTimes = times
 	reTotal.MinConsTime = utils.MinDuration(times...)
 	reTotal.MaxConsTime = utils.MaxDuration(times...)
+	reTotal.MinSinceTime = utils.MinDuration(reTotal.SinceTimes...)
+	reTotal.MaxSinceTime = utils.MaxDuration(reTotal.SinceTimes...)
 	reTotal.MinRoundDecide = utils.MinU64Slice(roundDecides...)
 	reTotal.MaxRoundDecide = utils.MaxU64Slice(roundDecides...)
 	reTotal.MinRoundParticipation = utils.MinU64Slice(roundParticipations...)
@@ -621,7 +629,7 @@ func (bs *BasicStats) MergeLocalStats(to types.TestOptions, numCons int) (total 
 		}
 		idx := nxt.(*BasicStats).Index
 		if !nxt.(*BasicStats).FinishTime.IsZero() && nxt.(*BasicStats).FinishTime.Sub(nxt.(*BasicStats).StartTime) < 0 {
-			panic("negative time")
+			panic(fmt.Sprint("negative time", i, nxt.(*BasicStats).StartTime, nxt.(*BasicStats).FinishTime))
 		}
 
 		// If this instance didn't decide then we add its results to the following
@@ -708,8 +716,8 @@ func getFirstSinceTime(to types.TestOptions, startTimes []time.Time) time.Time {
 
 	if to.ConsType == types.MvCons3Type && len(startTimes) > 3 {
 		return startTimes[3]
-	} else if to.ConsType == types.MvCons4Type && len(startTimes) > 2 {
-		return startTimes[2]
+	} else if to.ConsType == types.MvCons4Type && len(startTimes) > 1 {
+		return startTimes[1]
 	} else {
 		return startTimes[0]
 	}
@@ -772,6 +780,8 @@ func (bs *BasicStats) MergeAllStats(to types.TestOptions, sList []MergedStats) (
 		items = append(items, nxt.StatsObjBasic)
 		perProc.MinConsTime = utils.MinDuration(perProc.MinConsTime, nxt.MinConsTime)
 		perProc.MaxConsTime = utils.MaxDuration(perProc.MaxConsTime, nxt.MaxConsTime)
+		perProc.MinSinceTime = utils.MinDuration(perProc.MinSinceTime, nxt.MinSinceTime)
+		perProc.MaxSinceTime = utils.MaxDuration(perProc.MaxSinceTime, nxt.MaxSinceTime)
 		perProc.MinRoundDecide = utils.MinU64Slice(perProc.MinRoundDecide, nxt.MinRoundDecide)
 		perProc.MaxRoundDecide = utils.MaxU64Slice(perProc.MaxRoundDecide, nxt.MaxRoundDecide)
 		perProc.MinRoundParticipation = utils.MinU64Slice(perProc.MinRoundParticipation, nxt.MinRoundParticipation)
@@ -982,6 +992,9 @@ func (bs *BasicStats) New(index types.ConsensusIndex) StatsInterface {
 
 func (bs *BasicStats) AddCustomStartTime(t time.Time) {
 	bs.StartTime = t
+	if bs.FinishTime.Sub(bs.StartTime) < 0 {
+		panic(1)
+	}
 }
 
 // AddStartTime is called each time a new consesnsus instance is started.

@@ -18,6 +18,11 @@ type Event struct {
 	allAncestorsDecided bool         // set to true when all the ancestors witnesses of this event has decided
 	seen                seen         // used during traversal
 	seesForks           []*forkInfo
+	stronglySees        []*Event // size n, true in Index i means the witness strongly sees the witness of round r-1 from node i
+}
+
+func (ev *Event) GetRound() IndexType {
+	return ev.round
 }
 
 func (ev *Event) seesFork(id IndexType) bool {
@@ -43,10 +48,9 @@ const (
 )
 
 type witnessInfo struct {
-	votes         [][]bool // the nodes that have path to this node from the follow round
-	decided       decType
-	decidedRound  IndexType // the round of the witness that caused this witness to decide
-	stronglySeees []bool    // size n, true in Index i means the witness strongly sees the witness of round r-1 from node i
+	votes        [][]bool // the nodes that have path to this node from the follow round
+	decided      decType
+	decidedRound IndexType // the round of the witness that caused this witness to decide
 }
 
 type EventInfo struct {

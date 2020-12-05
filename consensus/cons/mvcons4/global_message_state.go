@@ -253,14 +253,14 @@ func (gms *globalMessageState) storeMsg(msg *sig.MultipleSignedMessage, alreadyL
 
 func (gms *globalMessageState) GetStartTime(index types.ConsensusIndex) time.Time {
 	gms.mutex.RLock()
-	gms.mutex.RUnlock()
+	defer gms.mutex.RUnlock()
 
-	idx := index.Index.(types.ConsensusInt)
-	if idx == 1 {
+	return gms.getStartTimeInternal(index.Index.(types.ConsensusInt))
+}
+
+func (gms *globalMessageState) getStartTimeInternal(idx types.ConsensusInt) time.Time {
+	for int(idx-1) >= len(gms.startTimes) {
 		gms.startTimes = append(gms.startTimes, time.Now())
-	}
-	if int(idx-1) >= len(gms.startTimes) {
-		return time.Now()
 	}
 	return gms.startTimes[idx-1]
 }
@@ -275,7 +275,8 @@ func (gms *globalMessageState) checkCreateEventAll2Al(mc *consinterface.MemCheck
 		// create the new local event
 		ev := gms.graph.CreateEventIndex(graph.IndexType(gms.myID), gms.getProposal(), false)
 		if ev.WI != nil { // we started the next consensus
-			gms.startTimes = append(gms.startTimes, time.Now())
+			t := gms.getStartTimeInternal(types.ConsensusInt(ev.GetRound()))
+			logging.Infof("Started idx %v (%v), my ID %v, %v", ev.GetRound(), len(gms.startTimes), gms.myID, t)
 		}
 		// create and sign the message
 		msg := messagetypes.NewEventMessage()
@@ -418,13 +419,15 @@ func (gms *globalMessageState) gotIndicesMsg(from graph.IndexType, msg *messaget
 func (gms *globalMessageState) eventsToMsgs(otherEvents []*graph.Event) []messages.MsgHeader {
 
 	retSize := len(otherEvents)
-	ret := make([]messages.MsgHeader, retSize, retSize+1)
-	for i, nxt := range otherEvents {
+	ret := make([]messages.MsgHeader, 0, retSize+1) // extra one space for the index message on reply broadcast
+	for _, nxt := range otherEvents {
 		msg, ok := gms.messagesByEventHash[types.HashStr(nxt.MyHash)]
 		if !ok {
-			panic("missing message")
+			// panic("missing message")
+			logging.Info("already GC'd event for message")
+			continue
 		}
-		ret[i] = msg
+		ret = append(ret, msg)
 	}
 	return ret
 }
@@ -438,7 +441,8 @@ func (gms *globalMessageState) createEvent(createNewEvent bool,
 		// create our new local event
 		ev := gms.graph.CreateEvent(graph.IndexType(myId), graph.IndexType(otherID), gms.getProposal(), false)
 		if ev.WI != nil { // we started the next consensus
-			gms.startTimes = append(gms.startTimes, time.Now())
+			t := gms.getStartTimeInternal(types.ConsensusInt(ev.GetRound()))
+			logging.Infof("Started idx %v (%v), my ID %v, %v", ev.GetRound(), len(gms.startTimes), gms.myID, t)
 		}
 		// create and sign the message
 		msg := messagetypes.NewEventMessage()
@@ -566,7 +570,8 @@ func (gms *globalMessageState) hasDecided(index types.ConsensusIndex, mc *consin
 		gms.maxDecidedIndex = types.SingleComputeConsensusIDShort(types.ConsensusInt(idx) + 1)
 	}
 	if dec {
-		logging.Info("decided graph", idx, time.Now())
+		gms.getStartTimeInternal(index.Index.(types.ConsensusInt)) // be sure we have a start time
+		logging.Info("decided graph, my id", gms.myID, " idx ", idx, time.Now())
 		if len(gms.decisions) != int(idx) {
 			panic("out of order decision")
 		}

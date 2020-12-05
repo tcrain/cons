@@ -21,7 +21,6 @@ credentialPath=${vars[10]}
 singleZoneCmd=${vars[11]}
 regions=${vars[12]}
 tofolders=${vars[13]}
-enableprofile=${vars[14]}
 
 alloutputfolders=""
 
@@ -63,13 +62,12 @@ $project
 $credentialPath
 $singleZoneCmd
 $regions
-$tofolders
-$enableprofile" > .lastrun
+$tofolders" > .lastrun
 
 alloutputfolders="$alloutputfolders ./benchresults/$benchid"
 
 echo Running Bench "$tofolder"
-if ! bash ./scripts/Bench.sh "$pregip" "$tofolder" "$benchid" "$nodecounts" "$user" "$ipfile" "$key" "$pregport" "$nwtest" "$enableprofile"
+if ! bash ./scripts/Bench.sh "$pregip" "$tofolder" "$benchid" "$nodecounts" "$user" "$ipfile" "$key" "$pregport" "$nwtest"
 then
 
   for i in {1..5}
@@ -78,7 +76,7 @@ then
     sleep 30s
 
     echo Retrying Bench
-    if bash ./scripts/Bench.sh "$pregip" "$tofolder" "$benchid" "$nodecounts" "$user" "$ipfile" "$key" "$pregport" "$nwtest" "$enableprofile"
+    if bash ./scripts/Bench.sh "$pregip" "$tofolder" "$benchid" "$nodecounts" "$user" "$ipfile" "$key" "$pregport" "$nwtest"
     then
       break
     fi

@@ -503,10 +503,12 @@ func (g *Graph) GetMoreRecent(indices []IndexType) (ret []*Event, gcIdxs []Index
 		panic("sanity check")
 	}
 	ids := g.GetIndices() // here we keep the minimum index found for each id
+	retPerIdx := make([][]*Event, len(g.tails))
 	for i, nxt := range indices {
 		for _, ev := range g.tails[i] {
 			for ev != nil && ev.LocalInfo.Index > nxt {
-				ret = append(ret, ev)
+				// ret = append(ret, ev)
+				retPerIdx[i] = append(retPerIdx[i], ev)
 				if ids[i] > ev.LocalInfo.Index-1 {
 					ids[i] = ev.LocalInfo.Index - 1
 				}
@@ -514,9 +516,17 @@ func (g *Graph) GetMoreRecent(indices []IndexType) (ret []*Event, gcIdxs []Index
 			}
 		}
 	}
-	// reverse the slice so we send the older first
-	for i, j := 0, len(ret)-1; i < j; i, j = i+1, j-1 {
-		ret[i], ret[j] = ret[j], ret[i]
+	// take the oldest from each index one by one as the values returned
+	foundItm := true
+	for foundItm {
+		foundItm = false
+		for i := 0; i < len(g.tails); i++ {
+			if len(retPerIdx[i]) > 0 {
+				foundItm = true
+				ret = append(ret, retPerIdx[i][len(retPerIdx[i])-1])
+				retPerIdx[i] = retPerIdx[i][:len(retPerIdx[i])-1]
+			}
+		}
 	}
 	// now we find the decided indices that we were not able to include because they were garbage collected,
 	// but have needed events
@@ -647,6 +657,15 @@ func (g *Graph) getAllWitnesses(round IndexType) [][]*Event {
 	return ret
 }
 
+func nonNilCount(arr []*Event) (ret int) {
+	for _, nxt := range arr {
+		if nxt != nil {
+			ret++
+		}
+	}
+	return
+}
+
 // computeWitness checks if the Event is a witness.
 // A witness can strongly see > 2/3 of witnesses in previous round.
 func (g *Graph) computeWitness(ev *Event) {
@@ -658,36 +677,41 @@ func (g *Graph) computeWitness(ev *Event) {
 		}
 	}
 	ev.round = round
-	if ev.localAncestor.round < round { // ev.remoteAncestor.round {
-		ev.WI = &witnessInfo{votes: make([][]bool, len(g.tails))} // we are a witness if we are larger than our local ancestor round
+	if ev.localAncestor.round < round { // we are a witness if we are larger than our local ancestor round
+		ev.WI = &witnessInfo{votes: make([][]bool, len(g.tails))}
 	}
 	// see which witnesses from the previous round are visible
 	foundEach := g.allWitnessMap[round]
-	stronglySees := make([]bool, len(g.tails))
+	stronglySees := make([]*Event, len(g.tails))
 	for i, found := range foundEach {
 		for _, nxt := range found {
 			if nxt != nil && g.stronglySees(nxt, ev) {
-				stronglySees[i] = true
+				stronglySees[i] = nxt
 			}
 		}
 	}
-	if utils.TrueCount(stronglySees) >= g.nmt { // if we strongly see nmt witnesses from the previous round, then we are a witness in the next round
+	stronglySeesCount := nonNilCount(stronglySees)
+	if stronglySeesCount > 0 {
+		ev.stronglySees = stronglySees
+	}
+	if stronglySeesCount >= g.nmt { // if we strongly see nmt witnesses from the previous round, then we are a witness in the next round
 		ev.round++
-		ev.WI = &witnessInfo{stronglySeees: stronglySees, votes: make([][]bool, len(g.tails))}
+		ev.WI = &witnessInfo{votes: make([][]bool, len(g.tails))}
 	} else if ev.WI != nil { // if we are a witness, but not for the new round, compute the witnesses we see for the previous round
 		foundEach := g.allWitnessMap[round-1]
-		stronglySees := make([]bool, len(g.tails))
+		stronglySees := make([]*Event, len(g.tails))
 		for i, found := range foundEach {
 			for _, nxt := range found {
 				if nxt != nil && g.stronglySees(nxt, ev) {
-					stronglySees[i] = true
+					stronglySees[i] = nxt
 				}
 			}
 		}
-		ev.WI = &witnessInfo{stronglySeees: stronglySees, votes: make([][]bool, len(g.tails))}
+		ev.stronglySees = stronglySees
+		ev.WI = &witnessInfo{votes: make([][]bool, len(g.tails))}
 	}
 	if ev.WI != nil {
-		logging.Infof("created witness at Index %v, round %v, ID %v, strongly sees %v", ev.LocalInfo.Index, ev.round, ev.LocalInfo.ID, ev.WI.stronglySeees)
+		logging.Infof("created witness at Index %v, round %v, ID %v, strongly sees %v", ev.LocalInfo.Index, ev.round, ev.LocalInfo.ID, ev.stronglySees)
 		g.addWitness(ev)
 		g.checkDecided(ev) // since we added a new witness, we might have new decisions
 	} else {
@@ -767,6 +791,9 @@ func (g *Graph) GetWitnesses(idx IndexType) [][]*Event {
 // recCheckDecided is a recursive call that performs a depth first traversal, checking if witnesses can decide,
 // starting from the oldest, a witness can only decide if all the witnesses it can see have decided.
 func (g *Graph) recCheckDecided(ev *Event, newDecided *bool) (ret bool) {
+	if ev == nil {
+		return true
+	}
 	if ev.allAncestorsDecided {
 		return true
 	}
@@ -867,7 +894,7 @@ func (g *Graph) computeDecided(ev *Event) {
 					if len(prevWitness) == 0 {
 						continue
 					}
-					if witness.WI.stronglySeees[j] {
+					if witness.stronglySees[j] != nil {
 						// if g.stronglySees(prevWitness, witness) {
 						if prevVotes[j] {
 							yesVotes++
@@ -1036,9 +1063,14 @@ func (g *Graph) CheckGCIndex(index IndexType, gcFunc func(*Event) bool) {
 	dec := g.decidedRoundMap[index]
 	for i, nxt := range dec {
 		g.performAtIndex(i, minIdx(nxt, known[i]), func(ev *Event) bool {
+			/// logging.Info("gc", ev.LocalInfo.ID, ev.LocalInfo.Index)
 			ret := gcFunc(ev)
 			ev.remoteAncestor = nil
 			ev.localAncestor = nil
+			ev.WI = nil
+			ev.known = nil
+			ev.seesForks = nil
+			ev.stronglySees = nil
 			return ret
 		})
 	}
@@ -1082,12 +1114,29 @@ func (g *Graph) checkHasPath(from, to *Event) bool {
 	// add to seen
 	to.seen = trueSeen
 	g.seen = append(g.seen, to)
+	if g.checkHasPath(from, to.localAncestor) {
+		return true
+	}
+	// since when using the all to all setup we should check the index we are searching for first
+	if len(to.remoteAncestor) == len(g.tails)-1 {
+		if g.checkHasPath(from, to.remoteAncestor[convertIdx(from.LocalInfo.ID, to)]) {
+			return true
+		}
+	}
 	for _, nxt := range to.remoteAncestor {
 		if g.checkHasPath(from, nxt) {
 			return true
 		}
 	}
-	return g.checkHasPath(from, to.localAncestor)
+	return false
+}
+
+// we choose the index of the remote ancestor given that there will be 1 less remote ancestors than the total number of ancestors
+func convertIdx(choose IndexType, otherEv *Event) IndexType {
+	if choose < otherEv.LocalInfo.ID {
+		return choose
+	}
+	return choose - 1
 }
 
 // stronglySeesItem returns true if there is a (set of) path(s) from from (earlier round) to to (later round) that goes through
@@ -1103,8 +1152,12 @@ func (g *Graph) stronglySees(from, to *Event) bool {
 		return false
 	}
 	sees := make([]bool, len(g.tails))
-	g.recStronglySees(from, to, sees)
+	var earlyFound bool
+	g.recStronglySees(from, to, sees, &earlyFound)
 	g.resetSeen()
+	if earlyFound {
+		return true
+	}
 	val := utils.TrueCount(sees) >= g.nmt
 	return val
 }
@@ -1118,7 +1171,10 @@ func (g *Graph) resetSeen() {
 
 // recStronglySees is the recursive call of stronglySees
 // passed map is true if the event has a path to the node, false if not
-func (g *Graph) recStronglySees(from, to *Event, sees []bool) bool {
+func (g *Graph) recStronglySees(from, to *Event, sees []bool, earlyFound *bool) bool {
+	if *earlyFound {
+		return true
+	}
 	if to == nil {
 		return false
 	}
@@ -1135,17 +1191,24 @@ func (g *Graph) recStronglySees(from, to *Event, sees []bool) bool {
 		sees[to.LocalInfo.ID] = true // since the Event can see itself
 		return true
 	}
+	if to.stronglySees != nil && to.round == from.round {
+		// see if this witness strongly sees the same witness
+		if to.stronglySees[from.LocalInfo.ID] == from {
+			*earlyFound = true // we are done
+			return true
+		}
+	}
 	// if v, ok := passed[to]; ok { // we have already observed this event
 	//	return v
 	//}
 	// see if we can reach the end from any of our ancestors
 	var remote bool
 	for _, nxt := range to.remoteAncestor {
-		if g.recStronglySees(from, nxt, sees) {
+		if g.recStronglySees(from, nxt, sees, earlyFound) {
 			remote = true
 		}
 	}
-	local := g.recStronglySees(from, to.localAncestor, sees)
+	local := g.recStronglySees(from, to.localAncestor, sees, earlyFound)
 	g.seen = append(g.seen, to)
 	if remote || local {
 		// passed[to] = true

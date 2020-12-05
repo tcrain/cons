@@ -12,7 +12,7 @@ export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:~/liboqs/build/lib/
 ' >> ~/.profile;
 mkdir -p ~/liboqs/build/lib/
 mkdir -p ~/go/src/github.com/tcrain/cons/scripts;
-sudo apt-get -y install rsync"
+sudo apt-get -y install rsync htop iftop iotop"
 
 echo "Calling rsync on liboqs"
 ./runcmd -f "$ipfile" -k "$key" -u "$user" -r ~/liboqs/build/lib/ "~/liboqs/build/lib/"

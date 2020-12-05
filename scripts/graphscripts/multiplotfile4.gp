@@ -20,24 +20,24 @@ set multiplot layout 2,2 margins .15, .85, .2, .95
 set key at screen 0.5, 0.05 center vertical height 1 nobox maxrows 2
 
 set ylabel "Time Per Decision (seconds)"
-plot for [file in filenames1] file using ($3/1000):($3/1000):($3/1000):xtic(1) title word(system('head -1 '.file), 2)
+plot for [file in filenames1] file using ($3/1000):($2/1000):($4/1000):xtic(1) title word(system('head -1 '.file), 2)
 
 # unset ylabel
 unset ytics
 set y2tics mirror
 set ylabel "Messages Sent (hundreds)"
-plot for [file in filenames2] file using ($3/1000):($3/1000):($3/1000):xtic(1) title word(system('head -1 '.file), 2) axes x1y2
+plot for [file in filenames2] file using ($3/1000):($2/1000):($4/1000):xtic(1) title word(system('head -1 '.file), 2) axes x1y2
 
 # unset y2label
 unset y2tics
 set ytics
 set xlabel xlab3
 set ylabel "Data Sent (kilobytes)"
-plot for [file in filenames3] file using ($3/1000):($3/1000):($3/1000):xtic(1) title word(system('head -1 '.file), 2)
+plot for [file in filenames3] file using ($3/1000):($2/1000):($4/1000):xtic(1) title word(system('head -1 '.file), 2)
 
 # unset ylabel
 unset ytics
 set y2tics mirror
 set xlabel xlab4
 set ylabel "Messages Signed"
-plot for [file in filenames4] file using ($3):($3):($3):xtic(1) title word(system('head -1 '.file), 2) axes x1y2
+plot for [file in filenames4] file using ($3):($2):($4):xtic(1) title word(system('head -1 '.file), 2) axes x1y2

@@ -236,7 +236,7 @@ func (nsc *NetConnectionTCP) loopSend(conn net.Conn, connInfo channelinterface.N
 		nsc.wgTCPConn.Done()
 		if err != nil {
 			nsc.netMainChannel.BehaviorTracker.GotError(err, connInfo)
-			logging.Warning("Got a write error %v, wrote %v, for %v", err, n, connInfo)
+			logging.Warningf("Got a write error %v, wrote %v, for %v", err, n, connInfo)
 			err2 := nsc.Close(channelinterface.CloseDuringTest)
 			if err2 != nil {
 				logging.Warning(err2)
@@ -379,6 +379,14 @@ func (nsc *NetConnectionTCP) closeInternal(closeType channelinterface.ChannelClo
 		return nil
 	}
 	nsc.closed = true
+	// create a thread that empties the send channel so the main thread doesn't get blocked sending
+	go func() {
+		ok := true
+		for ok {
+			_, ok = <-nsc.sendChan
+		}
+	}()
+
 	// First remove it from the connstatus object so we don't send on this channel anymore
 	// If it was closed by a fault, we must remove it
 	// Otherwise it was closed by connStatus directly

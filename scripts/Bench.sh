@@ -18,7 +18,12 @@ ipfile=${6:-./benchIPfile}
 key=${7:-$KEYPATH}
 pregport=${8:-4534}
 nwtest=${9:-1}
-enableprofile=${10:-0}
+enableprofile=${10:-$PROF}
+
+if [ "$enableprofile" == "" ]
+then
+  enableprofile=0
+fi
 
 if [ "$nwtest" -ne 1 ]
 then
@@ -42,6 +47,7 @@ tofilenames=$(bash ./scripts/graphscripts/gettestoptionsnames.sh "./$tofolder") 
 #tofilenames="ed_rnd"
 
 echo Running setup
+echo bash ./scripts/benchscripts/benchsetup.sh "$user" "$ipfile" "$key" $pregip "$pregport" "$benchfolder" "$nwtest" "$tofolder" "$enableprofile"
 bash ./scripts/benchscripts/benchsetup.sh "$user" "$ipfile" "$key" $pregip "$pregport" "$benchfolder" "$nwtest" "$tofolder" "$enableprofile"
 
 echo Running bench

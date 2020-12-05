@@ -19,6 +19,7 @@ user=${15:-$BENCHUSER} # user name to log onto instances
 key=${16:-$KEYPATH} # key to use to log onto instances
 project=${17:-$PROJECTID} # google cloud project to use
 credentialfile=${18:-$OAUTHPATH} # credential file for google cloud
+enableprofile=${19:-$PROF} # enable profiling
 
 # regions="europe-north1 europe-west3 us-central1 us-west1"
 
@@ -75,7 +76,8 @@ $user
 $key
 $project
 $credentialfile
-$singleZoneCmd" > .fulllastrun
+$singleZoneCmd
+$enableprofile" > .fulllastrun
 
 # Format input
 printf -v inip %q "$inip"
@@ -97,8 +99,8 @@ bash ./scripts/cloudscripts/rsyncinit.sh "${inip}" "${user}" "${key}"
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$user"@"$inip" "
 bash --login -c \"
 cd ~/go/src/github.com/tcrain/cons/;
-echo Running: bash ./scripts/cloudscripts/runcloudbench.sh ${inip} ${tofolders} ${singleZoneCmd} ${regions} ${nodesperregion} ${nodecounts} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${shutdownNodes};
-bash ./scripts/cloudscripts/runcloudbench.sh ${inip} ${tofolders} ${singleZoneCmd} ${regions} ${nodesperregion} ${nodecounts} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${shutdownNodes}\""
+echo Running: bash ./scripts/cloudscripts/runcloudbench.sh ${inip} ${tofolders} ${singleZoneCmd} ${regions} ${nodesperregion} ${nodecounts} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${shutdownNodes} ${enableprofile};
+bash ./scripts/cloudscripts/runcloudbench.sh ${inip} ${tofolders} ${singleZoneCmd} ${regions} ${nodesperregion} ${nodecounts} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${shutdownNodes} ${enableprofile}\""
 
 # Get the results
 bash ./scripts/graphscripts/syncresults.sh "$inip" "$user" "$key"

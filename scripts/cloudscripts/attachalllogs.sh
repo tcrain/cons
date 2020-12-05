@@ -1,7 +1,6 @@
 set -e
 set -o pipefail
 
-# Run this command to reset running benchmark nodes using the last run configuration
 
 vars=()
 
@@ -30,7 +29,6 @@ key=${vars[16]}
 project=${vars[17]}
 credentialfile=${vars[18]}
 singleZoneCmd=${vars[19]}
-enableprofile=${vars[20]}
 
 # Format input
 printf -v inip %q "$inip"
@@ -45,16 +43,14 @@ printf -v key %q "${key}"
 printf -v project %q "${project}"
 printf -v credentialfile %q "${credentialfile}"
 
-cmd='sudo bash --login -c \"( sleep 5; reboot ) > \dev\null 2>&1 & \"'
-printf -v cmd %q "${cmd}"
-remotekey='~/.ssh/id_rsa'
-printf -v remotekey %q "${remotekey}"
 
-# Reset the nodes
-ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$user"@"$inip" "
-bash --login -c \"
-cd ~/go/src/github.com/tcrain/cons/;
-echo Restarting nodes
-echo Running: ./runcmd -f benchIPfile -k ${remotekey} -u ${user} nohup ${cmd}
-./runcmd -f benchIPfile -k ${remotekey} -u ${user} nohup ${cmd}\""
+ips=$(go run cmd/instancesetup/instancesetup.go "$singleZoneCmd"  -p "$project" -c "$credentialfile" -r "$regions" -gi -eip)
 
+commands=()
+for ip in $ips
+do
+  ip=${ip%:*}
+  commands+=("bash ./scripts/cloudscripts/attachlog.sh $ip $user $key")
+done
+
+bash ./scripts/tmuxwindow.sh alllogs "${commands[@]}"

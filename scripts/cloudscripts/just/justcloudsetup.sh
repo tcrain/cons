@@ -11,7 +11,7 @@ key=${7:-$KEYPATH}
 project=${8:-$PROJECTID}
 crednetialfile=${9:-$OAUTHPATH}
 launchNodes=${10:-1}
-enableprofile=${11:-0}
+enableprofile=${11:-$PROF}
 
 # Build
 bash ./scripts/benchscripts/profilesetup.sh "$enableprofile"

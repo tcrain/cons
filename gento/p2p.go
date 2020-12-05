@@ -32,7 +32,8 @@ import (
 func GenP2PTO() {
 	genP2PTest("p2p", true, true, false, 1)
 	genP2PTest("p2p-buff", false, true, true, 1)
-	genP2PMVCons4Test("p2p-mvcons4", true, 1)
+	genP2PMVCons4Test("p2p-mvcons4-sleep", true, 1)
+	genP2PMVCons4Test("p2p-mvcons4", false, 1)
 }
 
 func genP2PTest(folderName string, genMvCons4, sleepCrypto, buffFwd bool, nxtID uint64) uint64 {
@@ -63,11 +64,13 @@ func genP2PTest(folderName string, genMvCons4, sleepCrypto, buffFwd bool, nxtID 
 	ct.RotateCord = true
 	ct.MCType = types.TrueMC
 
-	consTypes = []types.ConsType{types.MvCons2Type}
-	//nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
-	//	optsSig, nil)
-	if buffFwd {
-		ct.BufferForwardType = types.FixedBufferForward
+	if false { // we wont use MvCons1 for basic p2p tests
+		consTypes = []types.ConsType{types.MvCons2Type}
+		//nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
+		//	optsSig, nil)
+		if buffFwd {
+			ct.BufferForwardType = types.FixedBufferForward
+		}
 	}
 
 	nxtID = genTO(nxtID, folderName, ct, consTypes, []cons.ConfigOptions{mvcons2.MvCons2Config{}},
@@ -117,9 +120,9 @@ func genP2PMVCons4Test(folderName string, sleepCrypto bool, nxtID uint64) uint64
 	}, baseMVOptions)
 
 	ct := mvAll2All
-	ct.MaxRounds = 100
+	ct.MaxRounds = 10
 	ct.NetworkType = types.P2p
-	ct.FanOut = 4
+	ct.FanOut = 8
 	ct.StopOnCommit = types.Immediate
 	ct.IncludeProofs = false
 	ct.SleepCrypto = sleepCrypto
@@ -130,11 +133,16 @@ func genP2PMVCons4Test(folderName string, sleepCrypto bool, nxtID uint64) uint64
 	ct.MvConsTimeout = 100000
 	ct.MvConsRequestRecoverTimeout = 100000
 	ct.ProgressTimeout = 100000
-	ct.ForwardTimeout = 100
+	ct.ForwardTimeout = 1000
 	ct.RotateCord = false
 	ct.MCType = types.TrueMC
-	ct.KeepPast = 10
+	ct.KeepPast = 4
 	ct.AllowConcurrent = 5
+
+	nxtOptsSig := optsSig
+	nxtOptsSig.RotateCoordTypes = types.WithFalse
+	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.MvCons3Type}, []cons.ConfigOptions{mvcons3.MvCons3Config{}},
+		nxtOptsSig, nil)
 
 	nxtID = genTO(nxtID, folderName, ct, []types.ConsType{types.MvCons4Type}, []cons.ConfigOptions{mvcons4.Config{}},
 		optsSig, nil)

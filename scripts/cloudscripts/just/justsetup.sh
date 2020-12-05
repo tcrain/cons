@@ -16,7 +16,7 @@ user=${12:-$BENCHUSER} # user name to log onto instances
 key=${13:-$KEYPATH} # key to use to log onto instances
 project=${14:-$PROJECTID} # google cloud project to use
 credentialfile=${15:-$OAUTHPATH} # credential file for google cloud
-enableprofile=${16:-0} # set to 1 to enable profiling
+enableprofile=${16:-$PROF} # set to 1 to enable profiling
 
 # regions="europe-north1 europe-west3 us-central1 us-west1"
 

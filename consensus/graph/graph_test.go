@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/config"
+	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/types"
 	"math/rand"
 	"testing"
@@ -695,6 +696,7 @@ func TestGraphGetDecAll2All(t *testing.T) {
 	startIndex = makeAllStronglySeeAll2All(g, startIndex, t)
 	startIndex = makeAllStronglySeeAll2All(g, startIndex, t)
 	startIndex = makeAllStronglySeeAll2All(g, startIndex, t)
+	logging.Error(startIndex, g.tails[0][0].WI, g.tails[0][0].round)
 
 	dec, _, _, _, _, _ := g.GetDecision(1)
 	assert.True(t, dec)

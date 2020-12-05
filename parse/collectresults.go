@@ -368,9 +368,11 @@ func MakeOutput(folderPath string, varyField VaryField, extraNames []VaryField, 
 			for _, nxt := range ms.SinceTimes {
 				sum += nxt
 			}
+			minSinceTime := float64(ms.MinSinceTime) / float64(time.Millisecond)
+			maxSinceTime := float64(ms.MaxSinceTime) / float64(time.Millisecond)
 			totalTimeDivNumCons := float64(sum) / float64(ms.RecordCount) / float64(time.Millisecond)
-			if fileName, err = intMakeStatsFile(folderPath, nxtTitle, "None", "None",
-				varyField, extraNames, totalTimeDivNumCons, 0, 0, nxtRes, ct, includeConsType); err != nil {
+			if fileName, err = intMakeStatsFile(folderPath, nxtTitle, "MaxTimePerDecision", "MinTimePerDecision",
+				varyField, extraNames, totalTimeDivNumCons, maxSinceTime, minSinceTime, nxtRes, ct, includeConsType); err != nil {
 
 				logging.Error(err)
 				return err

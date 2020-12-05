@@ -36,7 +36,7 @@ rpcoutfile="rpcnode.out"
 
 # start the participant register
 echo "Starting the participant register at $pregip"
-ssh -o "StrictHostKeyChecking no" -i "${key}" "${user}"@"${pregip}" "bash --login -c \"nohup ~/go/src/github.com/tcrain/cons/preg -p ${pregport} > ${pregoutfile} 2>&1 &\""
+ssh -o "StrictHostKeyChecking no" -i "${key}" "${user}"@"${pregip}" "bash --login -c \"nohup ~/go/src/github.com/tcrain/cons/preg -p ${pregport} >> ${pregoutfile} 2>&1 &\""
 
 echo "Starting rpc nodes" # ++ is a special symbol that means put the node ip there
-./runcmd -k "${key}" -u "${user}" -f "${ipfile}" nohup "bash --login -c \"~/go/src/github.com/tcrain/cons/rpcnode" -i ++  "> ${rpcoutfile} 2>&1 &\"" # start the rpc servers at each of the nodes
+./runcmd -k "${key}" -u "${user}" -f "${ipfile}" nohup "bash --login -c \"~/go/src/github.com/tcrain/cons/rpcnode" -i ++  ">> ${rpcoutfile} 2>&1 &\"" # start the rpc servers at each of the nodes

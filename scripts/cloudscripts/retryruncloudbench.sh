@@ -15,6 +15,7 @@ project=${11:-$PROJECTID}
 crednetialfile=${12:-$OAUTHPATH}
 launchNodes=${13:-1}
 shutdownNodes=${14:-1}
+enableprofile=${15:-$PROF}
 
 # Build
 bash ./scripts/buildgo.sh 1

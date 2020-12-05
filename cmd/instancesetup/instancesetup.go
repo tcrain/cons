@@ -55,6 +55,7 @@ func main() {
 
 	var undoLaunchRegions bool
 	var doGetIPs bool
+	var onlyExternalIps bool
 
 	var doGetInstanceIP bool
 
@@ -111,6 +112,7 @@ func main() {
 		"p, r")
 	flag.BoolVar(&doGetIPs, "gi", false, "Get the IPs for the running instance groups,"+
 		"use with options: p, r")
+	flag.BoolVar(&onlyExternalIps, "eip", false, "Get external ips only, use with option: gi")
 
 	flag.Parse()
 
@@ -174,7 +176,7 @@ func main() {
 
 	regions := strings.Fields(launchRegions)
 	if doGetIPs {
-		ips, err := cloudsetup.GetInstanceGroupsIPs(singleZoneRegion, cloudsetup.InstanceGroupName, project, regions, service)
+		ips, err := cloudsetup.GetInstanceGroupsIPs(singleZoneRegion, onlyExternalIps, cloudsetup.InstanceGroupName, project, regions, service)
 		if err != nil {
 			log.Fatal(err)
 		}

@@ -117,7 +117,7 @@ func ShutdownInstanceGroups(singleZone bool, instanceGroupName, project string, 
 }
 
 // GetInstanceGroupIPs returns the list of ips for the regions, where each line rotates through the regions.
-func GetInstanceGroupsIPs(singleZone bool, instanceGroupName, project string, regions []string,
+func GetInstanceGroupsIPs(singleZone, onlyExternalIps bool, instanceGroupName, project string, regions []string,
 	service *compute.Service) (ips []string, err error) {
 
 	ipMap := make(map[string][]string)
@@ -147,7 +147,7 @@ func GetInstanceGroupsIPs(singleZone bool, instanceGroupName, project string, re
 				logging.Error(err)
 				return nil, err
 			}
-			if len(regions) == 1 {
+			if len(regions) == 1 && !onlyExternalIps {
 				ipMap[region] = append(ipMap[region], ist.NetworkInterfaces[0].NetworkIP)
 			} else {
 				ipMap[region] = append(ipMap[region], ist.NetworkInterfaces[0].AccessConfigs[0].NatIP)

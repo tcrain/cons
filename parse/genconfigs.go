@@ -53,6 +53,7 @@ var RndCTMap = map[string]string{
 	"MvCons2":       "MC:3S",
 	"MvBinConsRnd2": "MC:4S",
 	"MvCons3":       "MC:2S",
+	"MvCons4":       "MC:MP",
 	"RbBcast1":      "RB:2S",
 	"RbBcast2":      "RB:3S",
 }
