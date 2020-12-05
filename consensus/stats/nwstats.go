@@ -38,7 +38,7 @@ type NwStatsInterface interface {
 	NwString() string                 // NwString returns a string detailing the statistics in a human readable format
 	// MergeAllStats mereges the stats from the the participants, numCons is the number of consensus instances performed
 	// It returns the average stats per node (perProc), and all the stats summed togehter (merge)
-	MergeAllNWStats(numCons int, items []BasicNwStats) (perProc, merge MergedNwStats)
+	MergeAllNWStats(numCons int, items []NwStatsInterface) (perProc, merge MergedNwStats)
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -60,9 +60,10 @@ type MergedNwStats struct {
 	MaxBufferForwardTimeouts, MinBufferForwardTimeouts uint64
 }
 
-// MergeAllStats mereges the stats from the the participants, numCons is the number of consensus instances performed
-// It returns the average stats per node (perProc), and all the stats summed togehter (merge)
-func (bs *BasicNwStats) MergeAllNWStats(numCons int, others []BasicNwStats) (MergedNwStats, MergedNwStats) {
+// MergeAllStats merges the stats from the the participants, numCons is the number of consensus instances performed
+// It returns the average stats per node (perProc), and all the stats summed together (merge)
+func (bs *BasicNwStats) MergeAllNWStats(numCons int, others []NwStatsInterface) (MergedNwStats, MergedNwStats) {
+	_ = numCons
 	var bytesSent uint64
 	var msgsSent uint64
 	var bufferForwardTimeouts uint64

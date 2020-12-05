@@ -34,6 +34,7 @@ var ErrDeserialize = fmt.Errorf("error deserialize")
 var ErrClosingTime = fmt.Errorf("time to close")
 var ErrTimeout = fmt.Errorf("timeout")
 var ErrNoValidSigs = fmt.Errorf("no valid sigs")
+var ErrInvalidSigCount = fmt.Errorf("invalid number of signatures")
 var ErrNoNewSigs = fmt.Errorf("no new sigs")
 var ErrInvalidBinStateMsg = fmt.Errorf("invalid bin state msg")
 var ErrDontForwardMessage = fmt.Errorf("message should not be forwarded")
@@ -42,6 +43,8 @@ var ErrTooManyAdditionalIndices = fmt.Errorf("message has too many additional in
 // member checker
 var ErrNotMember = fmt.Errorf("not a member")
 var ErrInvalidSig = fmt.Errorf("invalid sig")
+var ErrInvalidVRFProof = fmt.Errorf("invalid vrf proof")
+var ErrInvalidSigEncoding = fmt.Errorf("invalid sig encoding")
 var ErrWrongMemberChecker = fmt.Errorf("wrong member checker")
 var ErrMemCheckerNotReady = fmt.Errorf("memberchecker not ready")
 var ErrNoFixedCoord = fmt.Errorf("no fixed coord")
@@ -78,6 +81,9 @@ var ErrInvalidBitIDEncoding = fmt.Errorf("invalid bitID encoding")
 // channel
 var ErrInvalidFormat = fmt.Errorf("string in invalid format")
 var ErrInvalidMsgSize = fmt.Errorf("invalid msg size")
+
+var ErrInvalidBuffSize = fmt.Errorf("invalid buffer size")
+var ErrInvalidVarint = fmt.Errorf("invalid var int")
 
 // csnet
 var ErrConnAlreadyExists = fmt.Errorf("connection already exists")
@@ -122,3 +128,11 @@ var ErrAlreadyCombinedPartials = fmt.Errorf("has already combined partials")
 
 // storage
 var ErrInvalidKeySize = fmt.Errorf("invalid key size")
+
+// graph
+var ErrPrevIndexNotFound = fmt.Errorf("previous index not found")
+var ErrInvalidRemoteAncestor = fmt.Errorf("invalid remote ancestor")
+var ErrInvalidRemoteAncestorCount = fmt.Errorf("invalid number of remote ancestors")
+var ErrEventExists = fmt.Errorf("event already exists")
+var ErrDuplicateRemoteAncestors = fmt.Errorf("duplicate remote ancestors")
+var ErrEventAlreadyGC = fmt.Errorf("event already garbage collected")

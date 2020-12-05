@@ -27,12 +27,13 @@ import (
 )
 
 // getBinConsStateMachineTypes returns a list of the valid state machine types for multi-value consensus given the configuration.
-func getMvConsStateMachineTypes() []types.StateMachineType {
+/*func getMvConsStateMachineTypes() []types.StateMachineType {
 	if config.RunAllTests {
 		return types.MultivalueProposerTypes
 	}
 	return []types.StateMachineType{types.CounterProposer}
 }
+*/
 
 var baseTO = types.TestOptions{EncryptChannels: true, NoSignatures: true, SigType: types.EDCOIN,
 	CoinType: types.StrongCoin2Type, StopOnCommit: types.NextRound}
@@ -46,12 +47,20 @@ func TestMvBinConsRnd2Basic(t *testing.T) {
 }
 
 func TestMvBinConsRnd2BasicSleep(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	to := baseTO
 	to.SleepCrypto = true
 	cons.RunBasicTests(to, types.MvBinConsRnd2Type, &MvBinConsRnd2{}, Config{}, []int{}, t)
 }
 
 func TestMvBinConsRnd2RandMC(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunRandMCTests(fixedCoinTO, types.MvBinConsRnd2Type, &MvBinConsRnd2{}, Config{}, true,
 		[]int{}, t)
 }
@@ -68,6 +77,10 @@ func TestMvBinConsRnd2Byz(t *testing.T) {
 }
 
 func TestMvBinConsRnd2MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(baseTO, types.MvBinConsRnd2Type, &MvBinConsRnd2{}, Config{}, nil, t)
 }
 
@@ -80,6 +93,10 @@ func TestMvBinConsRnd2MultiSig(t *testing.T) {
 }
 
 func TestMvBinConsRnd2P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunP2pNwTests(baseTO, types.MvBinConsRnd2Type, &MvBinConsRnd2{}, Config{}, nil, t)
 }
 
@@ -88,6 +105,10 @@ func TestMvBinConsRnd2FailDisk(t *testing.T) {
 }
 
 func TestMvBinConsRnd2CausalBasic(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunBasicTests(causalTO,
 		types.MvBinConsRnd2Type, &MvBinConsRnd2{}, Config{}, []int{}, t)
 }
@@ -105,6 +126,10 @@ func TestMvBinConsRnd2CausalFailDisk(t *testing.T) {
 }
 
 func TestMvBinConsRnd2CausalRandMC(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunRandMCTests(causalTO,
 		types.MvBinConsRnd2Type, &MvBinConsRnd2{}, Config{}, true, []int{}, t)
 }

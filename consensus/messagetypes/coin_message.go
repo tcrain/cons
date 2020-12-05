@@ -38,6 +38,14 @@ func (CoinMsgID) IsMsgID() bool {
 	return true
 }
 
+// ToMsgIDInfo converts the MsgID to a MsgIDInfo
+func (bm CoinMsgID) ToMsgIDInfo() messages.MsgIDInfo {
+	return messages.MsgIDInfo{
+		HeaderID: uint32(bm.HdrID),
+		Round:    uint32(bm.Round),
+	}
+}
+
 func (bm CoinMsgID) ToBytes(index types.ConsensusIndex) []byte {
 	m := messages.NewMsgBuffer()
 	m.AddConsensusID(index.Index)

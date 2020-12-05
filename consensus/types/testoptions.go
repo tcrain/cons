@@ -56,15 +56,14 @@ type TestOptions struct {
 	SleepValidate         bool                   // If true we dont validate sigs, just sleep
 	SleepCrypto           bool                   // If true all signature based crypto is done using sleeps
 	MCType                MemberCheckerType      // if TestMemberCheckers is false, then test a specific type
-	BufferForwarder       bool                   // Buffer several messages before forwarding them (in a gossip network)
+	BufferForwardType     BufferForwardType      // Buffer several messages before forwarding them (in a gossip network)
 	UseMultisig           bool                   // Use multi-signautres
 	BlsMultiNew           bool                   // Use the new type of BLS multi-signatures (see https://crypto.stanford.edu/~dabo/pubs/papers/BLSmultisig.html)
+	MemCheckerBitIDType   BitIDType              // If using multi-sigs the type of bit ID to use in the member checker
+	SigBitIDType          BitIDType              // If using multi-sigs the type of bit ID to use with the signatures
 	StateMachineType      StateMachineType       // The application being implemented by the state machines
 	PartialMessageType    PartialMessageType     // The type of partial messsages to use during broadcasts
 	AllowConcurrent       uint64                 // Number of concurrent consensus indecies to allow to run.
-	GenRandBytes          bool                   // If true the state machine shouldn generate random bytes each decision.
-	RndMemberCount        int                    // Only works if GenRandBytes is ture. This chooses RndMemberCount members to randomly decide which nodes will participate, if 0 random selection is not used.
-	RndMemberType         RndMemberType          // Type of random membeship selection, RndMemberCount must be > 0 for this.
 	LocalRandMemberChange uint64                 // On consensus index mod this value, the local rand member checker will change.
 	RotateCord            bool                   // If true then the coordinator will rotate each consensus index, if supported by the member checker.
 	AllowSupportCoin      bool                   // True if AuxProofMessages can support the coin directly instead of a bin value.
@@ -88,6 +87,25 @@ type TestOptions struct {
 	NoSignatures          bool                 // Use encrypted channels for message authentification instead of signatures
 	CoinType              CoinType             // The type of coin being used
 	UseFixedCoinPresets   bool                 // If true then will use predefined coins for the initial rounds of randomized consensus
+	SharePubsRPC          bool                 // If true then during RPC tests nodes on the same machine will share public key objects for external nodes
+
+	WarmUpInstances             int // Number of consensus instances to run before recording results
+	KeepPast                    int // Number of previously decided consensus instances to keep in memory
+	ForwardTimeout              int // milliseconds 	// for msg forwarder when you dont receive enough messages to foward a buffer automatically
+	RandForwardTimeout          int // amount of time to randomly add to Forward timeout
+	ProgressTimeout             int // milliseconds, if no progress in this time, let neighbors know
+	MvConsTimeout               int // millseconds timeout when taking an action in the MV consensus algorithms
+	MvConsVRFTimeout            int // millseconds timeout for waiting for a proposal when VRFs are enabled (only used by MVCons3)
+	MvConsRequestRecoverTimeout int // millseconds timeout before requesting the full proposal after delivering the hash
+
+	NodeChoiceVRFRelaxation int           // Additional chance to chose a node as a member when using VRF.
+	CoordChoiceVRF          int           // Chance of each node being chosen as a coordinator when using VRF.
+	GenRandBytes            bool          // If true the state machine shouldn generate random bytes each decision.
+	RndMemberCount          int           // Only works if GenRandBytes is ture. This chooses RndMemberCount members to randomly decide which nodes will participate, if 0 random selection is not used.
+	RndMemberType           RndMemberType // Type of random membeship selection, RndMemberCount must be > 0 for this.
+	UseRandCoord            bool          // If true round coordinators will be chosen using VRFs note, that these are only calculated from within the existing random members
+	// so the coordinator relaxation may need to be higher
+	MvCons4BcastType MvCons4BcastType // the type of message broadcast used by MvCons4
 }
 
 // UsesVRFs returns true if this test configuration uses VRFs.
@@ -96,18 +114,33 @@ func (to TestOptions) UsesVRFs() bool {
 	case KnownPerCons, VRFPerCons, VRFPerMessage:
 		return true
 	}
-	return false
+	return to.UseRandCoord
 }
 func (to TestOptions) String() string {
-	return fmt.Sprintf("{ConsType: %v, Rounds: %v, Fail round: %v, Total procs: %v, Nonmember procs: %v, Fail procs: %v, Byz procs: %v, ByzType: %s, \n\tConnection: %s, Msg Drop%%: %v, Network: %s, Nw fan out: %v, Storage type: %s, Clear disk on restart: %v, \n\tInclude proofs: %v, Sig type: %s, Use multisig: %v, Use pub index: %v, Buffer Forwarder: %v, \n\tState machine: %v, Allow concurrent: %v, Rotate cord: %v, Gen rand bytes: %v, Ordering: %v,\n\tRand member type: %v, Rand members %v, LocalRandMemberChange: %v, AllowSupportCoin: %v, MCType: %v, \n\tUseFullBinaryState %v, StorageBuffer %v, IncludeCurrentSigs %v, CPUProfile %v, MemProfile %v,\n\tNumMsgProcessThreads %v, MvProposalSizeBytes %v, BinConsPercentOnes %v, CollectBroadcast: %v,\n\tStopOnCommit: %v, FixedSeed: %v, EncryptChannels: %v, NoSignatures: %v,\n\tCoinType: %v, UseFixedCoinPresets: %v, Sleep Crypto: %v, TestID %v}",
-		to.ConsType, to.MaxRounds, to.FailRounds, to.NumTotalProcs, to.NumNonMembers, to.NumFailProcs, to.NumByz,
-		to.ByzType, to.ConnectionType, to.MsgDropPercent, to.NetworkType, to.FanOut, to.StorageType,
-		to.ClearDiskOnRestart, to.IncludeProofs, to.SigType, to.UseMultisig, to.UsePubIndex, to.BufferForwarder,
-		to.StateMachineType, to.AllowConcurrent, to.RotateCord, to.GenRandBytes, to.OrderingType, to.RndMemberType, to.RndMemberCount,
-		to.LocalRandMemberChange, to.AllowSupportCoin, to.MCType,
+	return fmt.Sprintf("{ConsType: %v, Rounds: %v, Fail round: %v, Total procs: %v, Nonmember procs: %v, Fail procs: %v, "+
+		"\n\tConnection: %s, Msg Drop%%: %v, Network: %s, Nw fan out: %v, Storage type: %s, Clear disk on restart: %v,"+
+		"\n\tInclude proofs: %v, Sig type: %s, Use multisig: %v, Use pub index: %v, Buffer Forwarder: %v,"+
+		"\n\tState machine: %v, Allow concurrent: %v, Rotate cord: %v, Gen rand bytes: %v, Ordering: %v,"+
+		"\n\tRand member type: %v, Rand coord: %v, Rand members %v, LocalRandMemberChange: %v, AllowSupportCoin: %v,"+
+		"\n\tUseFullBinaryState %v, StorageBuffer %v, IncludeCurrentSigs %v, CPUProfile %v, MemProfile %v,"+
+		"\n\tNumMsgProcessThreads %v, MvProposalSizeBytes %v, BinConsPercentOnes %v, CollectBroadcast: %v,"+
+		"\n\tStopOnCommit: %v, FixedSeed: %v, EncryptChannels: %v, NoSignatures: %v, Byz procs: %v, ByzType: %s,"+
+		"\n\tCoinType: %v, UseFixedCoinPresets: %v, Sleep Crypto: %v, Share Pubs: %v,  MCType: %v,"+
+		"\n\tSig BitID: %v, MC BitID: %v, WarmUp: %v, KeepPast %v, FwdTimeout: %v, RndFwdTimeout: %v,"+
+		"\n\t ProgressTimeout: %v, MVTimeout: %v, MVVRFTimeout: %v, MVRecoverTimeout: %v, NodeVRFRelax: %v,"+
+		"\n\tCoordVRF: %v, MvCons4Bcast: %v, TestID %v}",
+		to.ConsType, to.MaxRounds, to.FailRounds, to.NumTotalProcs, to.NumNonMembers, to.NumFailProcs,
+		to.ConnectionType, to.MsgDropPercent, to.NetworkType, to.FanOut, to.StorageType,
+		to.ClearDiskOnRestart, to.IncludeProofs, to.SigType, to.UseMultisig, to.UsePubIndex, to.BufferForwardType,
+		to.StateMachineType, to.AllowConcurrent, to.RotateCord, to.GenRandBytes, to.OrderingType, to.RndMemberType,
+		to.UseRandCoord, to.RndMemberCount, to.LocalRandMemberChange, to.AllowSupportCoin,
 		to.UseFullBinaryState, to.StorageBuffer, to.IncludeCurrentSigs, to.CPUProfile, to.MemProfile,
 		to.NumMsgProcessThreads, to.MvProposalSizeBytes, to.BinConsPercentOnes, to.CollectBroadcast, to.StopOnCommit, to.UseFixedSeed,
-		to.EncryptChannels, to.NoSignatures, to.CoinType, to.UseFixedCoinPresets, to.SleepCrypto, to.TestID)
+		to.EncryptChannels, to.NoSignatures, to.NumByz, to.ByzType, to.CoinType, to.UseFixedCoinPresets,
+		to.SleepCrypto, to.SharePubsRPC, to.MCType,
+		to.SigBitIDType, to.MemCheckerBitIDType, to.WarmUpInstances, to.KeepPast, to.ForwardTimeout, to.RandForwardTimeout, to.ProgressTimeout,
+		to.MvConsTimeout, to.MvConsVRFTimeout, to.MvConsRequestRecoverTimeout, to.NodeChoiceVRFRelaxation,
+		to.CoordChoiceVRF, to.MvCons4BcastType, to.TestID)
 }
 
 func AllowsGetRandBytes(smType StateMachineType) bool {
@@ -159,7 +192,7 @@ func (to TestOptions) AllowsRandMembers(checkerType MemberCheckerType) bool {
 		return false
 	}
 	switch checkerType {
-	case CurrentTrueMC, CurrencyMC:
+	case CurrentTrueMC, LaterMC, CurrencyMC:
 		return true
 	}
 	return false
@@ -172,7 +205,7 @@ func (to TestOptions) AllowsOutOfOrderProposals(consType ConsType) bool {
 		return false
 	}
 	switch consType {
-	case BinCons1Type, BinConsRnd1Type:
+	case BinCons1Type, BinConsRnd1Type, BinConsRnd2Type, BinConsRnd3Type, BinConsRnd4Type, BinConsRnd5Type, BinConsRnd6Type:
 		return false
 	case MvBinCons1Type, MvBinConsRnd1Type, MvBinConsRnd2Type:
 		if to.AllowConcurrent > 1 {
@@ -186,6 +219,8 @@ func (to TestOptions) AllowsOutOfOrderProposals(consType ConsType) bool {
 		return false
 	case MvCons3Type:
 		return false
+	case MvCons4Type:
+		return true
 	case SimpleConsType:
 		if to.AllowConcurrent > 1 {
 			return true
@@ -218,10 +253,37 @@ func GetOrderForSM(smt StateMachineType) OrderingType {
 	panic(smt)
 }
 
+// SanitizeTO will clean certain parts of the test configuration, so that it is valid.
+// Should only be used during benchmarks when using the same config for multiple
+// node counts.
+func (to TestOptions) SanitizeTO() (newTO TestOptions) {
+	newTO = to
+	switch newTO.RndMemberType {
+	case NonRandom:
+		if newTO.RndMemberCount != 0 {
+			logging.Printf("setting RndMemberCount to 0")
+			newTO.RndMemberCount = 0
+		}
+	}
+	switch newTO.NetworkType {
+	case AllToAll:
+		if newTO.FanOut != 0 {
+			logging.Printf("setting FanOut to 0")
+			newTO.FanOut = 0
+		}
+	}
+	return
+}
+
 // CheckValid returns an error if the generalconfig in invalid
 func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOptions, err error) {
 	newTo = to
 	consProcs := to.NumTotalProcs - to.NumNonMembers // consensus participants
+
+	if !to.AllowsOutOfOrderProposals(consType) && consType == MvCons4Type {
+		err = fmt.Errorf("%v supports out of order proposals, which is not compatalbe with %v", consType, to.StateMachineType)
+		return
+	}
 
 	if to.AllowSupportCoin {
 		switch to.CoinType {
@@ -280,6 +342,24 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		}
 	}
 
+	if to.RndMemberType != NonRandom {
+		if to.RndMemberCount > to.NumTotalProcs-to.NumNonMembers {
+			err = fmt.Errorf("must have at least as many members as rand members, rnd members: %v, non members: %v, total mem: %v",
+				to.RndMemberCount, to.NumTotalProcs, to.NumNonMembers)
+			return
+		}
+	}
+
+	if to.UseRandCoord {
+		if to.RndMemberType == VRFPerCons {
+			err = fmt.Errorf("rand coord not supported with VRFPerCons")
+			return
+		}
+		if to.RotateCord {
+			err = fmt.Errorf("cannot have random and rotate coord enabled together")
+			return
+		}
+	}
 	if to.NoSignatures {
 		switch to.RndMemberType {
 		case VRFPerCons, VRFPerMessage, KnownPerCons:
@@ -322,12 +402,27 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		}
 	}
 
-	if !to.BufferForwarder && to.AdditionalP2PNetworks > 0 {
+	if to.BufferForwardType != NoBufferForward {
+		switch to.NetworkType {
+		case P2p, Random:
+		// ok
+		default:
+			err = fmt.Errorf("buffer forward can only be used with p2p or random network type")
+			return
+		}
+	}
+
+	if to.ConnectionType == UDP && to.EncryptChannels {
+		err = fmt.Errorf("UDP and encrypted channels currently not supported")
+		return
+	}
+
+	if to.BufferForwardType != ThresholdBufferForward && to.AdditionalP2PNetworks > 0 {
 		err = fmt.Errorf("additional P2P networks not needed if buffer forwarder is being used")
 		return
 	}
 
-	if to.BufferForwarder && !to.IncludeCurrentSigs {
+	if to.BufferForwardType == ThresholdBufferForward && !to.IncludeCurrentSigs {
 		err = fmt.Errorf("if using buffer forwarder must include current signatures")
 		return
 	}
@@ -338,7 +433,7 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 	}
 
 	if to.SigType == TBLS && (to.UseMultisig || to.BlsMultiNew || !to.UsePubIndex) {
-		err = fmt.Errorf("For bls thrsh (TBLS) must not use multi sig or bls multi new and must use put index, useMultiSig: %v, BlsMultiNew: %v, UsePubIndex %v",
+		err = fmt.Errorf("for bls thrsh (TBLS) must not use multi sig or bls multi new and must use put index, useMultiSig: %v, BlsMultiNew: %v, UsePubIndex %v",
 			to.UseMultisig, to.BlsMultiNew, to.UsePubIndex)
 		return
 	}
@@ -348,16 +443,22 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		return
 	}
 
-	if to.MCType == CurrencyMC && to.StateMachineType != CurrencyTxProposer {
-		err = fmt.Errorf("if using CurrencySM, then must use SimpleCurrencyTxProposer state machie")
-		return
+	if to.MCType == CurrencyMC {
+		if to.StateMachineType != CurrencyTxProposer {
+			err = fmt.Errorf("if using CurrencySM, then must use SimpleCurrencyTxProposer state machie")
+			return
+		}
+		if to.CollectBroadcast != Full {
+			err = fmt.Errorf("TODO allow collect broadcast the currency proposer (we need to be able to tenatively predict the next coordinator from the current proposal state)")
+			return
+		}
 	}
 
 	if consProcs < 4 {
 		err = fmt.Errorf("must have at least 4 consensus participants")
 		return
 	}
-	if to.AllowConcurrent > 1 && to.MCType != TrueMC {
+	if to.AllowConcurrent > 1 && (to.MCType != TrueMC || to.RndMemberType != NonRandom) {
 		err = fmt.Errorf("must use static membership for concurrent consensus")
 		return
 	}
@@ -417,22 +518,30 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 
 	switch consType {
 	case BinConsRnd1Type, BinConsRnd2Type, BinConsRnd3Type, BinConsRnd4Type, BinConsRnd5Type,
-		BinConsRnd6Type, MvBinConsRnd1Type:
-		if !to.UsePubIndex {
-			err = fmt.Errorf("must use pub index for BinConsRnd1Type/MvBinConsRnd1Type")
+		BinConsRnd6Type, MvBinConsRnd1Type, MvBinConsRnd2Type:
+		switch to.CoinType {
+		case NoCoinType:
+			err = fmt.Errorf("must use a coin type when using a randomized consensus")
 			return
-		}
-		switch to.SigType {
-		case EDCOIN, TBLS, TBLSDual, CoinDual:
+		case FlipCoinType, KnownCoinType, LocalCoinType:
+			// ok
 		default:
-			err = fmt.Errorf("must use threshold or coin sigs for BinConsRnd1")
-			return
-		}
-		switch to.RndMemberType {
-		case NonRandom:
-		default:
-			err = fmt.Errorf("BinConsRnd1 does not support random membership")
-			return
+			if !to.UsePubIndex {
+				err = fmt.Errorf("must use pub index for BinConsRnd1Type/MvBinConsRnd1Type")
+				return
+			}
+			switch to.SigType {
+			case EDCOIN, TBLS, TBLSDual, CoinDual:
+			default:
+				err = fmt.Errorf("must use threshold or coin sigs for BinConsRnd1")
+				return
+			}
+			switch to.RndMemberType {
+			case NonRandom:
+			default:
+				err = fmt.Errorf("BinConsRnd1 does not support random membership")
+				return
+			}
 		}
 	default:
 		if to.UseFixedCoinPresets {
@@ -452,12 +561,13 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		err = fmt.Errorf("if using random membership selection, must have a RndMemberCout at least 4")
 		return
 	}
-	if (consType == RbBcast1Type || consType == RbBcast2Type) && (to.RndMemberType == VRFPerCons || to.RndMemberType == VRFPerMessage) {
+	if (consType == RbBcast1Type || consType == RbBcast2Type) && (to.RndMemberType == VRFPerCons ||
+		to.RndMemberType == VRFPerMessage || to.UseRandCoord) {
 
 		err = fmt.Errorf("cons type RbBcast does not support VRFPerCons or VRFPerMessage (because there will be differnt coordinators, and will block termination)")
 		return
 	}
-	if to.NetworkType == RequestForwarder && (to.RndMemberType != LocalRandMember || to.BufferForwarder) {
+	if to.NetworkType == RequestForwarder && (to.RndMemberType != LocalRandMember || to.BufferForwardType != NoBufferForward) {
 		err = fmt.Errorf("request forwarder and local random mebership must be used together, and without BufferForwarder")
 		return
 	}
@@ -478,6 +588,9 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		err = fmt.Errorf("if ChooseRandMembers, then GenRandBytes must be true")
 		return
 	}
+	if !to.GenRandBytes && to.UseRandCoord {
+		err = fmt.Errorf("GenRandBytes must be true if using random coordinator")
+	}
 	if !to.AllowsRandMembers(to.MCType) && to.RndMemberCount > 0 {
 		err = fmt.Errorf("member checker type %v does not support random membership", to.MCType)
 		return
@@ -486,10 +599,14 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		err = fmt.Errorf("cannot have both byzantine and crash processes in the same test")
 		return
 	}
-	if to.UseMultisig && to.RndMemberType != NonRandom {
-		// TODO multisig should work with KnownPerCons random type
-		err = fmt.Errorf("multisig and random member selection not currently supported")
-		return
+	if to.UseMultisig {
+		switch to.RndMemberType {
+		case NonRandom, KnownPerCons:
+			// multisig allowed
+		default:
+			err = fmt.Errorf("multisig and random member selection not currently supported")
+			return
+		}
 	}
 	if to.NumNonMembers >= to.NumTotalProcs {
 		err = fmt.Errorf("need to have some members")
@@ -517,29 +634,92 @@ func (to TestOptions) CheckValid(consType ConsType, isMv bool) (newTo TestOption
 		err = fmt.Errorf("Multisig must be used with use pub index")
 		return
 	}
-	if consType == MvCons3Type && (config.KeepFuture < 5) {
-		err = fmt.Errorf("when using MvCons3 generalconfig.KeepFuture must be at least 5")
-		return
+	if consType == MvCons3Type || consType == MvCons4Type {
+		if config.KeepFuture < 5 {
+			err = fmt.Errorf("when using MvCons3/4 generalconfig.KeepFuture must be at least 5")
+			return
+		}
 	}
-	if consType == MvCons3Type && (to.AllowConcurrent != 0) {
-		err = fmt.Errorf("when using MvCons3 AllowConcurrent must be 0")
-		return
+	if consType == MvCons4Type {
+		if to.AllowConcurrent < 4 {
+			err = fmt.Errorf("when using MvCons4 AllowConcurrent must be at least 4")
+			return
+		}
+		if to.RotateCord {
+			err = fmt.Errorf("MvCons4 does not support rotate coord")
+			return
+		}
+		if to.MCType != TrueMC {
+			err = fmt.Errorf("TrueMC must be used with MvCons4")
+			return
+		}
+		if to.RndMemberType != NonRandom {
+			err = fmt.Errorf("MvCons4 must not have random members")
+			return
+		}
+		if to.UseMultisig {
+			err = fmt.Errorf("MvCons4 does not support mulit-sig")
+			return
+		}
+		if config.MvBroadcastInitForBufferForwarder {
+			panic("unsupported")
+		}
+		switch to.MvCons4BcastType {
+		case Normal:
+			switch to.NetworkType {
+			case AllToAll, P2p, Random: // ok
+			default:
+				err = fmt.Errorf("MvCons4 broadcast type %v does not support network type %v",
+					to.MvCons4BcastType, to.NetworkType)
+				return
+			}
+		case Direct, Indices:
+			if to.IncludeProofs {
+				err = fmt.Errorf("MvCons4 does not support mulit-sig with broadcast type %v",
+					to.MvCons4BcastType)
+				return
+			}
+			if to.NetworkType != AllToAll {
+				err = fmt.Errorf("MvCons4 broadcast type %v does not support network type %v",
+					to.MvCons4BcastType, to.NetworkType)
+				return
+			}
+		}
+		//if to.NumNonMembers != 0 {
+		//	err = fmt.Errorf("all participants must be members in MvCons4Type")
+		//}
 	}
-	if consType == MvCons3Type && !(to.MCType == TrueMC) {
-		err = fmt.Errorf("when using MvCons3 must use true memberchecker TrueMC")
-		return
-	}
-	if consType == MvCons3Type && (to.RotateCord || to.RndMemberType != NonRandom) {
-		err = fmt.Errorf("must set rotateCord to false and disable random membership when using MvCons3")
-		return
+	if consType == MvCons3Type {
+		if to.AllowConcurrent != 0 {
+			err = fmt.Errorf("when using MvCons3 AllowConcurrent must be 0")
+			return
+		}
+		switch to.MCType {
+		case TrueMC, LaterMC: // ok
+		default:
+			err = fmt.Errorf("when using MvCons3 must use true memberchecker TrueMC or LaterMC")
+			return
+		}
+		if to.CollectBroadcast != Full && (to.RotateCord || to.RndMemberType != NonRandom || to.UseRandCoord) {
+			err = fmt.Errorf("must set rotateCord to false and disable random membership when using MvCons3")
+			return
+		}
 	}
 	if to.OrderingType == Causal {
 		if to.RotateCord {
 			err = fmt.Errorf("must set rotateCord to false when using causal order")
 			return
 		}
+		if to.UseRandCoord {
+			err = fmt.Errorf("UseRandCoord must be fale when using causal ordering")
+			return
+		}
 		if to.ByzType != NonFaulty {
 			err = fmt.Errorf("TODO") // TODO
+			return
+		}
+		if to.MCType == LaterMC {
+			err = fmt.Errorf("LaterMC only compatible with total ordering")
 			return
 		}
 	}

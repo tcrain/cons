@@ -21,7 +21,7 @@ package rpcsetup
 
 import (
 	"fmt"
-	"github.com/tcrain/cons/consensus/auth/sig/bls"
+	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/network"
 	"github.com/tcrain/cons/consensus/stats"
@@ -58,13 +58,7 @@ type CausalDecisions struct {
 type RpcResults struct {
 	Stats *stats.MergedStats // Binary consensus statistics
 	// NwStats  *stats.BasicNwStats  // Network statistics
-}
-
-// BlsSharedMarshalIndex is used as the reply to the rpc call to ParticipantRegister.GetBlsShared.
-type BlsSharedMarshalIndex struct {
-	KeyIndex  int
-	Idx       int
-	BlsShared *bls.BlsSharedMarshal
+	SMStats consinterface.SMStats
 }
 
 type TPanic struct{}

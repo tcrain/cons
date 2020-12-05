@@ -39,6 +39,7 @@ import (
 type SimpleProposalInfo struct {
 	AbsStateMachine
 	AbsRandSMNotSupported
+	SimpleStats
 }
 
 // NewSimpleProposalInfo creates an empty SimpleProposalInfo object.
@@ -46,15 +47,25 @@ func NewSimpleProposalInfo() *SimpleProposalInfo {
 	return &SimpleProposalInfo{}
 }
 
-func (spi *SimpleProposalInfo) StatsString(testDuration time.Duration) string {
+type SimpleStats struct{}
+
+func (sm SimpleStats) StatsString(testDuration time.Duration) string {
+	_ = testDuration
 	return ""
 }
 
 // Init initalizes the simple proposal object state.
-func (spi *SimpleProposalInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt, needsConcurrent types.ConsensusInt,
-	mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType) {
+func (spi *SimpleProposalInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt,
+	needsConcurrent types.ConsensusInt, mainChannel channelinterface.MainChannel,
+	doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
 
+	_ = basicInit
 	spi.AbsInit(gc, lastProposal, needsConcurrent, mainChannel, doneChan)
+}
+
+// GetSMStats returns the statistics object for the SM.
+func (spi *SimpleProposalInfo) GetSMStats() consinterface.SMStats {
+	return spi.SimpleStats
 }
 
 // GetInitialState returns []byte("initial state")
@@ -63,7 +74,8 @@ func (spi *SimpleProposalInfo) GetInitialState() []byte {
 }
 
 // HasDecided is called after the index nxt has decided.
-func (spi *SimpleProposalInfo) HasDecided(poposer sig.Pub, nxt types.ConsensusInt, decision []byte) {
+func (spi *SimpleProposalInfo) HasDecided(proposer sig.Pub, nxt types.ConsensusInt, decision []byte) {
+	_ = proposer
 	spi.AbsHasDecided(nxt, decision)
 }
 
@@ -89,7 +101,7 @@ func (spi *SimpleProposalInfo) GetProposal() {
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *SimpleProposalInfo) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
 	// No byzantine supported, just return the original proposal
 	return originProposal
@@ -97,6 +109,7 @@ func (spi *SimpleProposalInfo) GetByzProposal(originProposal []byte,
 
 // ValidateProposal should return true if the input proposal is valid.
 func (spi *SimpleProposalInfo) ValidateProposal(proposer sig.Pub, dec []byte) error {
+	_ = proposer
 	if string(dec) != fmt.Sprintf("simpleCons%v", spi.index.Index) {
 		return fmt.Errorf("got an invalid decision %v", string(dec))
 	}

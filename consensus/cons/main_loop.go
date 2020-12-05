@@ -29,6 +29,7 @@ import (
 // Messages are taken from the netowrk, then processesed sequentially by ConsState.
 func RunMainLoop(state ConsStateInterface, mc channelinterface.MainChannel) {
 	// stats := mc.GetStats()
+	state.Start()
 	for true {
 		// Get a message from the network.
 		rcvMsg, err := mc.Recv()
@@ -41,6 +42,9 @@ func RunMainLoop(state ConsStateInterface, mc channelinterface.MainChannel) {
 		} else if err != nil { // an error, just log it and continue
 			logging.Error(err)
 			continue
+		}
+		if rcvMsg == nil {
+			panic("should not be nil")
 		}
 
 		if rcvMsg.IsLocal { // process a local message
@@ -70,7 +74,7 @@ func RunMainLoop(state ConsStateInterface, mc channelinterface.MainChannel) {
 				}
 				// stats.Send(len(rmsg))
 				// rcvMsg.SendRecvChan.ReturnChan.SendReturn(rmsg, rcvMsg.SendRecvChan.ConnectionInfo)
-				rcvMsg.SendRecvChan.MainChan.SendTo(rmsg, rcvMsg.SendRecvChan.ReturnChan, true)
+				rcvMsg.SendRecvChan.MainChan.SendTo(rmsg, rcvMsg.SendRecvChan.ReturnChan, true, nil)
 			}
 		}
 		if rcvMsg.SendRecvChan == nil && len(returnMsgs) > 0 {

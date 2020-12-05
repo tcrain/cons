@@ -22,6 +22,7 @@ package channel
 import (
 	"crypto/rand"
 	"github.com/stretchr/testify/assert"
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
@@ -43,7 +44,10 @@ func genMsg(size int, t *testing.T) []byte {
 
 func TestEncrypterBasic(t *testing.T) {
 	var i sig.PubKeyIndex
-	for _, nxtPriv := range []func() (sig.Priv, error){ec.NewEcpriv, ed.NewEdpriv, bls.NewBlspriv,
+	for _, nxtPriv := range []func() (sig.Priv, error){ec.NewEcpriv, ed.NewEdpriv,
+		func() (sig.Priv, error) {
+			return bls.NewBlspriv(bitid.NewBitIDFromInts)
+		},
 		func() (sig.Priv, error) {
 			p, err := sleep.NewECPriv(i)
 			i++

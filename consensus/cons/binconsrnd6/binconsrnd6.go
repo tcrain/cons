@@ -30,10 +30,12 @@ import (
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/cons/bincons1"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 )
 
@@ -105,7 +107,8 @@ func (*BinConsRnd6) GenerateNewItem(index types.ConsensusIndex,
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *BinConsRnd6) Start() {
+func (sc *BinConsRnd6) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 	if sc.CheckMemberLocal() { // if the current node is a member then send an initial proposal
 		sc.NeedsProposal = true
@@ -149,12 +152,12 @@ func (sc *BinConsRnd6) GotProposal(hdr messages.MsgHeader, _ channelinterface.Ma
 }
 
 // GetMVInitialRoundBroadcast returns the type of binary message that the multi-value reduction should broadcast for round 0.
-func (sc *BinConsRnd6) GetMVInitialRoundBroadcast(val types.BinVal) messages.InternalSignedMsgHeader {
+func (sc *BinConsRnd6) GetMVInitialRoundBroadcast(types.BinVal) messages.InternalSignedMsgHeader {
 	panic("TODO")
 }
 
 // NeedsConcurrent returns 1.
-func (sc *BinConsRnd6) NeedsConcurrent() types.ConsensusInt {
+func (sc *BinConsRnd6) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -169,7 +172,7 @@ func (sc *BinConsRnd6) GetBinDecided() (int, types.ConsensusRound) {
 // For this consensus implementation messageState must be an instance of BinConsMessageStateInterface.
 // It returns true in first position if made progress towards decision, or false if already decided, and return true in second position if the message should be forwarded.
 func (sc *BinConsRnd6) ProcessMessage(
-	deser *channelinterface.DeserializedItem,
+	deser *deserialized.DeserializedItem,
 	isLocal bool,
 	_ *channelinterface.SendRecvChannel) (bool, bool) {
 
@@ -241,7 +244,7 @@ func (sc *BinConsRnd6) CanSkipMvTimeout() bool {
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *BinConsRnd6) SetInitialState([]byte) {}
+func (sc *BinConsRnd6) SetInitialState([]byte, storage.StoreInterface) {}
 
 // CheckRound checks for the given round if enough messages have been received to progress to the next round
 // and return true if it can.
@@ -321,6 +324,7 @@ func (sc *BinConsRnd6) CheckRound(nmt int, t int, round types.ConsensusRound,
 		if shouldDecide < 2 {
 			if sc.Decided == -1 {
 				sc.Decided = int(shouldDecide)
+				sc.SetDecided()
 				logging.Infof("Decided proc %v bin round %v, binval %v, index %v",
 					sc.TestIndex, round, sc.Decided, sc.Index)
 				sc.decidedRound = round
@@ -434,8 +438,8 @@ func (sc *BinConsRnd6) CheckRound(nmt int, t int, round types.ConsensusRound,
 				hdrs = append(hdrs, nxt)
 			}
 			roundStruct.auxBinHeaders = hdrs
-			sms := sc.getMsgState().Sms
-			sms.TrackTotalSigCount(sc.ConsItems.MC, hdrs...)
+			// sms := sc.getMsgState().Sms
+			sc.getMsgState().Sms.TrackTotalSigCount(sc.ConsItems.MC, hdrs...)
 			binMsgState.updateAuxBinMsgCount(roundStruct, sc.ConsItems.MC)
 			// roundStruct.TotalAuxBinMsgCount = sms.GetTotalSigCount(sc.ConsItems.MC, hdrs...)
 		}
@@ -570,8 +574,8 @@ func (sc *BinConsRnd6) CheckRound(nmt int, t int, round types.ConsensusRound,
 				hdrs = append(hdrs, auxMsg)
 			}
 			roundStruct.auxStage1BinHeaders = hdrs
-			sms := sc.getMsgState().Sms
-			sms.TrackTotalSigCount(sc.ConsItems.MC, hdrs...)
+			// sms := sc.getMsgState().Sms
+			sc.getMsgState().Sms.TrackTotalSigCount(sc.ConsItems.MC, hdrs...)
 			// roundStruct.TotalAuxStage1MsgCount = sms.GetTotalSigCount(sc.ConsItems.MC, hdrs...)
 			binMsgState.updateAuxStage1MsgCount(roundStruct, sc.ConsItems.MC)
 		}
@@ -716,7 +720,7 @@ func (sc *BinConsRnd6) broadcastMsg(msgType messages.HeaderID, binVal types.BinV
 		panic(msgType)
 	}
 	sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round)
-	if sc.CheckMemberLocalMsg(msg.GetMsgID()) {
+	if sc.CheckMemberLocalMsg(msg) {
 		sc.BroadcastFunc(nil, sc.ConsItems, msg, !sc.NoSignatures,
 			sc.ConsItems.FwdChecker.GetNewForwardListFunc(), sc.MainChannel, sc.GeneralConfig)
 
@@ -782,15 +786,17 @@ func (sc *BinConsRnd6) CanStartNext() bool {
 // It returns sc.Index - 1, nil.
 // If false is returned then the next is started, but the current instance has no state machine created.
 func (sc *BinConsRnd6) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasNextInfo bool) {
-	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1), nil, nil, true
+	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1), nil, nil,
+		sc.GeneralConfig.AllowConcurrent > 0
 }
 
 // GetDecision returns the binary value decided as a single byte slice.
-func (sc *BinConsRnd6) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
+func (sc *BinConsRnd6) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
 	if sc.Decided == -1 {
 		panic("should have decided")
 	}
-	return nil, []byte{byte(sc.Decided)}, types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1)
+	return nil, []byte{byte(sc.Decided)}, types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
+		types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) + 1)
 }
 
 // GetConsType returns the type of consensus this instance implements.
@@ -819,18 +825,15 @@ func (sc *BinConsRnd6) ShouldCreatePartial(messages.HeaderID) bool {
 func (sc *BinConsRnd6) BroadcastCoin(coinMsg messages.MsgHeader,
 	mainChannel channelinterface.MainChannel) {
 
+	sts := sc.ConsItems.MC.MC.GetStats()
 	mainChannel.SendHeader(messages.AppendCopyMsgHeader(sc.PreHeaders, coinMsg),
 		messages.IsProposalHeader(sc.Index, coinMsg.(messages.InternalSignedMsgHeader).GetBaseMsgHeader()),
 		true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
-		sc.ConsItems.MC.MC.GetStats().IsRecordIndex())
+		sts.IsRecordIndex(), sts)
 }
 
 // GenerateMessageState generates a new message state object given the inputs.
 func (*BinConsRnd6) GenerateMessageState(gc *generalconfig.GeneralConfig) consinterface.MessageState {
 
 	return NewBinConsRnd6MessageState(false, gc)
-}
-
-// Collect is called when the item is being garbage collected.
-func (sc *BinConsRnd6) Collect() {
 }

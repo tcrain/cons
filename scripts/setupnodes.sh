@@ -25,21 +25,18 @@ sleep 20
 
 echo "Killing procs"
 bash ./scripts/killgo.sh
-./runcmd -f "$ipfile" -k "$key" -u "$user" ~/go/src/github.com/tcrain/cons/scripts/killgo.sh
-ssh -o "StrictHostKeyChecking no" -i "${key}" "${user}"@"${pregip}" "~/go/src/github.com/tcrain/cons/scripts/killgo.sh"
+./runcmd -f "$ipfile" -k "$key" -u "$user" bash ~/go/src/github.com/tcrain/cons/scripts/killgo.sh
+ssh -o "StrictHostKeyChecking no" -i "${key}" "${user}"@"${pregip}" "bash ~/go/src/github.com/tcrain/cons/scripts/killgo.sh"
 
-#if [ "$dorsync" -eq 1 ]
-#then
-#    echo "Calling rsync"
-#    ./runcmd -f "$ipfile" -k "$key" -u "$user" -r ~/go/src/github.com/tcrain/cons/ "~/go/src/github.com/tcrain/cons/"
-#    echo "Done rsync"
-#fi
-pregoutfile=$(date +"%m-%d-%y_%T")"preg.out"
-rpcoutfile=$(date +"%m-%d-%y_%T")"preg.out"
+# pregoutfile=$(date +"%m-%d-%y_%T")"preg.out"
+# rpcoutfile=$(date +"%m-%d-%y_%T")"rpcnode.out"
+
+pregoutfile="preg.out"
+rpcoutfile="rpcnode.out"
 
 # start the participant register
 echo "Starting the participant register at $pregip"
-ssh -o "StrictHostKeyChecking no" -i "${key}" "${user}"@"${pregip}" "bash --login -c \"nohup ~/go/src/github.com/tcrain/cons/preg -p ${pregport} > ${pregoutfile} 2>&1 &\""
+ssh -o "StrictHostKeyChecking no" -i "${key}" "${user}"@"${pregip}" "bash --login -c \"nohup ~/go/src/github.com/tcrain/cons/preg -p ${pregport} >> ${pregoutfile} 2>&1 &\""
 
 echo "Starting rpc nodes" # ++ is a special symbol that means put the node ip there
-./runcmd -k "${key}" -u "${user}" -f "${ipfile}" nohup "bash --login -c \"~/go/src/github.com/tcrain/cons/rpcnode" -i ++  "> ${rpcoutfile} 2>&1 &\"" # start the rpc servers at each of the nodes
+./runcmd -k "${key}" -u "${user}" -f "${ipfile}" nohup "bash --login -c \"~/go/src/github.com/tcrain/cons/rpcnode" -i ++  ">> ${rpcoutfile} 2>&1 &\"" # start the rpc servers at each of the nodes

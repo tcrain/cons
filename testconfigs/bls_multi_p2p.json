@@ -1,5 +1,7 @@
 {
     "TestID": 1,
+    "ConsType": 10,
+    "StateMachineType": 1,
     "MaxRounds": 10,
     "NumTotalProcs": 40,
     "NetworkType": 1,
@@ -10,7 +12,7 @@
     "UsePubIndex": true,
     "SleepValidate": false,
     "MCType": 0,
-    "BufferForwarder": true,
+    "BufferForwardType": 2,
     "UseMultisig": true,
     "BlsMultiNew": true,
     "CheckDecisions": false,
@@ -18,5 +20,15 @@
     "BinConsPercentOnes": 100,
     "IncludeCurrentSigs": true,
     "SleepCrypto": true,
-    "AdditionalP2PNetworks": 2
+    "SharePubsRPC": true,
+    "MemCheckerBitIDType": 1,
+    "SigBitIDType": 3,
+    "AdditionalP2PNetworks": 2,
+    "WarmUpInstances": 1,
+    "KeepPast": 1,
+    "ForwardTimeout": 500,
+    "RandForwardTimeout": 100,
+    "ProgressTimeout": 1000,
+    "MvConsTimeout": 1500,
+    "MvConsRequestRecoverTimeout": 2000
 }

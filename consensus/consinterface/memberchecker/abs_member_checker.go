@@ -24,6 +24,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/ed"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
@@ -35,11 +36,6 @@ import (
 /////////////////////////////////////////////////////////////////////////////////
 //
 /////////////////////////////////////////////////////////////////////////////////
-
-type pubAndID struct {
-	sig.Pub
-	sig.PubKeyID
-}
 
 // absMemberChecker implements part of the MemberChecker interface that can be reused by different
 // implementations of member checkers.
@@ -72,6 +68,7 @@ func (mc *absMemberChecker) copyPrevMemberState(prev *absMemberChecker) {
 	mc.fixedCoord = prev.fixedCoord
 	mc.fixedCoordID = prev.fixedCoordID
 	mc.myPriv = prev.myPriv
+	mc.config = prev.config
 }
 
 // GetMyPriv returns the local node's private key.
@@ -83,9 +80,41 @@ func (mc *absMemberChecker) GetStats() stats.StatsInterface {
 	return mc.stats
 }
 
+// CheckRandRoundCoord should be called instead of CheckRoundCoord if random membership selection is enabled.
+// If using VRFs then checkPub must not be nil.
+// If checkPub is nil, then it will return the known coordinator in coordPub.
+// If VRF is enabled randValue is the VRF random value for the inputs.
+// Note this should be called after CheckRandMember for the same pub.
+func (mc *absMemberChecker) CheckRandRoundCoord(msgID messages.MsgID, checkPub sig.Pub,
+	round types.ConsensusRound) (randValue uint64, coordPub sig.Pub, err error) {
+
+	if mc.RandMemberType() == types.LocalRandMember && !mc.config.UseRandCoord {
+		// local random uses the standard coordinator, unless UseRandCoord is enabled
+		coordPub, err = mc.CheckRoundCoord(msgID, checkPub, round)
+		return
+	}
+
+	if checkPub == nil {
+		return 0, nil, types.ErrNotMember
+	}
+	rndMemberCount := utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs))
+	rndValue, checkPub, err := mc.checkRandCoord(rndMemberCount, len(mc.sortedMemberPubs), msgID, round, checkPub)
+	if err != nil {
+		return 0, nil, err
+	}
+	return rndValue, checkPub, nil
+}
+
+func (mc *absMemberChecker) GetRnd() (ret [32]byte) {
+	if mc.absRandMemberInterface != nil {
+		return mc.absRandMemberInterface.GetRnd()
+	}
+	return
+}
+
 // CheckRoundCoord returns the public key of the coordinator for round round.
 // It is just the mod of the round in the sorted list of public keys.
-func (mc *absMemberChecker) CheckRoundCoord(msgID messages.MsgID, checkPub sig.Pub,
+func (mc *absMemberChecker) CheckRoundCoord(_ messages.MsgID, checkPub sig.Pub,
 	round types.ConsensusRound) (coordPub sig.Pub, err error) {
 
 	return getRoundCord(mc, mc.idx.Index, checkPub, round)
@@ -138,26 +167,29 @@ func initAbsMemberChecker(localRand *rand.Rand, rotateCord bool, rndMemberCount 
 		panic("priv should not be nil")
 	}
 
-	stats := config.Stats
+	sts := config.Stats
 
 	ret := &absMemberChecker{rotateCord: rotateCord,
 		config:         config,
-		stats:          stats,
+		stats:          sts,
 		rndMemberCount: rndMemberCount,
 		rndMemberType:  rndMemberType,
 		myPriv:         priv}
 	switch rndMemberType {
 	case types.VRFPerCons:
-		ret.absRandMemberInterface = initAbsRandMemberChecker(priv, stats)
+		ret.absRandMemberInterface = initAbsRandMemberChecker(priv, sts, config)
 	case types.VRFPerMessage:
-		ret.absRandMemberInterface = initAbsRandMemberCheckerByID(priv, stats)
+		ret.absRandMemberInterface = initAbsRandMemberCheckerByID(priv, sts, config)
 	case types.KnownPerCons:
-		ret.absRandMemberInterface = initAbsRoundKnownMemberChecker(stats)
+		ret.absRandMemberInterface = initAbsRoundKnownMemberChecker(priv, sts, config)
 	case types.LocalRandMember:
 		ret.absRandMemberInterface = initAbsRandLocalKnownMemberChecker(localRand, priv,
-			localRandChangeFrequency, stats)
+			localRandChangeFrequency, sts, config)
 	case types.NonRandom:
-	// no abs rnd member checker
+		// no abs rnd member checker
+		if config.UseRandCoord {
+			ret.absRandMemberInterface = initAbsRandCoordByID(priv, sts, config)
+		}
 	default:
 		panic(rndMemberType)
 	}
@@ -179,12 +211,17 @@ func (mc *absMemberChecker) GetNewPub() sig.Pub {
 // newMemberPubs should also be nil if they have not changed since the previous consensus index.
 // myPubIndex is the index of the local nodes public key in the list, if it is negative then this nodes
 // public key should not be in the  list (i.e. is not a member).
+// ChangedMembers must be true if either of the other return values are non-nil.
+// Even if they are nil, but the membership could have changed in a different way (i.e. by random membership)
+// it must return true
 func (mc *absMemberChecker) AbsGotDecision(newFixedCoord sig.Pub, newMemberPubs, newOtherPubs sig.PubList,
-	prevDec []byte, randBytes [32]byte, prevMember *absMemberChecker) (retMemberPubs, retAllPubs []sig.Pub) {
+	prevDec []byte, randBytes [32]byte, prevMember *absMemberChecker) (retMemberPubs, retAllPubs []sig.Pub,
+	changedMembers bool) {
 
 	if mc.gotDecision {
 		panic("called got decision twice")
 	}
+
 	if !prevMember.GetIndex().Index.IsInitIndex() && !prevMember.gotDecision {
 		panic("previous did not get decision")
 	}
@@ -244,16 +281,19 @@ func (mc *absMemberChecker) AbsGotDecision(newFixedCoord sig.Pub, newMemberPubs,
 		}
 
 		// We have to recompute the ids for the pubs since we added new ones
-		mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs, mc.memberPubStrings = sig.AfterSortPubs(
+		mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs, mc.memberPubStrings, mc.allPubs = sig.AfterSortPubs(
 			mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs)
 
 		if mc.fixedCoord != nil {
+			if mc.config.UseRandCoord {
+				panic("cannot have fixed and random coord")
+			}
 			var err error
 			if mc.fixedCoordID, err = mc.fixedCoord.GetPubID(); err != nil {
 				panic(err)
 			}
 		}
-		mc.allPubs = append(mc.sortedMemberPubs, mc.otherPubs...)
+		// mc.allPubs = append(mc.sortedMemberPubs, mc.otherPubs...)
 
 		// We are done choosing the static members, so set the return values
 		// (we change them here since if membership has not changed then we dont modify them)
@@ -264,17 +304,20 @@ func (mc *absMemberChecker) AbsGotDecision(newFixedCoord sig.Pub, newMemberPubs,
 	if mc.rndMemberCount > 0 {
 		if len(prevDec) > 0 { // only sent the new random bytes if a non-nil decision
 			mc.gotRand(randBytes, utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, retMemberPubs,
-				prevMember.absRandMemberInterface)
+				mc.memberPubStrings, prevMember.absRandMemberInterface)
 		} else { // otherwise we keep the same random bytes
-			mc.gotRand(prevMember.getRnd(), utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, retMemberPubs,
-				prevMember.absRandMemberInterface)
+			mc.gotRand(prevMember.GetRnd(), utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, retMemberPubs,
+				mc.memberPubStrings, prevMember.absRandMemberInterface)
 		}
+	}
+	if len(retMemberPubs) > 0 || len(retAllPubs) > 0 || mc.rndMemberCount > 0 {
+		changedMembers = true
 	}
 
 	return
 }
 
-func (mc *absMemberChecker) checkCoordInternal(round types.ConsensusRound, cordPub, checkPub sig.Pub) (sig.Pub, error) {
+func (mc *absMemberChecker) checkCoordInternal(_ types.ConsensusRound, cordPub, checkPub sig.Pub) (sig.Pub, error) {
 
 	cordPubID, err := cordPub.GetPubID()
 	if err != nil {
@@ -290,6 +333,13 @@ func (mc *absMemberChecker) checkCoordInternal(round types.ConsensusRound, cordP
 	return cordPub, nil
 }
 
+// Invalidated is called if the member checker has been made invalid.
+// This happens if a different set of members was chosen then was initial proposed.
+func (mc *absMemberChecker) Invalidated() error {
+	mc.stats.Remove(mc.idx)
+	return nil
+}
+
 // newAbsMc creates a new abstract membercheck with the same internals as mc (but with the new index).
 func (mc *absMemberChecker) newAbsMc(idx types.ConsensusIndex) *absMemberChecker {
 	newStats := mc.stats.New(idx)
@@ -298,8 +348,8 @@ func (mc *absMemberChecker) newAbsMc(idx types.ConsensusIndex) *absMemberChecker
 		newMc.absRandMemberInterface = mc.absRandMemberInterface.newRndMC(idx, newStats)
 		if idx.Index.IsInitIndex() {
 			// we do this here because we need to calculate the new values
-			newMc.gotRand(mc.getRnd(), utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, nil,
-				mc.absRandMemberInterface)
+			newMc.gotRand(mc.GetRnd(), utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), mc.myPriv, nil,
+				mc.memberPubStrings, mc.absRandMemberInterface)
 		}
 	}
 	newMc.stats = newStats
@@ -315,6 +365,7 @@ func (mc *absMemberChecker) newAbsMc(idx types.ConsensusIndex) *absMemberChecker
 	newMc.allPubs = mc.allPubs
 	newMc.rotateCord = mc.rotateCord
 	newMc.otherPubs = mc.otherPubs
+	newMc.config = mc.config
 	return newMc
 }
 
@@ -330,14 +381,24 @@ func (mc *absMemberChecker) SetMainChannel(mainChannel channelinterface.MainChan
 // allPubs are the list of all pubs in the system.
 // memberPubs pubs are the public keys that will now participate in consensus.
 // memberPubs must be equal to or a subset of newAllPubs.
-func (mc *absMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, otherPubs sig.PubList, initRandBytes [32]byte) {
+// If shared is non-nil then the local nodes on the machine will share the same initial member objects
+// (to save memory for experiments that run many nodes on the same machine).
+func (mc *absMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, otherPubs sig.PubList, initRandBytes [32]byte,
+	shared *consinterface.Shared) {
 
-	mc.sortedMemberPubs = memberPubKeys
-	mc.otherPubs = otherPubs
-	mc.fixedCoord = fixedCoord
+	if shared == nil {
+		mc.sortedMemberPubs = make(sig.PubList, len(memberPubKeys))
+		copy(mc.sortedMemberPubs, memberPubKeys)
+		mc.otherPubs = make(sig.PubList, len(otherPubs))
+		copy(mc.otherPubs, otherPubs)
+		mc.fixedCoord = fixedCoord
 
-	mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs, mc.memberPubStrings = sig.AfterSortPubs(
-		mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs)
+		mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs, mc.memberPubStrings, mc.allPubs = sig.AfterSortPubs(
+			mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs)
+	} else {
+		mc.myPriv, mc.fixedCoord, mc.sortedMemberPubs, mc.otherPubs, mc.memberPubStrings, mc.allPubs = shared.AfterSortPubs(
+			mc.myPriv, fixedCoord, memberPubKeys, otherPubs)
+	}
 
 	if mc.fixedCoord != nil {
 		var err error
@@ -345,17 +406,17 @@ func (mc *absMemberChecker) AddPubKeys(fixedCoord sig.Pub, memberPubKeys, otherP
 			panic(err)
 		}
 	}
-	mc.allPubs = append(mc.sortedMemberPubs, mc.otherPubs...)
+	// mc.allPubs = append(mc.sortedMemberPubs, mc.otherPubs...)
 
 	if mc.rndMemberCount > 0 {
 		mc.gotRand(initRandBytes, utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)),
-			mc.myPriv, mc.sortedMemberPubs, nil)
+			mc.myPriv, mc.sortedMemberPubs, mc.memberPubStrings, nil)
 	}
 }
 
-func (mc *absMemberChecker) GetMyVRF(id messages.MsgID) sig.VRFProof {
+func (mc *absMemberChecker) GetMyVRF(isProposal bool, id messages.MsgID) sig.VRFProof {
 	if mc.rndMemberCount > 0 {
-		return mc.getMyVRF(id)
+		return mc.getMyVRF(isProposal, id)
 	}
 	return nil
 }
@@ -429,9 +490,22 @@ func (mc *absMemberChecker) CheckMemberBytes(idx types.ConsensusIndex, pubBytes 
 // CheckRandMember can be called after CheckMemberBytes is successful when ChooseRandomMember is enabled.
 // If ChooseRandomMember is false it return nil,
 // otherwise it uses the random bytes and the VRF to decide if this pud is a random member.
-func (mc *absMemberChecker) CheckRandMember(pub sig.Pub, msgID messages.MsgID, isProposalMsg bool) error {
+func (mc *absMemberChecker) CheckRandMember(pub sig.Pub, hdr messages.InternalSignedMsgHeader, msgID messages.MsgID,
+	isLocal bool) error {
+
 	if mc.rndMemberCount == 0 {
 		return nil
 	}
-	return mc.checkRandMember(msgID, isProposalMsg, utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)), len(mc.sortedMemberPubs), pub)
+	isProposalMsg := messages.IsProposalHeader(mc.idx, hdr)
+	if err := mc.checkRandMember(msgID, isLocal, isProposalMsg, utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs)),
+		len(mc.sortedMemberPubs), pub); err != nil {
+
+		return err
+	}
+	if isLocal {
+		// record stats that we are a member this this msg type
+		mc.stats.MemberMsgID(hdr.GetMsgID())
+	}
+
+	return nil
 }

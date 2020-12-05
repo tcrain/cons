@@ -1,0 +1,104 @@
+
+- Experiments are run with up to 2000 consensus participants
+
+25 total nodes
+5 DC = 4 cores = 5 nodes
+
+2000 total participants / 5 = 400 participants per dc / 5 = 80 participants per node
+
+======================================
+Normal Types:
+======================================
+Single node count cons (1 participant per node): --> Regular crypto
+5, 15, 25
+
+Medium node count cons (10 particpant per node):
+50, 150, 250
+
+Many node count cons (40 particpant per node):
+400, 800, 1200
+
+
+Many node count cons (80 particpant per node):
+400, 800, 1200, 1600, 2000
+
+=> MvCons2, MvCons3, MvBinCons2, RBBcast1, RBBcast2 (use rotate coord)
+=> ECDSA, and BLS
+
+======================================
+Collect Broadcast Types:
+======================================
+Single node count cons (1 participant per node): --> Regular crypto
+5, 15, 25
+
+Medium node count cons (10 particpant per node):
+50, 150, 250
+
+Many node count cons (40 particpant per node):
+400, 800, 1200
+
+=> MvCons3 - Commit Bcast [rotate coord false b/c protocol rotates coord by default]
+=> MvCons2 - Commit Bcast, EchoCommit Bcast (use rotate coord)
+=> RBBcast1 - Commit Bcast (use rotate coord)
+=> TBLS
+
+======================================
+Normal Types (P2P):
+======================================
+Many node count cons (40 particpant per node):
+400, 1200, 2000
+
+======================================
+Multisig Types:
+======================================
+Medium node count cons (10 particpant per node):
+50, 150, 250
+
+Many node count cons (80 particpant per node):
+400, 1200, 2000
+
+Large node count cons (400 participant per node):
+2000, 6000, 10000
+
+=> MvCons2 (use rotate coord)
+=> with and without VRF
+=> BLS mltisig
+
+======================================
+VRF Random types Types:
+======================================
+100, 400, 1200, 2000 consensus members
+
+1000 nodes (40 participants per node)
+2000 nodes (80 participants per node)
+5000 nodes (200 participants per node)
+10000 nodes (400 participants per node)
+
+=> With fixed per cons VRF and VRF per message
+=> With multisig (with and without leader VRF)
+
+======================================
+Local Random Types (Cons):
+======================================
+
+100, 200, 400, 1200 consensus members
+
+1000 nodes (40 participants per node)
+2000 nodes (80 participants per node)
+5000 nodes (200 participants per node)
+10000 nodes (400 participants per node)
+
+=> With VRF and no VRF (rotate coord)
+
+======================================
+Local Random Types (Bcast):
+======================================
+
+100, 200, 400, 1200 consensus members
+
+1000 nodes (40 participants per node)
+2000 nodes (80 participants per node)
+5000 nodes (200 participants per node)
+10000 nodes (400 participants per node)
+
+=> With rotate coord

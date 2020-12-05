@@ -41,10 +41,12 @@ var minProposeSize = 10
 var maxProposeSize = 20
 
 type sharedState struct {
-	txPool    *transactionsm.TransactionPool
-	txAlloc   transactionsm.TxAlloc
-	txRetChan chan []transactionsm.TransactionInterface
-	randSeed  int64
+	startedStats bool
+	txPool       *transactionsm.TransactionPool
+	txAlloc      transactionsm.TxAlloc
+	txRetChan    chan []transactionsm.TransactionInterface
+	randSeed     int64
+	consumedTx   uint64
 }
 
 // SimpleTxProposer represents the statemachine object for the SimpleCons protocol, only this state machine can be used
@@ -82,8 +84,28 @@ func (spi *SimpleTxProposer) Collect() {
 	}
 }
 
+type SimpleTxStats struct {
+	MaxTxIDCommitted int
+	ConsumedTx       uint64
+	PoolStats        transactionsm.PoolStats
+}
+
+func (spi SimpleTxStats) StatsString(testDuration time.Duration) string {
+	_ = testDuration
+	return fmt.Sprintf("Max id committed: %v, consumed Tx: %v, %v", spi.MaxTxIDCommitted, spi.ConsumedTx, spi.PoolStats.String())
+}
+
 func (spi *SimpleTxProposer) StatsString(testDuration time.Duration) string {
-	return fmt.Sprintf("Max id committed: %v, %v", spi.maxTxIdCommitted, spi.txPool.String())
+	return spi.GetSMStats().StatsString(testDuration)
+}
+
+// GetSMStats returns the statistics object for the SM.
+func (spi *SimpleTxProposer) GetSMStats() consinterface.SMStats {
+	return SimpleTxStats{
+		MaxTxIDCommitted: spi.maxTxIdCommitted,
+		ConsumedTx:       spi.consumedTx,
+		PoolStats:        spi.txPool.GetStats(),
+	}
 }
 
 // runTxProposeThread is started after decision and proposes txs for the next consensus instance.
@@ -91,9 +113,9 @@ func (spi *SimpleTxProposer) StatsString(testDuration time.Duration) string {
 func (spi *SimpleTxProposer) runTxProposeThread() {
 	spi.txThread = true
 	go func() {
-		rand := rand.New(rand.NewSource(spi.randSeed + int64(spi.index.Index.(types.ConsensusInt))))
+		rnd := rand.New(rand.NewSource(spi.randSeed + int64(spi.index.Index.(types.ConsensusInt))))
 		for atomic.LoadInt32(&spi.startedNext) == 0 && !spi.txPool.BlockIfFull() { // run until the pool is closed
-			if err := spi.SubmitTransaction(spi.maxTxIdCommitted + rand.Intn(1000)); err != nil {
+			if err := spi.SubmitTransaction(spi.maxTxIdCommitted + rnd.Intn(1000)); err != nil {
 				logging.Info("Error during tx proposal: ", err)
 			}
 		}
@@ -102,8 +124,9 @@ func (spi *SimpleTxProposer) runTxProposeThread() {
 }
 
 // Init initalizes the simple proposal object state.
-func (spi *SimpleTxProposer) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt, needsConcurrent types.ConsensusInt,
-	mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType) {
+func (spi *SimpleTxProposer) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt,
+	needsConcurrent types.ConsensusInt, mainChannel channelinterface.MainChannel,
+	doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
 
 	spi.AbsInit(gc, lastProposal, needsConcurrent, mainChannel, doneChan)
 	spi.AbsRandSM.AbsRandInit(gc)
@@ -112,11 +135,13 @@ func (spi *SimpleTxProposer) Init(gc *generalconfig.GeneralConfig, lastProposal 
 	spi.txAlloc = func() transactionsm.TransactionInterface { return &transactionsm.TestTx{} }
 	spi.txPool = transactionsm.AllocateTransactionPool(poolSize, minProposeSize, maxProposeSize)
 	spi.txRetChan = make(chan []transactionsm.TransactionInterface, 1)
-	spi.runTxProposeThread()
+	if !basicInit {
+		spi.runTxProposeThread()
+	}
 }
 
 func (spi *SimpleTxProposer) txValidFunc(tx transactionsm.TransactionInterface) error {
-	if tx.(*transactionsm.TestTx).Id <= int(spi.maxTxIdCommitted) {
+	if tx.(*transactionsm.TestTx).Id <= spi.maxTxIdCommitted {
 		return types.ErrInvalidIndex
 	}
 	return nil
@@ -154,9 +179,12 @@ func (spi *SimpleTxProposer) HasDecided(proposer sig.Pub, nxt types.ConsensusInt
 
 		// Store the max committed id
 		for _, nxtTx := range txList.Items {
-			if int(nxtTx.(*transactionsm.TestTx).Id) > spi.maxTxIdCommitted {
-				spi.maxTxIdCommitted = int(nxtTx.(*transactionsm.TestTx).Id)
+			if nxtTx.(*transactionsm.TestTx).Id > spi.maxTxIdCommitted {
+				spi.maxTxIdCommitted = nxtTx.(*transactionsm.TestTx).Id
 			}
+		}
+		if spi.GetStartedRecordingStats() {
+			spi.consumedTx += uint64(len(txList.Items))
 		}
 
 		// remove any invalid transactions from the pool
@@ -234,7 +262,7 @@ func (spi *SimpleTxProposer) GetProposal() {
 	writer := bytes.NewBuffer(nil)
 	spi.RandGetProposal(writer)
 
-	// Encode the proposal
+	// DoEncode the proposal
 	txList := transactionsm.TransactionList{validTx, allocFunc}
 	_, err := txList.Encode(writer)
 	if err != nil {
@@ -252,7 +280,7 @@ func (spi *SimpleTxProposer) GetProposal() {
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *SimpleTxProposer) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
 	n := spi.GetRndNumBytes()
 	buf := bytes.NewReader(originProposal[n:])
@@ -277,7 +305,7 @@ func (spi *SimpleTxProposer) GetByzProposal(originProposal []byte,
 	if _, err := buff.Write(originProposal[:n]); err != nil {
 		panic(err)
 	}
-	// Encode the txs
+	// DoEncode the txs
 	if _, err := txList.Encode(buff); err != nil {
 		panic(err)
 	}
@@ -321,8 +349,12 @@ func (spi *SimpleTxProposer) StartIndex(nxt types.ConsensusInt) consinterface.St
 		sharedState:      spi.sharedState,
 		endChan:          make(chan int, 1),
 		prevItem:         spi}
-
+	ret.RandStartIndex(spi.randBytes)
 	ret.AbsStartIndex(nxt)
+	if !ret.startedStats && ret.GetStartedRecordingStats() {
+		ret.startedStats = true
+		ret.txPool.ResetStats()
+	}
 	return ret
 }
 

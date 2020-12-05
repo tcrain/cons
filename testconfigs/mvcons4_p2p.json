@@ -1,0 +1,19 @@
+{
+    "TestID": 4,
+    "ConsType": 14,
+    "StateMachineType": 2,
+    "MaxRounds": 10,
+    "NumTotalProcs": 10,
+    "NetworkType": 1,
+    "FanOut": 4,
+    "ConnectionType": 1,
+    "SigType": 0,
+    "UsePubIndex": true,
+    "MCType": 1,
+    "CheckDecisions": true,
+    "SleepCrypto": true,
+    "WarmUpInstances": 2,
+    "KeepPast": 10,
+    "AllowConcurrent": 5,
+    "MvCons4BcastType": 0
+}

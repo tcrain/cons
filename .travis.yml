@@ -2,13 +2,13 @@ language: go
 dist: bionic
 
 go:
-  - 1.14.x
+  - 1.15.x
 
 env:
   - PRINT_MIN=true GOPATH=/home/travis/gopath LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$GOPATH/src/github.com/open-quantum-safe/liboqs-go/.config
 
 before_install:
-  - sudo apt-get -y install git jq pkg-config autoconf automake libtool gcc libssl-dev python3-pytest unzip xsltproc doxygen graphviz make cmake ninja-build xsltproc python3-pytest-xdist
+  - sudo apt-get -y install git htop jq pkg-config autoconf automake libtool gcc libssl-dev python3-pytest unzip xsltproc doxygen graphviz make cmake ninja-build xsltproc python3-pytest-xdist
   - git clone -b master https://github.com/open-quantum-safe/liboqs.git
   - mkdir -p liboqs/build
   - cd liboqs/build

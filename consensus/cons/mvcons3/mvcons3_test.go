@@ -39,7 +39,7 @@ var mvTO = types.TestOptions{MCType: types.TrueMC, SigType: types.TBLS, IncludeP
 
 func TestMvCons3Basic(t *testing.T) {
 	cons.RunBasicTests(mvTO,
-		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, nil, t)
+		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, []int{}, t)
 }
 
 func TestMvCons3Byz(t *testing.T) {
@@ -48,6 +48,10 @@ func TestMvCons3Byz(t *testing.T) {
 }
 
 func TestMvCons3MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(mvTO,
 		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, nil, t)
 }
@@ -58,11 +62,35 @@ func TestMvCons3MsgDrop(t *testing.T) {
 }
 
 func TestMvCons3MultiSig(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMultiSigTests(mvTO,
 		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, []int{}, t)
 }
 
+func TestMvCons3SleepMultiSig(t *testing.T) {
+	to := mvTO
+	to.SleepCrypto = true
+	cons.RunMultiSigTests(to,
+		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, []int{}, t)
+}
+
+func TestMvCons3RandMC(t *testing.T) {
+	// we dont run MvCons3 with local rand because it won't terminate since processes
+	// stop as soon as they decide, but others might not decide that round
+	to := types.TestOptions{}
+	to.SleepCrypto = true
+	to.MCType = types.LaterMC
+	cons.RunRandMCTests(to, types.MvCons3Type, &MvCons3{}, MvCons3Config{}, false, []int{}, t)
+}
+
 func TestMvCons3P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunP2pNwTests(mvTO,
 		types.MvCons3Type, &MvCons3{}, MvCons3Config{}, []int{}, t)
 }

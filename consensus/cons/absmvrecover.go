@@ -20,9 +20,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package cons
 
 import (
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
@@ -35,15 +36,17 @@ type AbsMVRecover struct {
 	requestedRecover    map[types.HashStr][]*channelinterface.SendRecvChannel // external nodes that have asked for the leader's init message
 	requestRecoverTimer channelinterface.TimerInterface                       // timer for requesting the leader's init message from other nodes
 	index               types.ConsensusIndex
+	gc                  *generalconfig.GeneralConfig
 }
 
-func (abs *AbsMVRecover) InitAbsMVRecover(index types.ConsensusIndex) {
+func (abs *AbsMVRecover) InitAbsMVRecover(index types.ConsensusIndex, gc *generalconfig.GeneralConfig) {
 	abs.requestedRecover = make(map[types.HashStr][]*channelinterface.SendRecvChannel)
 	abs.index = index
+	abs.gc = gc
 }
 
-func (sc *AbsMVRecover) GotRequestRecover(validatedInitHashes map[types.HashStr]*channelinterface.DeserializedItem,
-	deser *channelinterface.DeserializedItem, initHeaders []messages.MsgHeader, senderChan *channelinterface.SendRecvChannel,
+func (sc *AbsMVRecover) GotRequestRecover(validatedInitHashes map[types.HashStr]*deserialized.DeserializedItem,
+	deser *deserialized.DeserializedItem, initHeaders []messages.MsgHeader, senderChan *channelinterface.SendRecvChannel,
 	items *consinterface.ConsInterfaceItems) {
 
 	w := deser.Header.(*messagetypes.MvRequestRecoverMessage)
@@ -61,22 +64,24 @@ func (sc *AbsMVRecover) StopRecoverTimeout() {
 	}
 }
 
-func (sc *AbsMVRecover) StartRecoverTimeout(index types.ConsensusIndex, channel channelinterface.MainChannel) {
+func (sc *AbsMVRecover) StartRecoverTimeout(index types.ConsensusIndex, channel channelinterface.MainChannel,
+	mc *consinterface.MemCheckers) {
 	// we haven't yet received the init message for the hash, so we request it from other nodes after a timeout
 	if sc.requestRecoverTimer == nil {
 		logging.Info("Got echos before proposal, requesting recover after timer for index", index)
-		deser := []*channelinterface.DeserializedItem{
+		deser := []*deserialized.DeserializedItem{
 			{
 				Index:          index,
 				HeaderType:     messages.HdrMvRecoverTimeout,
 				IsDeserialized: true,
+				MC:             mc,
 				IsLocal:        types.LocalMessage}}
-		sc.requestRecoverTimer = channel.SendToSelf(deser, config.MvConsRequestRecoverTimeout*time.Millisecond)
+		sc.requestRecoverTimer = channel.SendToSelf(deser, time.Duration(sc.gc.MvConsRequestRecoverTimeout)*time.Millisecond)
 	}
 }
 
 // sendRecover sends the init message to anyone who has send a RequestRecover message
-func (sc *AbsMVRecover) SendRecover(validatedInitHashes map[types.HashStr]*channelinterface.DeserializedItem,
+func (sc *AbsMVRecover) SendRecover(validatedInitHashes map[types.HashStr]*deserialized.DeserializedItem,
 	initHeaders []messages.MsgHeader, items *consinterface.ConsInterfaceItems) {
 
 	if len(sc.requestedRecover) == 0 {
@@ -92,8 +97,11 @@ func (sc *AbsMVRecover) SendRecover(validatedInitHashes map[types.HashStr]*chann
 				panic(err)
 			}
 			messages.AppendMessage(msg, initMsg.Message.Message)
+			sts := items.MC.MC.GetStats()
+			record := sts.IsRecordIndex()
 			for _, sendChan := range sendChans {
-				sendChan.MainChan.SendTo(msg.GetBytes(), sendChan.ReturnChan, items.MC.MC.GetStats().IsRecordIndex())
+				sendChan.MainChan.SendTo(msg.GetBytes(), sendChan.ReturnChan, record,
+					sts)
 			}
 			delete(sc.requestedRecover, hashStr)
 		}
@@ -110,8 +118,9 @@ func (sc *AbsMVRecover) BroadcastRequestRecover(preHeaders []messages.MsgHeader,
 		newMsg := messagetypes.NewMvRequestRecoverMessage()
 		newMsg.Index = sc.index
 		newMsg.ProposalHash = hash
+		sts := items.MC.MC.GetStats()
 		mainChannel.SendHeader(messages.AppendCopyMsgHeader(preHeaders, newMsg),
 			false, false, forwardChecker.GetNewForwardListFunc(),
-			items.MC.MC.GetStats().IsRecordIndex()) // TODO use a different forward function??
+			sts.IsRecordIndex(), sts) // TODO use a different forward function??
 	}
 }

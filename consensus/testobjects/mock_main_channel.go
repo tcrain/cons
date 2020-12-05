@@ -24,6 +24,7 @@ package testobjects
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/stats"
 	"time"
@@ -35,17 +36,17 @@ import (
 var mci = []channelinterface.NetConInfo{{"nw", "mock"}}
 
 type MockMainChannel struct {
-	selfMsgs   []*channelinterface.DeserializedItem
-	proposals  []*channelinterface.DeserializedItem
+	selfMsgs   []*deserialized.DeserializedItem
+	proposals  []*deserialized.DeserializedItem
 	msgs       [][]byte
 	msgHeaders []messages.MsgHeader
 }
 
-func (mmc *MockMainChannel) WaitUntilAtLeastSendCons(n int) error {
+func (mmc *MockMainChannel) WaitUntilAtLeastSendCons(int) error {
 	return nil
 }
-
-func (mmc *MockMainChannel) StartMsgProcessThreads() {}
+func (mmc *MockMainChannel) SetStaticNodeList(map[sig.PubKeyStr]channelinterface.NetNodeInfo) {}
+func (mmc *MockMainChannel) StartMsgProcessThreads()                                          {}
 func (mmc *MockMainChannel) GetMsgs() [][]byte {
 	return mmc.msgs
 }
@@ -63,13 +64,13 @@ func (mmc *MockMainChannel) GetMessages() [][]byte {
 	return mmc.msgs
 }
 
-func (mmc *MockMainChannel) GetProposals() []*channelinterface.DeserializedItem {
+func (mmc *MockMainChannel) GetProposals() []*deserialized.DeserializedItem {
 	ret := mmc.proposals
 	mmc.proposals = nil
 	return ret
 }
 
-func (mmc *MockMainChannel) GetSelfMessages() []*channelinterface.DeserializedItem {
+func (mmc *MockMainChannel) GetSelfMessages() []*deserialized.DeserializedItem {
 	return mmc.selfMsgs
 }
 
@@ -85,7 +86,7 @@ func (mmc *MockMainChannel) ClearSelfMessages() {
 	mmc.selfMsgs = nil
 }
 
-func (mmc *MockMainChannel) SendToSelf(deser []*channelinterface.DeserializedItem, timeout time.Duration) channelinterface.TimerInterface {
+func (mmc *MockMainChannel) SendToSelf(deser []*deserialized.DeserializedItem, timeout time.Duration) channelinterface.TimerInterface {
 	if timeout > 0 {
 		// TODO why no concurrency safety here?
 		return time.AfterFunc(timeout, func() { mmc.selfMsgs = append(mmc.selfMsgs, deser...) })
@@ -93,8 +94,8 @@ func (mmc *MockMainChannel) SendToSelf(deser []*channelinterface.DeserializedIte
 	mmc.selfMsgs = append(mmc.selfMsgs, deser...)
 	return nil
 }
-func (mmc *MockMainChannel) SendHeader(headers []messages.MsgHeader, isProposal, toSelf bool,
-	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool) {
+func (mmc *MockMainChannel) SendHeader(headers []messages.MsgHeader, _, _ bool,
+	_ channelinterface.NewForwardFuncFilter, _ bool, _ stats.ConsNwStatsInterface) {
 	for _, nxt := range headers {
 		if nxt != nil {
 			_, ok := nxt.(*messagetypes.ConsMessage)
@@ -104,37 +105,39 @@ func (mmc *MockMainChannel) SendHeader(headers []messages.MsgHeader, isProposal,
 		}
 	}
 }
-func (mmc *MockMainChannel) Send(buff []byte, isProposal, toSelf bool,
-	forwardChecker channelinterface.NewForwardFuncFilter, countStats bool) {
+func (mmc *MockMainChannel) Send(buff []byte, _, toSelf bool,
+	_ channelinterface.NewForwardFuncFilter, _ bool, _ stats.ConsNwStatsInterface) {
 
 	if toSelf {
 		mmc.msgs = append(mmc.msgs, buff)
 	}
 }
-func (mmc *MockMainChannel) SendAlways(buff []byte, toSelf bool, forwardChecker channelinterface.NewForwardFuncFilter,
-	countStats bool) {
+func (mmc *MockMainChannel) SendAlways(buff []byte, toSelf bool, _ channelinterface.NewForwardFuncFilter,
+	_ bool, _ stats.ConsNwStatsInterface) {
 
 	if toSelf {
 		mmc.msgs = append(mmc.msgs, buff)
 	}
 }
-func (mmc *MockMainChannel) ComputeDestinations(forwardFunc channelinterface.NewForwardFuncFilter) []channelinterface.SendChannel {
+func (mmc *MockMainChannel) ComputeDestinations(_ channelinterface.NewForwardFuncFilter) []channelinterface.SendChannel {
 	return nil
 }
-func (mmc *MockMainChannel) SendToPub(headers []messages.MsgHeader, pub sig.Pub, countStats bool) error {
-	mmc.SendHeader(headers, false, true, nil, countStats)
+func (mmc *MockMainChannel) SendToPub(headers []messages.MsgHeader, _ sig.Pub, countStats bool,
+	consStats stats.ConsNwStatsInterface) error {
+
+	mmc.SendHeader(headers, false, true, nil, countStats, consStats)
 	return nil
 }
-func (mmc *MockMainChannel) SendTo(buff []byte, dest channelinterface.SendChannel, countStats bool) {
+func (mmc *MockMainChannel) SendTo(_ []byte, _ channelinterface.SendChannel, _ bool, _ stats.ConsNwStatsInterface) {
 }
-func (mmc *MockMainChannel) AddExternalNode(conn channelinterface.NetNodeInfo) {
+func (mmc *MockMainChannel) AddExternalNode(_ channelinterface.NetNodeInfo) {
 }
-func (mmc *MockMainChannel) RemoveExternalNode(conn channelinterface.NetNodeInfo) {
+func (mmc *MockMainChannel) RemoveExternalNode(_ channelinterface.NetNodeInfo) {
 }
 func (mmc *MockMainChannel) MakeConnections([]sig.Pub) (errs []error)            { return }
 func (mmc *MockMainChannel) RemoveConnections([]sig.Pub) (errs []error)          { return }
 func (mmc *MockMainChannel) MakeConnectionsCloseOthers([]sig.Pub) (errs []error) { return }
-func (mmc *MockMainChannel) HasProposal(p *channelinterface.DeserializedItem) {
+func (mmc *MockMainChannel) HasProposal(p *deserialized.DeserializedItem) {
 	mmc.proposals = append(mmc.proposals, p)
 }
 func (mmc *MockMainChannel) Recv() (*channelinterface.RcvMsg, error) {
@@ -142,7 +145,7 @@ func (mmc *MockMainChannel) Recv() (*channelinterface.RcvMsg, error) {
 }
 func (mmc *MockMainChannel) Close() {
 }
-func (mmc *MockMainChannel) GotRcvConnection(rcvcon *channelinterface.SendRecvChannel) {
+func (mmc *MockMainChannel) GotRcvConnection(*channelinterface.SendRecvChannel) {
 }
 func (mmc *MockMainChannel) CreateSendConnection(channelinterface.NetNodeInfo) error {
 	return nil
@@ -160,6 +163,7 @@ func (mmc *MockMainChannel) EndInit() {
 }
 func (mmc *MockMainChannel) ReprocessMessage(*channelinterface.RcvMsg) {
 }
+func (mmc *MockMainChannel) ReprocessMessageBytes(msg []byte) {}
 func (mmc *MockMainChannel) GetBehaviorTracker() channelinterface.BehaviorTracker {
 	return nil
 }

@@ -13,6 +13,9 @@ user=${9:-$BENCHUSER}
 key=${10:-$KEYPATH}
 project=${11:-$PROJECTID}
 crednetialfile=${12:-$OAUTHPATH}
+launchNodes=${13:-1}
+shutdownNodes=${14:-1}
+enableprofile=${15:-$PROF}
 
 # Build
 bash ./scripts/buildgo.sh 1
@@ -28,5 +31,11 @@ go run ./cmd/gento/gento.go
 echo Running: bash ./scripts/cloudscripts/retrybench.sh
 bash ./scripts/cloudscripts/retrybench.sh
 
-# Shut down the bench nodes
-bash ./scripts/cloudscripts/afterbench.sh "$singleZoneCmd" "$regions" "$project" "$crednetialfile"
+if [ "$shutdownNodes" -eq 1 ]
+then
+  # Shut down the bench nodes
+  bash ./scripts/cloudscripts/afterbench.sh "$singleZoneCmd" "$regions" "$project" "$crednetialfile"
+else
+  echo Not shutting down nodes, run command to shut down:
+  echo bash ./scripts/cloudscripts/afterbench.sh "$singleZoneCmd" "$regions" "$project" "$crednetialfile"
+fi

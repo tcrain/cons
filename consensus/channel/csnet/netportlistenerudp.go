@@ -159,8 +159,8 @@ func (nrc *NetPortListenerUDP) removeExternalNode(conns channelinterface.NetNode
 
 // GetLocalNodeConnectionInfo returns the list of addresses that this local node is listening on.
 // With UDP we may use multiple addresses so we can split sending and receiving over them.
-func (nsc *NetPortListenerUDP) GetConnInfos() []channelinterface.NetConInfo {
-	return nsc.connInfos
+func (nrc *NetPortListenerUDP) GetConnInfos() []channelinterface.NetConInfo {
+	return nrc.connInfos
 }
 
 // send to self to be sure channel is up
@@ -171,11 +171,12 @@ func (nrc *NetPortListenerUDP) sendToSelf(connIdx int, conn *net.UDPConn) {
 	for i := 0; i < 10; i++ {
 		tmpaddr := conn.LocalAddr()
 		nwaddr, err := net.ResolveUDPAddr(tmpaddr.Network(), tmpaddr.String())
+		utils.PanicNonNil(err)
 		addr := &net.UDPAddr{}
 		addr.IP = net.ParseIP("127.0.0.1") // TODO should get exernal IP here?
 		addr.Port = nwaddr.Port
 		msg := []byte("test")
-		conn.SetDeadline(time.Now().Add(time.Second))
+		_ = conn.SetDeadline(time.Now().Add(time.Second))
 		n, err = conn.WriteTo(msg, addr)
 		if err != nil || n != len(msg) {
 			logging.Error(err)
@@ -189,7 +190,7 @@ func (nrc *NetPortListenerUDP) sendToSelf(connIdx int, conn *net.UDPConn) {
 		}
 		nrc.connInfos[connIdx] = channelinterface.NetConInfoFromAddr(addr)
 		logging.Info("Done send to self on ", conn.LocalAddr())
-		conn.SetDeadline(time.Time{})
+		_ = conn.SetDeadline(time.Time{})
 		return
 	}
 	panic(err)
@@ -284,7 +285,7 @@ func (nrc *NetPortListenerUDP) runReadLoop(conn *net.UDPConn) {
 				case 1, 2:
 					err = nrc.netMainChannel.connStatus.addRecvConnection(netConn.nci.AddrList[0], netConn)
 				case 0:
-					err = nrc.netMainChannel.connStatus.removeRecvConnection(netConn.nci.AddrList[0])
+					err = nrc.netMainChannel.connStatus.removeRecvConnection(netConn.nci.AddrList[0], &nrc.wgReadGroup)
 				default:
 					logging.Error("received invalid single byte UDP msg", buff[0])
 				}

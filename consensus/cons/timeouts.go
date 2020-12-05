@@ -20,9 +20,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package cons
 
 import (
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/types"
@@ -57,12 +58,22 @@ func GetTimeout(round types.ConsensusRound, t int) time.Duration {
 // The timeout for the first t rounds is 0.
 // After this, it increases by 1 millisecond each round.
 // TODO need to tune this for each network setup.
-func GetMvTimeout(round types.ConsensusRound, t int) time.Duration {
+func GetMvTimeout(round types.ConsensusRound, t int, gc *generalconfig.GeneralConfig) time.Duration {
 	if round <= types.ConsensusRound(t) {
-		return config.MvConsTimeout * time.Millisecond
+		return time.Duration(gc.MvConsTimeout) * time.Millisecond
 	}
 
-	to := time.Duration(round-types.ConsensusRound(t)) * config.MvConsTimeout * time.Millisecond
+	to := time.Duration(round-types.ConsensusRound(t)) * time.Duration(gc.MvConsTimeout) * time.Millisecond
+	return to
+}
+
+// GetMvVRFTimeout is the same as GetMvTimeout, except uses the VRF configured timeout value
+func GetMvVRFTimeout(round types.ConsensusRound, t int, gc *generalconfig.GeneralConfig) time.Duration {
+	if round <= types.ConsensusRound(t) {
+		return time.Duration(gc.MvConsVRFTimeout) * time.Millisecond
+	}
+
+	to := time.Duration(round-types.ConsensusRound(t)) * time.Duration(gc.MvConsVRFTimeout) * time.Millisecond
 	return to
 }
 
@@ -70,25 +81,42 @@ func StartInitTimer(round types.ConsensusRound, item *consinterface.ConsInterfac
 	cnl channelinterface.MainChannel) channelinterface.TimerInterface {
 
 	// Start the init timer
-	deser := []*channelinterface.DeserializedItem{
+	deser := []*deserialized.DeserializedItem{
 		{
 			Index:          item.ConsItem.GetIndex(),
 			HeaderType:     messages.HdrMvInitTimeout,
 			IsDeserialized: true,
 			Header:         (messagetypes.MvInitMessageTimeout)(round),
+			MC:             item.MC,
 			IsLocal:        types.LocalMessage}}
-	return cnl.SendToSelf(deser, GetMvTimeout(round, item.MC.MC.GetFaultCount()))
+	return cnl.SendToSelf(deser, GetMvTimeout(round, item.MC.MC.GetFaultCount(), item.ConsItem.GetGeneralConfig()))
+}
+
+func StartInitVRFTimer(round types.ConsensusRound, item *consinterface.ConsInterfaceItems,
+	cnl channelinterface.MainChannel) channelinterface.TimerInterface {
+
+	// Start the init timer
+	deser := []*deserialized.DeserializedItem{
+		{
+			Index:          item.ConsItem.GetIndex(),
+			HeaderType:     messages.HdrMvInitVRFTimeout,
+			IsDeserialized: true,
+			MC:             item.MC,
+			// Header:         (messagetypes.MvInitMessageTimeout)(round),
+			IsLocal: types.LocalMessage}}
+	return cnl.SendToSelf(deser, GetMvVRFTimeout(round, item.MC.MC.GetFaultCount(), item.ConsItem.GetGeneralConfig()))
 }
 
 func StartEchoTimer(round types.ConsensusRound, item *consinterface.ConsInterfaceItems,
 	cnl channelinterface.MainChannel) channelinterface.TimerInterface {
 	// Start the init timer
-	deser := []*channelinterface.DeserializedItem{
+	deser := []*deserialized.DeserializedItem{
 		{
 			Index:          item.ConsItem.GetIndex(),
 			HeaderType:     messages.HdrMvEchoTimeout,
 			IsDeserialized: true,
+			MC:             item.MC,
 			Header:         (messagetypes.MvEchoMessageTimeout)(round),
 			IsLocal:        types.LocalMessage}}
-	return cnl.SendToSelf(deser, GetMvTimeout(round, item.MC.MC.GetFaultCount()))
+	return cnl.SendToSelf(deser, GetMvTimeout(round, item.MC.MC.GetFaultCount(), item.ConsItem.GetGeneralConfig()))
 }

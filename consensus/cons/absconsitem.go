@@ -23,9 +23,11 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
+	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/types"
 )
 
@@ -35,7 +37,7 @@ type AbsConsItem struct {
 	*generalconfig.GeneralConfig
 	Index         types.ConsensusIndex // The index of this consensus
 	PreHeaders    []messages.MsgHeader // Headers to be appended to the beginning of all consensus messages for this specific consensus instance.
-	isMember      int                  // 0 if it is not yet known if this node is a member of this consensus, 1 if this node is not a member, 0 if this node is a member
+	isMember      types.IsMember       // 0 if it is not yet known if this node is a member of this consensus, 1 if this node is not a member, 2 if this node is a member
 	CommitProof   []messages.MsgHeader // Proof of committal from last consensus round
 	ConsItems     *consinterface.ConsInterfaceItems
 	PrevItem      consinterface.ConsItem
@@ -45,6 +47,47 @@ type AbsConsItem struct {
 	BroadcastFunc consinterface.ByzBroadcastFunc
 	GotProposal   bool
 	MainChannel   channelinterface.MainChannel
+	Decided       bool
+}
+
+func (sc *AbsConsItem) Collect() {
+	sc.ConsItems = nil
+	sc.PrevItem = nil
+	sc.NextItem = nil
+}
+
+// GetCustomRecoverMsg is called when there is no progress after a timeout.
+// It returns a NoProgress message.
+func (sc *AbsConsItem) GetCustomRecoverMsg(createEmpty bool) messages.MsgHeader {
+	if createEmpty {
+		return messagetypes.NewNoProgressMessage(types.ConsensusIndex{}, false, 0)
+	} else {
+		return messagetypes.NewNoProgressMessage(sc.Index, sc.Decided, int(sc.GeneralConfig.TestIndex))
+	}
+}
+
+// ProcessCustomRecoveryMessage panics as this consensus does not use a custom recovery message
+// (the recovery uses the default functions in the consensus state objects).
+func (sc *AbsConsItem) ProcessCustomRecoveryMessage(item *deserialized.DeserializedItem,
+	senderChan *channelinterface.SendRecvChannel) {
+
+	_, _ = item, senderChan
+	panic("should not reach")
+}
+
+// SetDecided should be called by the consensus implementation when a value is decided.
+func (sc *AbsConsItem) SetDecided() {
+	sc.Decided = true
+}
+
+// GetRecoverMsgType returns the HeaderID of the recovery messages used by this consensus.
+func (sc *AbsConsItem) GetRecoverMsgType() messages.HeaderID {
+	return messages.HdrNoProgress
+}
+
+// ForwardOldIndices returns false.
+func (sc *AbsConsItem) ForwardOldIndices() bool {
+	return false
 }
 
 // HasStarted returns true if Start has ben called
@@ -77,8 +120,10 @@ func (sc *AbsConsItem) SetCommitProof(prf []messages.MsgHeader) {
 
 // GetPrevCommitProof returns a signed message header that counts at the commit message for the previous consensus.
 // This should only be called after DoneKeep has been called on this instance.
-func (sc *AbsConsItem) GetPrevCommitProof() []messages.MsgHeader {
-	return sc.CommitProof
+// cordPub is nil here, but should be overwritten with the expected public key of the coordinator of the current round
+// if the consensus supports collect broadcast
+func (sc *AbsConsItem) GetPrevCommitProof() (cordPub sig.Pub, proof []messages.MsgHeader) {
+	return nil, sc.CommitProof
 }
 
 // Start should be called once the consensus instance has started.
@@ -136,7 +181,7 @@ func GenerateAbsState(index types.ConsensusIndex, items *consinterface.ConsInter
 	aci.BroadcastFunc = broadcastFunc
 	aci.PreHeaders = make([]messages.MsgHeader, len(aci.InitHeaders))
 	copy(aci.PreHeaders, aci.InitHeaders)
-	aci.isMember = 0
+	aci.isMember = types.PossibleMember
 	aci.ConsItems = items
 	aci.PrevItem = prevItem
 	// _, ok := aci.Index.Index.(types.ConsensusHash)
@@ -150,24 +195,26 @@ func GenerateAbsState(index types.ConsensusIndex, items *consinterface.ConsInter
 
 // ComputeDecidedValue returns decision.
 func (sc *AbsConsItem) ComputeDecidedValue(state []byte, decision []byte) []byte {
+	_ = state
 	return decision
 }
 
 // CheckMemberLocal checks if the node is a member of the consensus.
 func (sc *AbsConsItem) CheckMemberLocal() bool {
 	switch sc.isMember {
-	case 0: // 0 means we need to check the member checker for membership
+	case types.PossibleMember: // 0 means we need to check the member checker for membership
 		if consinterface.CheckMemberLocal(sc.ConsItems.MC) {
 			logging.Info("I AM a member", sc.GeneralConfig.TestIndex, sc.Index)
-			sc.isMember = 2
+			sc.isMember = types.MemberNode
+			sc.ConsItems.MC.MC.GetStats().IsMember()
 		} else {
 			logging.Info("I am NOT a member", sc.GeneralConfig.TestIndex, sc.Index)
-			sc.isMember = 1
+			sc.isMember = types.NonMemberNode
 		}
 		return sc.CheckMemberLocal()
-	case 1: // is not a member
+	case types.NonMemberNode: // is not a member
 		return false
-	case 2: // is a member
+	case types.MemberNode: // is a member
 		return true
 	default:
 		panic("invalid member check")
@@ -175,12 +222,14 @@ func (sc *AbsConsItem) CheckMemberLocal() bool {
 }
 
 // CheckMemberLocalMsg checks if the local node is a member of the consensus for this message type
-func (sc *AbsConsItem) CheckMemberLocalMsg(msgID messages.MsgID) bool {
+func (sc *AbsConsItem) CheckMemberLocalMsg(hdr messages.InternalSignedMsgHeader) bool {
 	if sc.CheckMemberLocal() {
 		// is proposal message is true since we always send the message when creating it locally
-		return consinterface.CheckRandMember(sc.ConsItems.MC, sc.ConsItems.MC.MC.GetMyPriv().GetPub(),
-			true, msgID) == nil
-		// return aci.ConsItems.MC.MC.CheckRandMember(aci.Priv.GetPub(), msgID, true) == nil
+		if consinterface.CheckRandMember(sc.ConsItems.MC.MC,
+			sc.ConsItems.MC.MC.GetMyPriv().GetPub(), hdr, hdr.GetMsgID(), true) == nil { // I am a random member
+
+			return true
+		}
 	}
 	return false
 }

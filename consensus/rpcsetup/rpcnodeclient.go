@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package rpcsetup
 
 import (
+	"github.com/tcrain/cons/consensus/consinterface"
 	"net/rpc"
 )
 
@@ -49,7 +50,8 @@ func (rnc *RPCNodeClient) GetCausalDecisions(i int) (dec CausalDecisions, err er
 }
 
 // GetResults calls RunningCons.GetResults for index i at the remote node.
-func (rnc *RPCNodeClient) GetResults(i int) (res RpcResults, err error) {
+func (rnc *RPCNodeClient) GetResults(i int, proposerStatsObj consinterface.SMStats) (res RpcResults, err error) {
+	res.SMStats = proposerStatsObj
 	err = rnc.cli.Call("RunningCons.GetResults", i, &res)
 	return
 }

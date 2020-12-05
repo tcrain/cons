@@ -20,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package bincons1
 
 import (
-	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/types"
 	"testing"
 
@@ -31,8 +31,8 @@ import (
 )
 
 // CreateAuxProofItems is used during unit tests to create a list of signed message supporting a binvalue and round.
-func CreateAuxProofItems(idx types.ConsensusIndex, round types.ConsensusRound, binVal types.BinVal, bct cons.ConsTestItems, t *testing.T) []*channelinterface.DeserializedItem {
-	ret := make([]*channelinterface.DeserializedItem, len(bct.PrivKeys))
+func CreateAuxProofItems(idx types.ConsensusIndex, round types.ConsensusRound, binVal types.BinVal, bct cons.ConsTestItems, t *testing.T) []*deserialized.DeserializedItem {
+	ret := make([]*deserialized.DeserializedItem, len(bct.PrivKeys))
 
 	for i := range bct.PrivKeys {
 		priv := bct.PrivKeys[i]
@@ -60,7 +60,7 @@ func CreateAuxProofItems(idx types.ConsensusIndex, round types.ConsensusRound, b
 			t.Error(err)
 		}
 
-		ret[i] = &channelinterface.DeserializedItem{
+		ret[i] = &deserialized.DeserializedItem{
 			Index:          idx,
 			HeaderType:     messages.HdrAuxProof,
 			Header:         dser,

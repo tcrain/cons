@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/stats"
@@ -63,9 +64,10 @@ type MemberChecker interface {
 	// CheckRandMember can be called after CheckMemberBytes is successful when ChooseRandomMember is enabled.
 	// MsgID is the id of the message being checked.
 	// IsProposal is true if msgID corresponds to a proposal message for the current consensus type.
-	CheckRandMember(pub sig.Pub, msgID messages.MsgID, isProposalMsg bool) error
+	CheckRandMember(pub sig.Pub, hdr messages.InternalSignedMsgHeader, msgID messages.MsgID, isLocal bool) error
 	// SelectRandMembers returns true if the member checker is selecting random members.
 	RandMemberType() types.RndMemberType
+	GetRnd() [32]byte
 
 	// UpdateState is called when the previous consensus instance decides, the input is the decision plus the previous member checker.
 	// Calling this should not change what IsReady returns, only after FinishUpdateState should IsReady always return true.
@@ -77,18 +79,30 @@ type MemberChecker interface {
 	// newMemberPubs must be a equal to or a subset of newAllPubs.
 	// If membership is not changed since the previous consensus instance then nil is returned for these items.
 	// Proof is the vrf proof of the current node if random membership is enabled.
+	// futureFixed the same value returned by consinterface.ConsItem GetDecision(),
+	// i.e. the first larger index that this decision does not depend
+	// on (normally this is the current index + 1). prvIdx and futureFixed are different for MvCons3 as that
+	// consensus piggybacks consensus instances on top of eachother.
 	// The return values are nil if the membership has not changed.
+	// ChangedMembership must be true if either of the other return values are non-nil.
+	// Even if they are nil, but the membership could have changed in a different way (i.e. by random membership)
+	// it must return true
 	UpdateState(fixedCoord sig.Pub, prevDec []byte, randBytes [32]byte,
-		prevMember MemberChecker, prevSM GeneralStateMachineInterface) (newMemberPubs, newAllPubs []sig.Pub)
+		prevMember MemberChecker, prevSM GeneralStateMachineInterface,
+		futureFixed types.ConsensusID) (newMemberPubs, newAllPubs []sig.Pub, changedMembership bool)
 	// DoneNextUpdateState is called when the member checker will no longer be used as input to generate a new member checker
 	// as the prevMemberChecker to update state.
 	DoneNextUpdateState() error
+	// Invalidated is called if the member checker has been made invalid.
+	// This happens if a different set of members was chosen then was initial proposed.
+	// Currently this is only supported when using total ordering.
+	Invalidated() error
 
 	// GotVrf should be called when a node's VRF proof is received for this consensus instance.
 	// If the VRF was valid it returns the uint64 that represents the vrf // TODO is it sufficient to just use the first 8 bytes of the rand?
-	GotVrf(pub sig.Pub, msgID messages.MsgID, proof sig.VRFProof) error
+	GotVrf(pub sig.Pub, isProposal bool, msgID messages.MsgID, proof sig.VRFProof) error
 	// GetMyVRF returns the vrf proof for the local node.
-	GetMyVRF(id messages.MsgID) sig.VRFProof
+	GetMyVRF(isProposal bool, id messages.MsgID) sig.VRFProof
 
 	// GetNewPub returns an empty public key object.
 	GetNewPub() sig.Pub
@@ -134,7 +148,9 @@ type MemberChecker interface {
 	// allPubs are the list of all pubs in the system.
 	// memberPubs pubs are the public keys that will now participate in consensus.
 	// memberPubs must be equal to or a subset of newAllPubs.
-	AddPubKeys(fixedCoord sig.Pub, memberPubKeys, allPubKeys sig.PubList, initRandBytes [32]byte)
+	// If shared is non-nil then the local nodes on the machine will share the same initial member objects
+	// (to save memory for experiments that run many nodes on the same machine).
+	AddPubKeys(fixedCoord sig.Pub, memberPubKeys, allPubKeys sig.PubList, initRandBytes [32]byte, shared *Shared)
 
 	// SetMainChannel is called on the initial member checker to inform it of the network channel object
 	SetMainChannel(mainChannel channelinterface.MainChannel)
@@ -150,9 +166,11 @@ type SpecialPubMemberChecker interface {
 	// CheckMemberLocalMsg checks if pub is a special member and returns new pub that has all the values filled.
 	// This is called after MemberChecker.CheckMemberBytes in case a normal member is not found.
 	// This sould be safe to be called concurrently.
+	// It should also check if the member is a random member by calling CheckRandMember before returning successfullly.
 	// TODO use a special pub type?
 	// TODO this should be called with just they bytes like MemberChecker.CheckMemberBytes
-	CheckMember(types.ConsensusIndex, sig.Pub) (sig.Pub, error)
+	CheckMember(idx types.ConsensusIndex, pub sig.Pub, mc MemberChecker,
+		hdr messages.InternalSignedMsgHeader, msgID messages.MsgID) (sig.Pub, error)
 }
 
 // CheckCoord checks if pub is a coordinator, for the round and MsgID, returning an error if it is not.
@@ -213,7 +231,7 @@ func CheckMemberCoord(mc *MemCheckers, rnd types.ConsensusRound,
 
 	randVal, _, err := CheckCoord(sigItem.Pub, mc, rnd, msg.GetMsgID())
 	if err != nil {
-		logging.Errorf("Got proposal from invalid cord at index %v", mc.MC.GetIndex())
+		logging.Warningf("Got proposal from invalid cord at index %v", mc.MC.GetIndex())
 		return err
 	}
 	sigItem.VRFID = randVal
@@ -241,11 +259,11 @@ func CheckMemberLocal(mc *MemCheckers) bool {
 // Note that CheckMember already calls this function internally to if random membership is supported.
 // Random membership means that out of the known members only a certain set will be chosen randomly
 // for this specific consensus/message pair.
-func CheckRandMember(mc *MemCheckers, pub sig.Pub, isProposalMsg bool, msgID messages.MsgID) error {
+func CheckRandMember(mc MemberChecker, pub sig.Pub, hdr messages.InternalSignedMsgHeader, msgId messages.MsgID, isLocal bool) error {
 	// Check if we are a member based on random selection
-	if err := mc.MC.CheckRandMember(pub, msgID, isProposalMsg); err != nil {
+	if err := mc.CheckRandMember(pub, hdr, msgId, isLocal); err != nil {
 		// If we are not a random member we still may be the fixed coord, so check
-		switch _, fixErr := mc.MC.CheckFixedCoord(pub); fixErr {
+		switch _, fixErr := mc.CheckFixedCoord(pub); fixErr {
 		case types.ErrNoFixedCoord: // no fixed coord
 			return err
 		case nil: // We are the fixed coord
@@ -259,39 +277,42 @@ func CheckRandMember(mc *MemCheckers, pub sig.Pub, isProposalMsg bool, msgID mes
 
 // CheckMemberLocalMsg checks if the pub is a member for the index, and validates the signature with the pub,
 // and returns a new pub object that has all the values filled.
-func CheckMember(mc *MemCheckers, idx types.ConsensusIndex, sigItem *sig.SigItem, msg *sig.MultipleSignedMessage) error {
+func CheckMember(mc *MemCheckers, idx types.ConsensusIndex, sigItem *sig.SigItem, msg *sig.MultipleSignedMessage,
+	gc *generalconfig.GeneralConfig) error {
 	if !mc.MC.CheckIndex(idx) {
 		panic(fmt.Sprintf("wrong member checker index %v", idx))
 	}
-	msgID := msg.GetMsgID()
 	prePub := sigItem.Pub
-	str, err := prePub.GetPubID()
-	if err != nil {
-		return err
-	}
+	msgID := msg.GetMsgID()
 
-	sigItem.Pub = mc.MC.CheckMemberBytes(idx, str)
-	if sigItem.Pub == nil { // We are not a normal member, check for special member
-		sigItem.Pub, err = mc.SMC.CheckMember(idx, prePub)
-		if err != nil { // Not found as a normal or special member
-			sigItem.Pub = prePub
+	// Frist check if special member type
+	newPub, err := mc.SMC.CheckMember(idx, prePub, mc.MC, msg, msgID)
+	if err == nil { // Found as special member
+		sigItem.Pub = newPub
+	} else { // Not found as a special member
+		if gc.UseMultiSig { // For multi-sig we only use the special member checker (to avoid using the bitids concurrently)
 			return types.ErrNotMember
 		}
-	} else { // We are a normal member, check random member if needed
-		if sigItem.VRFProof != nil { // Add the VRF proof  to the random member checker
-			err = mc.MC.GotVrf(sigItem.Pub, msgID, sigItem.VRFProof)
-			if err != nil {
+		str, err := prePub.GetPubID()
+		if err != nil {
+			return err
+		}
+		sigItem.Pub = mc.MC.CheckMemberBytes(idx, str) // Check normal member
+		if sigItem.Pub == nil {                        // Not found as normal member
+			sigItem.Pub = prePub
+			return types.ErrNotMember
+		} else { // We are a normal member, check random member if needed
+			if sigItem.VRFProof != nil { // Add the VRF proof  to the random member checker
+				isProposalMsg := messages.IsProposalHeader(msg.Index, msg)
+				err = mc.MC.GotVrf(sigItem.Pub, isProposalMsg, msgID, sigItem.VRFProof)
+				if err != nil {
+					return err
+				}
+			}
+			// Check if we are a member based on random selection
+			if err := CheckRandMember(mc.MC, sigItem.Pub, msg, msgID, false); err != nil {
 				return err
 			}
-		}
-		_, valMsg, err := msg.GetBaseMsgHeader().NeedsSMValidation(msg.Index, 0)
-		if err != nil {
-			panic(err) // TODO panic here or return err?
-			return err
-		}
-		// Check if we are a member based on random selection
-		if err := CheckRandMember(mc, sigItem.Pub, valMsg != nil, msgID); err != nil {
-			return err
 		}
 	}
 	mc.MC.Validated(msg.GetSignType())

@@ -53,6 +53,7 @@ func newNetConnectionUDP(nci channelinterface.NetNodeInfo, netMainChannel *NetMa
 		netMainChannel.netPortListener.(*NetPortListenerUDP).sendChan <- sendinfo{buff: []byte{1},
 			addr: nci.AddrList[0]}
 		go func() {
+
 			/*			defer func() { // TODO clean this up, here we can panic because we send on a close channel (line 229 of net_main_channel)
 						if r := recover(); r != nil {
 							logging.Info(r)
@@ -95,7 +96,7 @@ func (nsc *NetConnectionUDP) GetConnInfos() channelinterface.NetNodeInfo {
 }
 
 // Close shuts down the connection
-func (nsc *NetConnectionUDP) Close(closeType channelinterface.ChannelCloseType) error {
+func (nsc *NetConnectionUDP) Close(channelinterface.ChannelCloseType) error {
 	// UDP conns use the main listen channel
 	if atomic.CompareAndSwapInt32(&nsc.closed, 0, 1) && nsc.closeChan != nil {
 		close(nsc.closeChan)

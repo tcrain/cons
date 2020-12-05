@@ -32,12 +32,12 @@ import (
 // It is not concurrency safe.
 type AccountTable struct {
 	table *copywritemap.CopyWriteMap // map[sig.PubKeyStr]*Account
-	stats AccountStats
+	stats *AccountStats
 }
 
 // NewAccountTable generates an empty account table.
 func NewAccountTable() *AccountTable {
-	return &AccountTable{table: copywritemap.NewCopyWriteMap()} // make(map[sig.PubKeyStr]*Account)}
+	return &AccountTable{table: copywritemap.NewCopyWriteMap(), stats: &AccountStats{}} // make(map[sig.PubKeyStr]*Account)}
 }
 
 func (at *AccountTable) Copy() *AccountTable {

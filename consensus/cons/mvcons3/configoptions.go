@@ -28,11 +28,6 @@ type MvCons3Config struct {
 	cons.StandardMvConfig
 }
 
-// RequiresStaticMembership returns true if this consensus doesn't allow changing membership.
-func (MvCons3Config) RequiresStaticMembership() bool {
-	return true
-}
-
 // GetSigTypes return the types of signatures supported by the consensus
 func (MvCons3Config) GetSigTypes(gt cons.GetOptionType) []types.SigType {
 	switch gt {
@@ -52,19 +47,7 @@ func (MvCons3Config) GetOrderingTypes(gt cons.GetOptionType) []types.OrderingTyp
 
 // GetMemberCheckerTypes returns the types of member checkers valid for the consensus.
 func (MvCons3Config) GetMemberCheckerTypes(gt cons.GetOptionType) []types.MemberCheckerType {
-	return []types.MemberCheckerType{types.TrueMC}
-}
-
-// GetRandMemberCheckerTypes returns the types of random member checkers supported by the consensus
-func (MvCons3Config) GetRandMemberCheckerTypes(gt cons.GetOptionType) []types.RndMemberType {
-	return []types.RndMemberType{types.NonRandom}
-
-}
-
-// GetUseMultiSigTypes() []bool
-// GetRotateCoordTypes returns the values for if the consensus supports rotating coordinator or not or both.
-func (MvCons3Config) GetRotateCoordTypes(gt cons.GetOptionType) []bool {
-	return types.WithFalse
+	return []types.MemberCheckerType{types.TrueMC, types.LaterMC}
 }
 
 // GetAllowConcurrentTypes returns the values for if the consensus supports running concurrent consensus instances

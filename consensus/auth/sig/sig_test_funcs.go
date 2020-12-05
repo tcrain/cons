@@ -21,6 +21,7 @@ package sig
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/types"
@@ -37,8 +38,9 @@ import (
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 var SignMsgSize = 26
-var BLSSigInfoSize = 85
-var EdSigInfoSize = 84
+
+//var BLSSigInfoSize = 85
+//var EdSigInfoSize = 84
 
 var EncryptMsgSize = 46
 var EncryptOverhead = config.EncryptOverhead // 24
@@ -54,7 +56,7 @@ var AdditionalIndecies = []types.ConsensusID{
 	types.ConsensusHash(types.GetHash(utils.Uint64ToBytes(uint64(TestIndex + 3)))),
 }
 
-func getTime(toRun func() error, t *testing.T) testing.BenchmarkResult {
+func getTime(toRun func() error, _ *testing.T) testing.BenchmarkResult {
 	return testing.Benchmark(
 		func(b *testing.B) {
 			b.ResetTimer()
@@ -115,7 +117,7 @@ func SigTestPrintStats(newPriv func() (Priv, error), t *testing.T) {
 
 	if _, ok := priv.(ThreshStateInterface); ok {
 		sigItems := make([]Sig, len(privs))
-		for i := range sigItems {
+		for i := range privs {
 			sigItem, err := privs[i].GenerateSig(msg, nil, types.NormalSignature)
 			assert.Nil(t, err)
 			sigItems[i] = sigItem.Sig
@@ -255,7 +257,7 @@ func SigTestRand(newPriv func() (Priv, error), t *testing.T) {
 
 	var binCount [2]int
 	for i := 0; i < 100; i++ {
-		msg := BasicSignedMessage("message to encode" + string(i))
+		msg := BasicSignedMessage(fmt.Sprintf("message to encode, %v", i))
 		sig, err := priv.Sign(msg)
 		assert.Nil(t, err)
 
@@ -749,7 +751,7 @@ func SigTestMultiSignTestMsgSerialize(newPriv func() (Priv, error), t *testing.T
 			} else if oldid2 == id {
 				lpriv = priv2
 			} else {
-				t.Error("invalid id")
+				t.Fatal("invalid id")
 			}
 			sigItem.Pub = lpriv.GetPub()
 		}

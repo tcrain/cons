@@ -1,0 +1,22 @@
+{
+    "TestID": 3,
+    "ConsType": 14,
+    "StateMachineType": 2,
+    "MaxRounds": 10,
+    "NumTotalProcs": 8,
+    "NetworkType": 0,
+    "FanOut": 0,
+    "ConnectionType": 1,
+    "IncludeProofs": false,
+    "SigType": 0,
+    "UsePubIndex": true,
+    "SleepValidate": false,
+    "MCType": 1,
+    "CheckDecisions": true,
+    "BinConsPercentOnes": 50,
+    "SharePubsRPC": true,
+    "SleepCrypto": true,
+    "WarmUpInstances": 1,
+    "AllowConcurrent": 5,
+    "MvCons4BcastType": 1
+}

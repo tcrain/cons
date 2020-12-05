@@ -39,24 +39,40 @@ import (
 //
 /////////////////////////////////////////////////////////////////////////////////
 
+type CounterStats struct {
+	Increments     uint64
+	TotalDecisions uint64
+}
+
+func (cs *CounterStats) StatsString(testDuration time.Duration) string {
+	_ = testDuration
+	return fmt.Sprintf("got to counter %v out of %v instances", cs.Increments, cs.TotalDecisions)
+}
+
 // CounterProposalInfo represents a state machine for multi-value consensus where each consensus (that doesn't decided a nil value) proposes the next integer.
 type CounterProposalInfo struct {
 	AbsStateMachine
 	AbsRandSM
-	// our proposal count (doesnt increment when nil is decided)
+	// our proposal Increments (doesnt increment when nil is decided)
 	proposalIndex types.ConsensusInt
+	*CounterStats
 }
 
 // NewCounterProposalInfo generates a new CounterProposalInfo object.
 func NewCounterProposalInfo(useRand bool, initRandBytes [32]byte) *CounterProposalInfo {
 
-	return &CounterProposalInfo{AbsRandSM: NewAbsRandSM(initRandBytes, useRand)}
+	return &CounterProposalInfo{
+		AbsRandSM:    NewAbsRandSM(initRandBytes, useRand),
+		CounterStats: &CounterStats{},
+	}
 }
 
 // Init initalizes the object.
-func (spi *CounterProposalInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt, needsConcurrent types.ConsensusInt,
-	mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType) {
+func (spi *CounterProposalInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt,
+	needsConcurrent types.ConsensusInt, mainChannel channelinterface.MainChannel,
+	doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
 
+	_ = basicInit
 	spi.AbsRandSM.AbsRandInit(gc)
 	spi.AbsInit(gc, lastProposal, needsConcurrent, mainChannel, doneChan)
 }
@@ -64,6 +80,9 @@ func (spi *CounterProposalInfo) Init(gc *generalconfig.GeneralConfig, lastPropos
 // HasDecided is called after the index nxt has decided.
 func (spi *CounterProposalInfo) HasDecided(proposer sig.Pub, nxt types.ConsensusInt, decision []byte) {
 	spi.AbsHasDecided(nxt, decision)
+	if spi.GetStartedRecordingStats() {
+		spi.TotalDecisions++
+	}
 	if len(decision) != 0 {
 		buf := bytes.NewReader(decision)
 		var err error
@@ -76,6 +95,9 @@ func (spi *CounterProposalInfo) HasDecided(proposer sig.Pub, nxt types.Consensus
 		// initial proposal will be 1
 		logging.Info("Incrementing counter", spi.proposalIndex, spi.index)
 		spi.proposalIndex++
+		if spi.GetStartedRecordingStats() {
+			spi.Increments++
+		}
 	} else {
 		logging.Info("Not incrementing counter", spi.proposalIndex, spi.index)
 	}
@@ -146,7 +168,7 @@ func (spi *CounterProposalInfo) ValidateProposal(proposer sig.Pub, dec []byte) e
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *CounterProposalInfo) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
 	n := spi.GetRndNumBytes()
 	buf := bytes.NewReader(originProposal[n:])
@@ -174,12 +196,15 @@ func (spi *CounterProposalInfo) StartIndex(nxt types.ConsensusInt) consinterface
 	ret := &CounterProposalInfo{}
 	*ret = *spi
 	ret.AbsStartIndex(nxt)
+	ret.RandStartIndex(spi.randBytes)
+
 	logging.Infof("my id %v generate next my counter %v, my index %v, nxt idx %v, created from %v", spi.GeneralConfig.TestIndex, spi.proposalIndex, spi.index, nxt, spi.createdFrom)
 	return ret
 }
 
-func (spi *CounterProposalInfo) StatsString(testDuration time.Duration) string {
-	return fmt.Sprintf("Got to counter %v out of %v instances", spi.proposalIndex, spi.index)
+// GetSMStats returns the statistics object for the SM.
+func (spi *CounterProposalInfo) GetSMStats() consinterface.SMStats {
+	return spi.CounterStats
 }
 
 // CheckDecisions ensure each value decided incraments the value by 1 (except for nil decisions).

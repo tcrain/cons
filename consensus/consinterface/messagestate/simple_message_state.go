@@ -22,8 +22,9 @@ package messagestate
 import (
 	"bytes"
 	"fmt"
-	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/types"
 	"sync"
@@ -41,19 +42,22 @@ type SimpleMessageState struct {
 	index  types.ConsensusIndex
 	// myVrf         sig.VRFProof
 	partialMsgMap *partialMsgMap
-	gc            *generalconfig.GeneralConfig
+	GC            *generalconfig.GeneralConfig
 }
 
 // NewSimpleMessageState creates a new simple message state object for a single consensus index.
 func NewSimpleMessageState(gc *generalconfig.GeneralConfig) *SimpleMessageState {
 	var msgMap sigMsgMapInterface
 	if gc.UseMultiSig {
-		msgMap = &blsSigState{}
+		fromIntFunc, newBitIDFunc := bitid.GetBitIDFuncs(gc.MemCheckerBitIDType)
+		msgMap = &blsSigState{intFunc: fromIntFunc,
+			newBitIDFunc: newBitIDFunc,
+			pool:         bitid.NewBitIDPool(newBitIDFunc, true)}
 	} else {
 		msgMap = &signedMsgMap{}
 	}
 	return &SimpleMessageState{
-		gc:            gc,
+		GC:            gc,
 		msgMap:        msgMap,
 		partialMsgMap: newPartialMsgMap()}
 }
@@ -269,7 +273,7 @@ func (sms *SimpleMessageState) SetupSignedMessage(hdr messages.InternalSignedMsg
 
 	var myVrf sig.VRFProof
 	// add the signatures
-	myVrf = mc.MC.GetMyVRF(hdr.GetMsgID())
+	myVrf = mc.MC.GetMyVRF(messages.IsProposalHeader(sms.index, hdr), hdr.GetMsgID())
 	_, err := sms.msgMap.setupSigs(sm, priv, generateMySig, myVrf, addOthersSigsCount, mc)
 	return sm, err
 }
@@ -292,7 +296,7 @@ func (sms *SimpleMessageState) GetIndex() types.ConsensusIndex {
 // New creates a new empty SimpleMessageState object for the consensus index idx.
 func (sms *SimpleMessageState) New(idx types.ConsensusIndex) consinterface.MessageState {
 	return &SimpleMessageState{
-		gc:            sms.gc,
+		GC:            sms.GC,
 		msgMap:        newSigMsgMap(sms.msgMap, idx),
 		msgs:          make([][]byte, 0, 10),
 		index:         idx,
@@ -305,8 +309,8 @@ func (sms *SimpleMessageState) New(idx types.ConsensusIndex) consinterface.Messa
 // number of signatures for the MsgID of the message (see messages.MsgID).
 // If the message is not a signed type message (not type *sig.MultipleSignedMessage then (0, 0, nil) is returned).
 func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
-	deser *channelinterface.DeserializedItem, gc *generalconfig.GeneralConfig,
-	mc *consinterface.MemCheckers) ([]*channelinterface.DeserializedItem, error) {
+	deser *deserialized.DeserializedItem, gc *generalconfig.GeneralConfig,
+	mc *consinterface.MemCheckers) ([]*deserialized.DeserializedItem, error) {
 
 	if !deser.IsDeserialized {
 		panic("should be deserialized")
@@ -345,7 +349,7 @@ func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 			validSigs := make([]*sig.SigItem, 0, len(allSigs))
 			for _, sigItem := range allSigs {
 				// Check which signatures are valid and which are invalid
-				err := consinterface.CheckMember(mc, deser.Index, sigItem, v)
+				err := consinterface.CheckMember(mc, deser.Index, sigItem, v, sms.GC)
 				if err == nil {
 					validSigs = append(validSigs, sigItem)
 				} else {
@@ -364,7 +368,7 @@ func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 
 			sms.addToMsgList(deser)
 
-			ret := []*channelinterface.DeserializedItem{deser}
+			ret := []*deserialized.DeserializedItem{deser}
 			if cm != nil { // we reconstructed a partial message
 
 				// create a signed message from the new combined message
@@ -394,7 +398,7 @@ func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 			if err == nil {
 				sms.addToMsgList(deser)
 
-				return []*channelinterface.DeserializedItem{deser}, nil
+				return []*deserialized.DeserializedItem{deser}, nil
 			}
 			return nil, err
 		}
@@ -461,18 +465,18 @@ func (sms *SimpleMessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 		if err == nil {
 			sms.addToMsgList(deser)
 
-			return []*channelinterface.DeserializedItem{deser}, nil
+			return []*deserialized.DeserializedItem{deser}, nil
 		}
 		return nil, err
 
 	default:
 		// We only track signed messages
-		return []*channelinterface.DeserializedItem{deser}, nil
+		return []*deserialized.DeserializedItem{deser}, nil
 	}
 }
 
 func (sms *SimpleMessageState) checkIndex(idx types.ConsensusIndex) error {
-	gc := sms.gc
+	gc := sms.GC
 	switch gc.Ordering {
 	case types.Total:
 		// Total order can only have a single index
@@ -487,8 +491,8 @@ func (sms *SimpleMessageState) checkIndex(idx types.ConsensusIndex) error {
 	return nil
 }
 
-func (sms *SimpleMessageState) addToMsgList(deser *channelinterface.DeserializedItem) {
-	if sms.gc.UseFullBinaryState {
+func (sms *SimpleMessageState) addToMsgList(deser *deserialized.DeserializedItem) {
+	if sms.GC.UseFullBinaryState {
 		sms.Lock()
 		// for our message state, TODO remove messages state?
 		sms.msgs = append(sms.msgs, deser.Message.GetBytes())
@@ -505,7 +509,7 @@ func (sms *SimpleMessageState) GetMsgState(priv sig.Priv, localOnly bool,
 	bufferCountFunc consinterface.BufferCountFunc,
 	mc *consinterface.MemCheckers) ([]byte, error) {
 
-	if sms.gc.UseFullBinaryState && !localOnly {
+	if sms.GC.UseFullBinaryState && !localOnly {
 		sms.RLock()
 		i := 0
 		totalSize := 0
@@ -524,7 +528,7 @@ func (sms *SimpleMessageState) GetMsgState(priv sig.Priv, localOnly bool,
 	}
 	// send both the partials and the normal messages
 	// TODO howto handle partials
-	hdrs := append(sms.msgMap.getAllMsgSigs(priv, localOnly, bufferCountFunc, sms.gc, mc), sms.partialMsgMap.getAllPartials()...)
+	hdrs := append(sms.msgMap.getAllMsgSigs(priv, localOnly, bufferCountFunc, sms.GC, mc), sms.partialMsgMap.getAllPartials()...)
 	ret, err := messages.SerializeHeaders(hdrs)
 	if err != nil {
 		return nil, err

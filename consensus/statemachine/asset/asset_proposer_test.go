@@ -33,6 +33,7 @@ import (
 	"github.com/tcrain/cons/consensus/testobjects"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
+	"strconv"
 	"testing"
 )
 
@@ -44,7 +45,7 @@ const (
 func TestDirectAssetProposer(t *testing.T) {
 	initAssets := make([]AssetInterface, initCount)
 	for i := range initAssets {
-		initAssets[i] = CreateInitialDirectAsset([]byte(string(i)), []byte(config.CsID))
+		initAssets[i] = CreateInitialDirectAsset([]byte(strconv.Itoa(i)), []byte(config.CsID))
 	}
 
 	testAssetProposer(initAssets, NewDirectAsset, GenDirectAssetTransfer, CheckDirectOutputFunc,
@@ -98,7 +99,7 @@ func testAssetProposer(initAssets []AssetInterface, newAssetInterfaceFunc func()
 		gc := &generalconfig.GeneralConfig{Stats: stats.GetStatsObject(types.MvCons2Type, false)}
 		mainChannels[i] = &testobjects.MockMainChannel{}
 		doneChans[i] = make(chan channelinterface.ChannelCloseType, 1)
-		proposers[i].Init(gc, types.ConsensusInt(endAfter), nil, mainChannels[i], doneChans[i])
+		proposers[i].Init(gc, types.ConsensusInt(endAfter), nil, mainChannels[i], doneChans[i], false)
 
 		proposers[i].StartInit(nil)
 

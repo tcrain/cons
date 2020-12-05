@@ -12,7 +12,7 @@ export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:~/liboqs/build/lib/
 ' >> ~/.profile;
 mkdir -p ~/liboqs/build/lib/
 mkdir -p ~/go/src/github.com/tcrain/cons/scripts;
-sudo apt-get -y install rsync"
+sudo apt-get -y install rsync htop iftop iotop"
 
 echo "Calling rsync on liboqs"
 ./runcmd -f "$ipfile" -k "$key" -u "$user" -r ~/liboqs/build/lib/ "~/liboqs/build/lib/"
@@ -22,6 +22,9 @@ echo "Calling rsync"
 ./runcmd -f "$ipfile" -k "$key" -u "$user" -r ~/go/src/github.com/tcrain/cons/rpcnode "~/go/src/github.com/tcrain/cons/rpcnode"
 ./runcmd -f "$ipfile" -k "$key" -u "$user" -r ~/go/src/github.com/tcrain/cons/scripts/ "~/go/src/github.com/tcrain/cons/scripts/"
 echo "Done rsync"
+
+echo "Updating ulimit"
+./runcmd -k "${key}" -u "${user}" -f "${ipfile}" bash ~/go/src/github.com/tcrain/cons/scripts/imagesetup.sh $user
 
 echo "Copying over participant register"
 # be sure the process isnt running

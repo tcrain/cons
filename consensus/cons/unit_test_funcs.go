@@ -21,7 +21,7 @@ package cons
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
-	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 )
 
 // ConsTestItems are used as input to certain unit tests.
@@ -31,7 +31,7 @@ type ConsTestItems struct {
 }
 
 // MergeSigsForTest is used by certain unit tests to collect a set of singatures in a single message.
-func MergeSigsForTest(items []*channelinterface.DeserializedItem) {
+func MergeSigsForTest(items []*deserialized.DeserializedItem) {
 	var newItems []*sig.SigItem
 	for _, deser := range items {
 		newItems = append(newItems, deser.Header.(*sig.MultipleSignedMessage).GetSigItems()...)

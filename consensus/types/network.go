@@ -49,6 +49,28 @@ func (ct NetworkPropagationType) String() string {
 	}
 }
 
+// BufferForwardType is the type of forwarding being done when using a peer to peer network
+type BufferForwardType int
+
+const (
+	NoBufferForward        BufferForwardType = iota // No buffer forwarding
+	FixedBufferForward                              // Messages are forwarded after a fixed timeout
+	ThresholdBufferForward                          // Messages are forwared after reaching certain thresholds
+)
+
+func (ct BufferForwardType) String() string {
+	switch ct {
+	case NoBufferForward:
+		return "noBufFwd"
+	case FixedBufferForward:
+		return "fixBufFwd"
+	case ThresholdBufferForward:
+		return "thrshBufFwd"
+	default:
+		return fmt.Sprintf("ConType%d", ct)
+	}
+}
+
 // NetworkProtocolType defines the internet protocol nodes use for communication.
 // Currently supports UDP and TCP (see issue https://github.com/tcrain/cons/issues/13 for UDP).
 type NetworkProtocolType int

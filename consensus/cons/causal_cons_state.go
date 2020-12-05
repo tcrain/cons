@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/auth/sig"
+	"github.com/tcrain/cons/consensus/deserialized"
 	config2 "github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
@@ -46,10 +47,11 @@ type CausalConsState struct {
 
 	memberCheckerState *consinterface.CausalConsInterfaceState // The member checker state object.
 
-	store           storage.StoreInterface       // Interface to the storage
-	mainChannel     channelinterface.MainChannel // Interface to the network.
-	isInStorageInit bool                         // Used during initialization, when recovering from disk this is set to true so we don't store messages we already have on disk.
-
+	store            storage.StoreInterface       // Interface to the storage
+	mainChannel      channelinterface.MainChannel // Interface to the network.
+	isInStorageInit  bool                         // Used during initialization, when recovering from disk this is set to true so we don't store messages we already have on disk.
+	timeoutTime      time.Duration                // The timeout used after no proogress to start recovery.
+	initStateMachine consinterface.CausalStateMachineInterface
 }
 
 // var timeoutTime = time.Millisecond * time.Duration(config.ProgressTimeout) // The timeout used after no proogress to start recovery.
@@ -66,8 +68,9 @@ func NewCausalConsState(initIitem consinterface.ConsItem,
 	cs.mainChannel = mainChannel
 	cs.localIndexTime = time.Now()
 	cs.memberCheckerState = memberCheckerState
+	cs.timeoutTime = time.Millisecond * time.Duration(generalConfig.ProgressTimeout)
 
-	if initIitem.NeedsConcurrent() > 1 {
+	if initIitem.NeedsCompletionConcurrentProposals() > 1 {
 		panic("cannot have needs concurrent for causal")
 	}
 
@@ -83,8 +86,8 @@ func NewCausalConsState(initIitem consinterface.ConsItem,
 	cs.isInStorageInit = true
 	memberCheckerState.IsInStorageInit = true
 	cs.mainChannel.StartInit()
-
-	initStateMachine.StartInit(cs.memberCheckerState)
+	cs.initStateMachine = initStateMachine
+	cs.initStateMachine.StartInit(cs.memberCheckerState) // TODO this should be called in Start() instead of here (see TOFIX.md)
 
 	var loadedCount int
 	logging.Info("loading from disk")
@@ -138,9 +141,14 @@ func (cs *CausalConsState) finishInitialization() {
 	// cs.checkProgress(cs.memberCheckerState.LocalIndex)
 }
 
+func (cs *CausalConsState) Start() {
+	logging.Info("Start causal SM, test proc ", cs.generalConfig.TestIndex)
+	// cs.initStateMachine.StartInit(cs.memberCheckerState) TODO this is currently called in New, but should be called here (see TOFIX.md)
+}
+
 // ProcessLocalMessage should be called when a message sent from the local node is ready to be processed.
 func (cs *CausalConsState) ProcessLocalMessage(rcvMsg *channelinterface.RcvMsg) {
-	var unprocessed []*channelinterface.DeserializedItem
+	var unprocessed []*deserialized.DeserializedItem
 
 	// Loop through the messages.
 	// Only messages of type cs.items[0].GetProposeHeaderID() are processed here, as they are only value when coming from the local node.
@@ -162,22 +170,16 @@ func (cs *CausalConsState) ProcessLocalMessage(rcvMsg *channelinterface.RcvMsg) 
 			}
 
 			// Generate the index if it hasn't been done already
-			_, _, _, err := cs.memberCheckerState.CheckGenMemberChecker(mvHdr.Index)
+			ci, err := cs.memberCheckerState.CheckGenMemberChecker(mvHdr.Index)
 			if err != nil {
 				panic(err)
 			}
 
 			// Inform the consensus that a proposal has been received from the local state machine.
-			ci, err := cs.memberCheckerState.GetConsItem(mvHdr.Index)
-			if err != nil {
-				panic(err)
-				// logging.Info(err)
-				// continue
+			if !ci.ConsItem.HasStarted() {
+				ci.ConsItem.Start(false)
 			}
-			if !ci.HasStarted() {
-				ci.Start()
-			}
-			err = ci.GotProposal(deser.Header, cs.mainChannel)
+			err = ci.ConsItem.GotProposal(deser.Header, cs.mainChannel)
 			if err != nil {
 				panic(err)
 			}
@@ -234,14 +236,14 @@ func (cs *CausalConsState) sendNoProgressMsg(idx types.ConsensusIndex, item *con
 	if err != nil {
 		panic(err)
 	}
-	cs.mainChannel.SendAlways(mm.GetBytes(), false, item.FwdChecker.GetNoProgressForwardFunc(), true)
+	cs.mainChannel.SendAlways(mm.GetBytes(), false, item.FwdChecker.GetNoProgressForwardFunc(), true, nil)
 
 	if !hasDecided {
 		bs, err := item.ConsItem.GetBinState(cs.generalConfig.NetworkType == types.RequestForwarder)
 		if err != nil {
 			panic(err) // TODO should Panic here?
 		}
-		cs.mainChannel.SendAlways(bs, false, item.FwdChecker.GetNoProgressForwardFunc(), true)
+		cs.mainChannel.SendAlways(bs, false, item.FwdChecker.GetNoProgressForwardFunc(), true, nil)
 	}
 }
 
@@ -251,7 +253,7 @@ func (cs *CausalConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (retu
 	defer func() {
 
 		// After processing the message, if the timeout has passed do some actions
-		if time.Since(cs.localIndexTime) > timeoutTime && !cs.isInStorageInit {
+		if time.Since(cs.localIndexTime) > cs.timeoutTime && !cs.isInStorageInit {
 			// -- on send no progress
 			// we have a set of non-gc'd items
 			// (non-gc'd means they have non-consumed children)
@@ -308,7 +310,7 @@ func (cs *CausalConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (retu
 			var binStates [][]byte
 			var err error
 			if binStates, err = cs.memberCheckerState.GenChildIndices(deser.Index,
-				deser.Header.(*messagetypes.NoProgressMessage).IsUnconsumedOutput, config.MaxRecovers); err != nil {
+				deser.Header.(*messagetypes.NoProgressMessage).IndexDecided, config.MaxRecovers); err != nil {
 
 				// don't include the index because it might just be a future index we have not see yet so not an error
 				switch err {
@@ -341,14 +343,14 @@ func (cs *CausalConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (retu
 		}
 
 		// If the memberchecker doesn't exist then we drop the message
-		mc, _, _, err := cs.memberCheckerState.GetMemberChecker(deser.Index)
+		idxItem, err := cs.memberCheckerState.GetMemberChecker(deser.Index)
 		if err != nil {
 			if deser.IsDeserialized {
 				panic("should find mc here") // sanity check
 			}
 			logging.Info("got a message, but did not find its member checker for index ", err, parIdx)
 			cs.memberCheckerState.AddFutureMessage(
-				&channelinterface.RcvMsg{CameFrom: 10, Msg: []*channelinterface.DeserializedItem{deser},
+				&channelinterface.RcvMsg{CameFrom: 10, Msg: []*deserialized.DeserializedItem{deser},
 					SendRecvChan: rcvMsg.SendRecvChan, IsLocal: rcvMsg.IsLocal})
 			continue
 		}
@@ -357,15 +359,15 @@ func (cs *CausalConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (retu
 			panic(err)
 		}
 		if !item.HasStarted() {
-			item.Start()
+			item.Start(false)
 		}
 		if !deser.IsDeserialized { // The message is not deserialized
-			if mc.MC.IsReady() { // If the member checker is ready we can retry deserializing the message
-				cs.mainChannel.ReprocessMessage(&channelinterface.RcvMsg{CameFrom: 9, Msg: []*channelinterface.DeserializedItem{deser}, SendRecvChan: rcvMsg.SendRecvChan, IsLocal: rcvMsg.IsLocal})
+			if idxItem.MC.MC.IsReady() { // If the member checker is ready we can retry deserializing the message
+				cs.mainChannel.ReprocessMessage(&channelinterface.RcvMsg{CameFrom: 9, Msg: []*deserialized.DeserializedItem{deser}, SendRecvChan: rcvMsg.SendRecvChan, IsLocal: rcvMsg.IsLocal})
 			} else {
 				// We cannot process the message yet, so we store it to be processed later
 				cs.memberCheckerState.AddFutureMessage(
-					&channelinterface.RcvMsg{CameFrom: 10, Msg: []*channelinterface.DeserializedItem{deser},
+					&channelinterface.RcvMsg{CameFrom: 10, Msg: []*deserialized.DeserializedItem{deser},
 						SendRecvChan: rcvMsg.SendRecvChan, IsLocal: rcvMsg.IsLocal})
 			}
 			continue
@@ -389,7 +391,7 @@ func (cs *CausalConsState) ProcessMessage(rcvMsg *channelinterface.RcvMsg) (retu
 			progress, shouldForward = item.ProcessMessage(deser, rcvMsg.IsLocal, rcvMsg.SendRecvChan)
 		}
 		// add the message to the forward checker queue
-		checkForward(rcvMsg.SendRecvChan, deser, shouldForward, item, cs.memberCheckerState, cs.mainChannel)
+		checkForward(rcvMsg.SendRecvChan, deser, shouldForward, cs.memberCheckerState, cs.mainChannel)
 		if progress {
 			// If we made progress we might have to advance the consensus index
 			cs.checkProgress(deser.Index)
@@ -410,35 +412,37 @@ func (cs *CausalConsState) checkProgress(idx types.ConsensusIndex) {
 		if cs.store.Contains(idx.Index.(types.ConsensusHash)) {
 			return
 		}
-	} else if cs.memberCheckerState.LastDecided == types.ParentConsensusHash(idx.Index.(types.ConsensusHash)) {
+	} else if cs.memberCheckerState.DecidedMap[types.ParentConsensusHash(idx.Index.(types.ConsensusHash))] {
+		// } else if cs.memberCheckerState.LastDecided == types.ParentConsensusHash(idx.Index.(types.ConsensusHash)) {
 		// in init if we decided this value already then skip
 		return
 	}
 
-	memC, _, _, err := cs.memberCheckerState.GetMemberChecker(idx)
+	nextItem, err := cs.memberCheckerState.GetMemberChecker(idx)
 	if err != nil { // sanity check
 		panic(fmt.Sprint(err, idx, cs.memberCheckerState.LastDecided))
-	}
-	nextItem, err := cs.memberCheckerState.GetConsItem(idx)
-	if err != nil {
-		panic(err) // sanity check
 	}
 
 	// We have made progress on this item
 	cs.memberCheckerState.UpdateProgressTime(idx)
 
-	if !nextItem.HasDecided() {
+	if !nextItem.ConsItem.HasDecided() {
 		return
 	}
 
-	bs, err := nextItem.GetBinState(false)
+	bs, err := nextItem.ConsItem.GetBinState(false)
 	if err != nil {
 		panic(err)
 	}
-	proposer, dec, _ := nextItem.GetDecision()
+	proposer, dec, _, _ := nextItem.ConsItem.GetDecision()
 
 	// Update the member checker
 	updatedDec := cs.memberCheckerState.DoneIndex(idx, proposer, dec)
+
+	// Forward any additional items
+	nextItem.FwdChecker.ConsDecided(nextItem.MC.MC.GetStats())
+	sendForward(idx, cs.memberCheckerState, cs.mainChannel)
+
 	// Store the decided value
 	// Update the storage if we are not initializing
 	if !cs.isInStorageInit {
@@ -447,7 +451,7 @@ func (cs *CausalConsState) checkProgress(idx types.ConsensusIndex) {
 		if err != nil {
 			panic(err)
 		}
-		memC.MC.GetStats().DiskStore(len(bs) + len(dec))
+		nextItem.MC.MC.GetStats().DiskStore(len(bs) + len(dec))
 	}
 
 	logging.Infof("Decided cons state index %v", idx)
@@ -464,6 +468,11 @@ func (cs *CausalConsState) SMStatsString(testDuration time.Duration) string {
 	// TODO this wil get nil pointer
 	//panic("fix me")
 	return cs.memberCheckerState.ProposalInfo[cs.memberCheckerState.LastDecided].StatsString(testDuration)
+}
+
+// SMStats returns the stats object of the state machine.
+func (cs *CausalConsState) SMStats() consinterface.SMStats {
+	return cs.memberCheckerState.ProposalInfo[cs.memberCheckerState.LastDecided].GetSMStats()
 }
 
 // Collect is called when the item is being garbage collected.

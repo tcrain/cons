@@ -36,7 +36,6 @@ import (
 )
 
 const gpPath = "./scripts/graphscripts/plotfile.gp"
-const gpMultiPath = "./scripts/graphscripts/multiplotfile.gp"
 const gpProfilePath = "./scripts/graphscripts/plotprofile.gp"
 
 func lessFunc(iItems, jItems []string) bool {
@@ -77,8 +76,9 @@ func lessFunc(iItems, jItems []string) bool {
 }
 
 func GenGraph(title, xLabel, yLabel, folderPath string, extraNames []VaryField, inputFiles []string,
-	properties []GraphProperties, isMultiPlot int) (multiPlotStrings []string, err error) {
+	properties []GraphProperties, isMultiPlot []int, genTable bool) (multiPlotStrings [][]string, err error) {
 
+	multiPlotStrings = make([][]string, len(isMultiPlot))
 	yLabel = GetYIndex(yLabel)
 	// Sort the file names
 	sort.Slice(inputFiles, func(i, j int) bool {
@@ -122,7 +122,7 @@ func GenGraph(title, xLabel, yLabel, folderPath string, extraNames []VaryField, 
 		_ = file.Close()
 
 		// Sort the lines
-		if len(lines) < 1 {
+		if len(lines) < 1 || lines == nil {
 			panic("empty file")
 		}
 		afterLines := lines[1:]
@@ -171,12 +171,13 @@ func GenGraph(title, xLabel, yLabel, folderPath string, extraNames []VaryField, 
 			filepath.Join(folderPath, fmt.Sprintf("%v%v_%v%v.png", nxtP, xLabel, yLabel, extraName)),
 			nxtP.Width, nxtP.Height)
 
-		if isMultiPlot > 0 {
-			mps := fmt.Sprintf("tit%v='%v'; ylab%v='%v'; xlab%v='%v'; filenames%v='%v'",
-				isMultiPlot, title, isMultiPlot, yLabel, isMultiPlot, xLabel, isMultiPlot, strings.Join(inputFiles, " "))
-			multiPlotStrings = append(multiPlotStrings, mps)
+		for j, nxtIsMultPiPlot := range isMultiPlot {
+			if nxtIsMultPiPlot > 0 {
+				mps := fmt.Sprintf("tit%v='%v'; ylab%v='%v'; xlab%v='%v'; filenames%v='%v'",
+					nxtIsMultPiPlot, title, nxtIsMultPiPlot, yLabel, nxtIsMultPiPlot, xLabel, nxtIsMultPiPlot, strings.Join(inputFiles, " "))
+				multiPlotStrings[j] = append(multiPlotStrings[j], mps)
+			}
 		}
-
 		// Write the command to a file so we can rerun it
 		prtCmd := fmt.Sprintf("gnuplot -e \"%v\" %v", arg, gpPath)
 		cmdFileName := filepath.Join(folderPath, fmt.Sprintf("%v%v_%v%v.sh", nxtP, xLabel, yLabel, extraName))
@@ -197,26 +198,35 @@ func GenGraph(title, xLabel, yLabel, folderPath string, extraNames []VaryField, 
 		}
 		logging.Print("Ran command successfully", cmd.Args)
 	}
+
+	if genTable { //&& isMultiPlot == 0 {
+		if err = makeTable(inputFiles, folderPath, xLabel, title); err != nil {
+			return
+		}
+		if err = makeFlipTable(inputFiles, folderPath, xLabel, title); err != nil {
+			return
+		}
+	}
 	return
 }
 
-func GenMultiPlot(folderPath string, properties []GraphProperties, args []string) error {
+func GenMultiPlot(idx int, folderPath, gnuPlotFile string, properties []GraphProperties, args []string) error {
 	for i, nxtP := range properties {
 
 		arg := args[i]
 		arg = fmt.Sprintf("%v; outputfile='%v'; width='%v'; height='%v'",
 			arg,
-			filepath.Join(folderPath, fmt.Sprintf("%v_multiplot.png", nxtP)),
+			filepath.Join(folderPath, fmt.Sprintf("%v%v_multiplot.png", nxtP, idx)),
 			nxtP.Width, nxtP.Height)
 
 		// Write the command to a file so we can rerun it
-		prtCmd := fmt.Sprintf("gnuplot -e \"%v\" %v", arg, gpMultiPath)
-		cmdFileName := filepath.Join(folderPath, fmt.Sprintf("%v_multiplot.sh", nxtP))
+		prtCmd := fmt.Sprintf("gnuplot -e \"%v\" %v", arg, gnuPlotFile)
+		cmdFileName := filepath.Join(folderPath, fmt.Sprintf("%v%v_multiplot.sh", nxtP, idx))
 		if err := ioutil.WriteFile(cmdFileName, []byte(prtCmd), os.ModePerm); err != nil {
 			return err
 		}
 
-		newCmd := []string{"gnuplot", "-e", arg, gpMultiPath}
+		newCmd := []string{"gnuplot", "-e", arg, gnuPlotFile}
 		cmd := exec.Command(newCmd[0], newCmd[1:]...)
 		logging.Print("Running command: ", newCmd)
 
@@ -225,7 +235,7 @@ func GenMultiPlot(folderPath string, properties []GraphProperties, args []string
 		cmd.Stderr = &out
 		if err := cmd.Run(); err != nil {
 			logging.Errorf("Error running command %s: %v, %v", cmd.Args, err, cmd.Stderr)
-			return err
+			// return err
 		}
 		logging.Print("Ran command successfully", cmd.Args)
 	}

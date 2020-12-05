@@ -23,6 +23,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -60,15 +61,34 @@ func CheckIncludeEchoProofs(round types.ConsensusRound, ci *consinterface.ConsIn
 	return
 }
 
-// GetCoordPubCollectBroadcast is used to check if a message should be broadcast to all nodes,
+// GetCoordPubCollectBroadcastEcho is used to check if an echo message should be broadcast to all nodes,
 // or just to the next coordinator (see types.CollectBroadcast) for the CURRENT round/instance of consensus.
 // It returns a the expected coordinator of round if gc.CollectBroadcast
 // is types.EchoCommit, it returns nil otherwise.
-func GetCoordPubCollectBroadcast(round types.ConsensusRound, ci *consinterface.ConsInterfaceItems,
+func GetCoordPubCollectBroadcastEcho(round types.ConsensusRound, ci *consinterface.ConsInterfaceItems,
 	gc *generalconfig.GeneralConfig) sig.Pub {
 
 	var cordPub sig.Pub
 	if gc.CollectBroadcast == types.EchoCommit {
+		var err error
+		_, cordPub, err = consinterface.CheckCoord(nil, ci.MC, round, nil)
+		if err != nil {
+			logging.Error("could not calculate coordPub")
+			cordPub = nil
+		}
+	}
+	return cordPub
+}
+
+// GetCoordPubCollectBroadcastEnd is used to check if an message should be broadcast to all nodes,
+//or just to the next coordinator (see types.CollectBroadcast) at the very end of consensus.
+// It returns a the expected coordinator of round if gc.CollectBroadcast
+// is not types.Full, it returns nil otherwise.
+func GetCoordPubCollectBroadcastEnd(round types.ConsensusRound, ci *consinterface.ConsInterfaceItems,
+	gc *generalconfig.GeneralConfig) sig.Pub {
+
+	var cordPub sig.Pub
+	if gc.CollectBroadcast != types.Full {
 		var err error
 		_, cordPub, err = consinterface.CheckCoord(nil, ci.MC, round, nil)
 		if err != nil {
@@ -130,8 +150,9 @@ func DoConsBroadcast(nxtCoordPub sig.Pub, msg messages.InternalSignedMsgHeader, 
 			}
 		}
 		if nxtCoordPub != nil { // Only broadcast to the next coorindator
+			sts := ci.MC.MC.GetStats()
 			err = mainChannel.SendToPub(messages.AppendCopyMsgHeader(ci.ConsItem.GetPreHeader(), append(proofMsgs, sms)...), nxtCoordPub,
-				ci.MC.MC.GetStats().IsRecordIndex())
+				sts.IsRecordIndex(), sts)
 			if err != nil { // TODO what to do with non all to all connections?
 				logging.Warningf("Error sending message to next coord %v, index %v, will broadcast message instead", err,
 					ci.ConsItem.GetIndex())
@@ -143,9 +164,10 @@ func DoConsBroadcast(nxtCoordPub sig.Pub, msg messages.InternalSignedMsgHeader, 
 		if msg != nil {
 			isProposal = messages.IsProposalHeader(ci.ConsItem.GetIndex(), msg)
 		}
+		sts := ci.MC.MC.GetStats()
 		mainChannel.SendHeader(messages.AppendCopyMsgHeader(ci.ConsItem.GetPreHeader(), append(proofMsgs, sms)...),
 			isProposal, true, forwardFunc,
-			ci.MC.MC.GetStats().IsRecordIndex())
+			sts.IsRecordIndex(), sts)
 	}
 }
 
@@ -181,16 +203,18 @@ func PartialBroadcastFunc(partialType types.PartialMessageType, abi consinterfac
 		return err
 	}
 	// Send the message to yourself
-	toSelf := []*channelinterface.DeserializedItem{{
+	toSelf := []*deserialized.DeserializedItem{{
 		Index:          abi.GetIndex(),
 		HeaderType:     combinedSigned.GetID(),
 		Header:         combinedSigned,
 		IsDeserialized: true,
+		MC:             mc,
 		IsLocal:        types.LocalMessage,
 		Message:        sig.FromMessage(msg)}}
 	logging.Error("hashes2", combinedSigned.GetSignedHash(), partialsSigned[0].GetSignedHash())
 	mainChannel.SendToSelf(toSelf, 0)
 
+	sts := mc.MC.GetStats()
 	for i, nxt := range partialsSigned {
 		msg, err := messages.CreateMsg(abi.GetPreHeader())
 		if err != nil {
@@ -202,7 +226,7 @@ func PartialBroadcastFunc(partialType types.PartialMessageType, abi consinterfac
 			panic(err)
 		}
 
-		mainChannel.SendTo(msg.GetBytes(), destinations[i], mc.MC.GetStats().IsRecordIndex())
+		mainChannel.SendTo(msg.GetBytes(), destinations[i], sts.IsRecordIndex(), sts)
 	}
 	return nil
 }

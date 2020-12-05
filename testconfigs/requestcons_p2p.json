@@ -1,8 +1,9 @@
 {
     "TestID": 7,
-    "ConsType": 13,
+    "ConsType": 9,
     "StateMachineType": 1,
     "MaxRounds": 10,
+    "CoinType": 2,
     "NumTotalProcs": 25,
     "RndMemberCount": 10,
     "GenRandBytes": false,
@@ -20,5 +21,11 @@
     "MvProposalSizeBytes": 10,
     "SleepCrypto": true,
     "EncryptChannels": true,
-    "RndMemberType": 4
+    "SharePubsRPC": true,
+    "RndMemberType": 4,
+    "WarmUpInstances": 1,
+    "KeepPast": 1,
+    "ProgressTimeout": 1000,
+    "MvConsTimeout": 1500,
+    "MvConsRequestRecoverTimeout": 2000
 }

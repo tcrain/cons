@@ -27,6 +27,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
 	"github.com/tcrain/cons/consensus/generalconfig"
+	"github.com/tcrain/cons/consensus/graph"
 	"github.com/tcrain/cons/consensus/types"
 	"testing"
 
@@ -327,7 +328,43 @@ func TestNoProgressMsgSerialize(t *testing.T) {
 
 	_, err = hdr.Deserialize(msg, types.IntIndexFuns)
 	assert.Equal(t, tstMsgIndex, hdr.GetIndex().Index)
-	assert.True(t, hdr.IsUnconsumedOutput)
+	assert.True(t, hdr.IndexDecided)
+	assert.Nil(t, err)
+}
+
+func TestIndexRecoverMsgSerialize(t *testing.T) {
+	indices := []graph.IndexType{0, 3, 12, 41, 428, 928}
+	ev := graph.EventPointer{
+		ID:    1,
+		Index: 2,
+		Hash:  types.GetHash([]byte("some msg")),
+	}
+	hdr := NewIndexRecoverMsg(types.SingleComputeConsensusIDShort(tstMsgIndex))
+	hdr.Indices = indices
+	hdr.MissingDependencies = []graph.EventPointer{ev, ev, ev}
+	// hdr := &NoProgressMessage{0, true, basicMessage{tstMsgIdxObj}}
+	hdrs := make([]messages.MsgHeader, 1)
+	hdrs[0] = hdr
+
+	msg := messages.InitMsgSetup(hdrs, t)
+	l := msg.Len()
+
+	ht, err := msg.PeekHeaderType()
+	assert.Nil(t, err)
+	assert.Equal(t, ht, hdr.GetID())
+
+	idx, err := hdr.PeekHeaders(msg, types.IntIndexFuns)
+	assert.Nil(t, err)
+	assert.Equal(t, tstMsgIndex, idx.Index)
+	assert.Equal(t, nil, idx.FirstIndex)
+	assert.Equal(t, []types.ConsensusID(nil), idx.AdditionalIndices)
+
+	newHdr := &IndexRecoverMsg{}
+	n, err := newHdr.Deserialize(msg, types.IntIndexFuns)
+	assert.Equal(t, l, n)
+	assert.Equal(t, tstMsgIndex, newHdr.GetIndex().Index)
+	assert.Equal(t, hdr.MissingDependencies, newHdr.MissingDependencies)
+	assert.Equal(t, indices, newHdr.Indices)
 	assert.Nil(t, err)
 }
 
@@ -518,6 +555,56 @@ func TestCoinMsgSerialize(t *testing.T) {
 	internalTestUnsignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
 }
 
+func TestIdxMsgSerialize(t *testing.T) {
+	indices := []graph.IndexType{0, 3, 12, 41, 428, 928}
+	createMsgFunc := func(createEmpty bool) messages.InternalSignedMsgHeader {
+		hdr := NewIndexMessage()
+		if !createEmpty {
+			hdr.Indices = indices
+		}
+		return hdr
+	}
+	checkMsgFunc := func(msg messages.InternalSignedMsgHeader) {
+		hdr := msg.GetBaseMsgHeader().(*IndexMessage)
+		assert.Equal(t, indices, hdr.Indices)
+	}
+	internalTestSignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+	internalTestUnsignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+}
+
+func TestEventInfoMsgSerialize(t *testing.T) {
+	eventInfo := graph.EventInfo{
+		LocalInfo: graph.EventPointer{
+			ID:    3,
+			Index: 1,
+			Hash:  types.GetHash([]byte("local")),
+		},
+		Buff: []byte("some msg"),
+		RemoteAncestors: []graph.EventPointer{{
+			ID:    1,
+			Index: 2,
+			Hash:  types.GetHash([]byte("remote1")),
+		}, {
+			ID:    2,
+			Index: 3,
+			Hash:  types.GetHash([]byte("remote2")),
+		}},
+	}
+	createMsgFunc := func(createEmpty bool) messages.InternalSignedMsgHeader {
+		hdr := NewEventMessage()
+		if !createEmpty {
+			hdr.Event = eventInfo
+		}
+		return hdr
+	}
+	checkMsgFunc := func(msg messages.InternalSignedMsgHeader) {
+		hdr := msg.GetBaseMsgHeader().(*EventMessage)
+		assert.Equal(t, eventInfo, hdr.Event)
+	}
+	internalTestSignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+	internalTestUnsignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+}
+
 func TestCoinPreMsgSerialize(t *testing.T) {
 	var round types.ConsensusRound = 23
 	createMsgFunc := func(createEmpty bool) messages.InternalSignedMsgHeader {
@@ -587,13 +674,15 @@ func TestMvInitMessageSerialize(t *testing.T) {
 
 func TestMvInitSupportMsgSerialize(t *testing.T) {
 	proposalHashSupport := types.GetHash(mvinitsupport)
+	randHash := types.GetHash([]byte("some rand bytes"))
 
 	createMsgFunc := func(createEmpty bool) messages.InternalSignedMsgHeader {
-		hdr := NewMvInitSupportMessage()
+		hdr := NewMvInitSupportMessage(true)
 		if !createEmpty {
 			hdr.Proposal = mvinitproposal
 			hdr.SupportedIndex = mvinitsupportindex
 			hdr.SupportedHash = proposalHashSupport
+			hdr.RandHash = randHash
 		}
 		return hdr
 	}
@@ -602,6 +691,7 @@ func TestMvInitSupportMsgSerialize(t *testing.T) {
 		assert.Equal(t, mvinitproposal, hdr.Proposal)
 		assert.Equal(t, mvinitsupportindex, hdr.SupportedIndex)
 		assert.Equal(t, proposalHashSupport, hdr.SupportedHash)
+		assert.Equal(t, randHash, hdr.RandHash)
 	}
 	internalTestSignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
 	internalTestUnsignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
@@ -698,6 +788,31 @@ func TestMvEchoMsgSerialize(t *testing.T) {
 	checkMsgFunc := func(msg messages.InternalSignedMsgHeader) {
 		hdr := msg.GetBaseMsgHeader().(*MvEchoMessage)
 		assert.Equal(t, proposalHash, hdr.ProposalHash)
+		assert.Equal(t, round, hdr.Round)
+	}
+	internalTestSignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+	internalTestUnsignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)
+}
+
+func TestMvEchoHashMsgSerialize(t *testing.T) {
+	var proposal = []byte("a proposal is written here")
+	var round types.ConsensusRound = 10
+	proposalHash := types.GetHash(proposal)
+	randHash := types.GetHash([]byte("some rand bytes"))
+
+	createMsgFunc := func(createEmpty bool) messages.InternalSignedMsgHeader {
+		hdr := NewMvEchoHashMessage(true)
+		if !createEmpty {
+			hdr.ProposalHash = proposalHash
+			hdr.Round = round
+			hdr.RandHash = randHash
+		}
+		return hdr
+	}
+	checkMsgFunc := func(msg messages.InternalSignedMsgHeader) {
+		hdr := msg.GetBaseMsgHeader().(*MvEchoHashMessage)
+		assert.Equal(t, proposalHash, hdr.ProposalHash)
+		assert.Equal(t, randHash, hdr.RandHash)
 		assert.Equal(t, round, hdr.Round)
 	}
 	internalTestSignedMsgSerialize(createMsgFunc, checkMsgFunc, tstMsgIndex, false, t)

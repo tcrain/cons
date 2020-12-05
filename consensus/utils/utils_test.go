@@ -217,3 +217,15 @@ func TestEncodeUvarint(t *testing.T) {
 	}
 
 }
+
+func TestIncreaseCap(t *testing.T) {
+	start := []byte("some string")
+
+	other := IncreaseCap(start, cap(start)+20)
+	assert.Equal(t, start, other)
+	assert.Equal(t, cap(start)+20, cap(other))
+
+	other = IncreaseCap(start, cap(start)-5)
+	assert.Equal(t, start, other)
+	assert.Equal(t, cap(start), cap(other))
+}

@@ -24,7 +24,6 @@ import (
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
-	"github.com/tcrain/cons/consensus/utils"
 	"math/rand"
 	"sync/atomic"
 
@@ -61,6 +60,7 @@ func (mc *TrueMemberChecker) AllowsChange() bool {
 func (mc *TrueMemberChecker) CheckRandRoundCoord(msgID messages.MsgID, checkPub sig.Pub,
 	round types.ConsensusRound) (randValue uint64, coordPub sig.Pub, err error) {
 
+	_, _, _ = msgID, checkPub, round
 	panic("unsupported")
 }
 
@@ -72,9 +72,11 @@ func (mc *TrueMemberChecker) IsReady() bool {
 // UpdateState does nothing since the members do not change.
 // func (mc *TrueMemberChecker) UpdateState(prevDec []byte, prevSM consinterface.StateMachineInterface, prevMember MemberChecker) []sig.Pub {
 func (mc *TrueMemberChecker) UpdateState(fixedCoord sig.Pub, prevDec []byte, randBytes [32]byte,
-	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface) (newMemberPubs,
-	newAllPubs []sig.Pub) {
+	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface,
+	futureFixed types.ConsensusID) (newMemberPubs,
+	newAllPubs []sig.Pub, changedMembers bool) {
 
+	_ = futureFixed
 	if len(prevDec) > 0 && !prevSM.GetDecided() {
 		panic("should have updated the SM first")
 	}
@@ -134,30 +136,6 @@ func (mc *CurrentTrueMemberChecker) New(newIndex types.ConsensusIndex) consinter
 	return newMc
 }
 
-// CheckRandRoundCoord should be called instead of CheckRoundCoord if random membership selection is enabled.
-// If using VRFs then checkPub must not be nil.
-// If checkPub is nil, then it will return the known coordinator in coordPub.
-// If VRF is enabled randValue is the VRF random value for the inputs.
-// Note this should be called after CheckRandMember for the same pub.
-func (mc *CurrentTrueMemberChecker) CheckRandRoundCoord(msgID messages.MsgID, checkPub sig.Pub,
-	round types.ConsensusRound) (randValue uint64, coordPub sig.Pub, err error) {
-
-	if mc.RandMemberType() == types.LocalRandMember {
-		coordPub, err = mc.CheckRoundCoord(msgID, checkPub, round)
-		return
-	}
-
-	if checkPub == nil {
-		return 0, nil, types.ErrNotMember
-	}
-	rndMemberCount := utils.Min(mc.rndMemberCount, len(mc.sortedMemberPubs))
-	rndValue, checkPub, err := mc.checkRandCoord(rndMemberCount, len(mc.sortedMemberPubs), msgID, round, checkPub)
-	if err != nil {
-		return 0, nil, err
-	}
-	return rndValue, checkPub, nil
-}
-
 // IsReady returns false until FinishUpdateState is called.
 func (mc *CurrentTrueMemberChecker) IsReady() bool {
 	return atomic.LoadUint32(&mc.isReady) > 0
@@ -166,9 +144,11 @@ func (mc *CurrentTrueMemberChecker) IsReady() bool {
 // UpdateState does nothing since the members do not change.
 // func (mc *CurrentTrueMemberChecker) UpdateState(prevDec []byte, prevSM consinterface.StateMachineInterface, prevMember MemberChecker) []sig.Pub {
 func (mc *CurrentTrueMemberChecker) UpdateState(fixedCoord sig.Pub, prevDec []byte, randBytes [32]byte,
-	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface) (newMemberPubs,
-	newAllPubs []sig.Pub) {
+	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface,
+	futureFixed types.ConsensusID) (newMemberPubs,
+	newAllPubs []sig.Pub, changedMembers bool) {
 
+	_ = futureFixed
 	if !prevSM.GetDecided() {
 		panic("should have updated the SM first")
 	}

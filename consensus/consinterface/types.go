@@ -26,7 +26,10 @@ import (
 	"github.com/tcrain/cons/consensus/types"
 )
 
-func ShouldWaitForRndCoord(memberType types.RndMemberType) bool {
+func ShouldWaitForRndCoord(memberType types.RndMemberType, gc *generalconfig.GeneralConfig) bool {
+	if gc.UseRandCoord {
+		return true
+	}
 	switch memberType {
 	case types.KnownPerCons:
 		return false

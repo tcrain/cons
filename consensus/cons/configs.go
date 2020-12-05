@@ -27,12 +27,17 @@ import (
 type StandardMvConfig struct{}
 
 // GetCoinTypes returns the types of coins allowed.
-func (StandardMvConfig) GetCoinTypes(optionType GetOptionType) []types.CoinType {
+func (StandardMvConfig) GetCoinTypes(GetOptionType) []types.CoinType {
 	return []types.CoinType{types.NoCoinType}
 }
 
+// GetAllowsNonMembers returns true if there can be replicas that are not members of the consensus.
+func (StandardMvConfig) GetAllowsNonMembers() bool {
+	return true
+}
+
 // GetStopOnCommitTypes returns the types to test when to terminate.
-func (StandardMvConfig) GetStopOnCommitTypes(optionType GetOptionType) []types.StopOnCommitType {
+func (StandardMvConfig) GetStopOnCommitTypes(GetOptionType) []types.StopOnCommitType {
 	return []types.StopOnCommitType{types.Immediate}
 }
 
@@ -57,12 +62,12 @@ func (StandardMvConfig) GetBroadcastFunc(bt types.ByzType) consinterface.ByzBroa
 }
 
 // GetByzTypes returns the fault types to test.
-func (StandardMvConfig) GetByzTypes(optionType GetOptionType) []types.ByzType {
+func (StandardMvConfig) GetByzTypes(GetOptionType) []types.ByzType {
 	return types.AllByzTypes
 }
 
 // GetAllowNoSignatures returns true if the consensus can run without signatures
-func (StandardMvConfig) GetAllowNoSignatures(gt GetOptionType) []bool { //[]types.UseSignaturesType {
+func (StandardMvConfig) GetAllowNoSignatures(GetOptionType) []bool { //[]types.UseSignaturesType {
 	return types.WithFalse // []types.UseSignaturesType{types.UseSignatures, types.ConsDependentSignatures}
 }
 
@@ -159,7 +164,6 @@ func (StandardMvConfig) GetRandMemberCheckerTypes(gt GetOptionType) []types.RndM
 	}
 }
 
-// GetUseMultiSigTypes() []bool
 // GetRotateCoordTypes returns the values for if the consensus supports rotating coordinator or not or both.
 func (StandardMvConfig) GetRotateCoordTypes(gt GetOptionType) []bool {
 	switch gt {
@@ -174,7 +178,7 @@ func (StandardMvConfig) GetRotateCoordTypes(gt GetOptionType) []bool {
 
 // GetAllowSupportCoinTypes returns the values for if the the consensus supports sending messages supporting the coin
 // (for randomized binary consensus) or not or both.
-func (StandardMvConfig) GetAllowSupportCoinTypes(gt GetOptionType) []bool {
+func (StandardMvConfig) GetAllowSupportCoinTypes(GetOptionType) []bool {
 	return types.WithFalse
 }
 
@@ -198,12 +202,17 @@ func (StandardMvConfig) GetAllowConcurrentTypes(gt GetOptionType) []bool {
 type StandardBinConfig struct{}
 
 // GetCoinTypes returns the types of coins allowed.
-func (StandardBinConfig) GetCoinTypes(optionType GetOptionType) []types.CoinType {
+func (StandardBinConfig) GetCoinTypes(GetOptionType) []types.CoinType {
 	return []types.CoinType{types.NoCoinType}
 }
 
+// GetAllowsNonMembers returns true if there can be replicas that are not members of the consensus.
+func (StandardBinConfig) GetAllowsNonMembers() bool {
+	return true
+}
+
 // GetAllowNoSignatures returns true if the consensus can run without signatures
-func (StandardBinConfig) GetAllowNoSignatures(gt GetOptionType) []bool { // types.UseSignaturesType {
+func (StandardBinConfig) GetAllowNoSignatures(GetOptionType) []bool { // types.UseSignaturesType {
 	// return []types.UseSignaturesType{types.UseSignatures, types.ConsDependentSignatures}
 	return types.WithFalse
 }
@@ -257,7 +266,7 @@ func (StandardBinConfig) GetStateMachineTypes(GetOptionType) []types.StateMachin
 }
 
 // GetByzTypes returns the fault types to test.
-func (StandardBinConfig) GetByzTypes(optionType GetOptionType) []types.ByzType {
+func (StandardBinConfig) GetByzTypes(GetOptionType) []types.ByzType {
 	return types.AllByzTypes
 }
 
@@ -327,7 +336,7 @@ func (StandardBinConfig) GetMemberCheckerTypes(gt GetOptionType) []types.MemberC
 }
 
 // GetRandMemberCheckerTypes returns the types of random member checkers supported by the consensus
-func (StandardBinConfig) GetRandMemberCheckerTypes(gt GetOptionType) []types.RndMemberType {
+func (StandardBinConfig) GetRandMemberCheckerTypes(GetOptionType) []types.RndMemberType {
 	return []types.RndMemberType{types.NonRandom}
 }
 
@@ -346,7 +355,7 @@ func (StandardBinConfig) GetRotateCoordTypes(gt GetOptionType) []bool {
 
 // GetAllowSupportCoinTypes returns the values for if the the consensus supports sending messages supporting the coin
 // (for randomized binary consensus) or not or both.
-func (StandardBinConfig) GetAllowSupportCoinTypes(gt GetOptionType) []bool {
+func (StandardBinConfig) GetAllowSupportCoinTypes(GetOptionType) []bool {
 	return types.WithFalse
 }
 
@@ -370,17 +379,22 @@ func (StandardBinConfig) GetAllowConcurrentTypes(gt GetOptionType) []bool {
 type SimpleConsConfig struct{}
 
 // GetAllowNoSignatures returns true if the consensus can run without signatures
-func (SimpleConsConfig) GetAllowNoSignatures(gt GetOptionType) []bool { //[]types.UseSignaturesType {
+func (SimpleConsConfig) GetAllowNoSignatures(GetOptionType) []bool { //[]types.UseSignaturesType {
 	return types.WithFalse // []types.UseSignaturesType{types.UseSignatures, types.ConsDependentSignatures}
 }
 
+// GetAllowsNonMembers returns true if there can be replicas that are not members of the consensus.
+func (SimpleConsConfig) GetAllowsNonMembers() bool {
+	return true
+}
+
 // GetStopOnCommitTypes returns the types to test when to terminate.
-func (SimpleConsConfig) GetStopOnCommitTypes(optionType GetOptionType) []types.StopOnCommitType {
+func (SimpleConsConfig) GetStopOnCommitTypes(GetOptionType) []types.StopOnCommitType {
 	return []types.StopOnCommitType{types.Immediate}
 }
 
 // GetCoinTypes returns the types of coins allowed.
-func (SimpleConsConfig) GetCoinTypes(optionType GetOptionType) []types.CoinType {
+func (SimpleConsConfig) GetCoinTypes(GetOptionType) []types.CoinType {
 	return []types.CoinType{types.NoCoinType}
 }
 
@@ -400,7 +414,7 @@ func (SimpleConsConfig) GetStateMachineTypes(GetOptionType) []types.StateMachine
 }
 
 // GetByzTypes returns the fault types to test.
-func (SimpleConsConfig) GetByzTypes(optionType GetOptionType) []types.ByzType {
+func (SimpleConsConfig) GetByzTypes(GetOptionType) []types.ByzType {
 	return []types.ByzType{types.NonFaulty}
 }
 
@@ -410,7 +424,7 @@ func (SimpleConsConfig) RequiresStaticMembership() bool {
 }
 
 // GetOrderingTypes returns the types of ordering supported by the consensus.
-func (SimpleConsConfig) GetOrderingTypes(gt GetOptionType) []types.OrderingType {
+func (SimpleConsConfig) GetOrderingTypes(GetOptionType) []types.OrderingType {
 	return []types.OrderingType{types.Total}
 }
 
@@ -439,7 +453,7 @@ func (SimpleConsConfig) GetUsePubIndexTypes(gt GetOptionType) []bool {
 }
 
 // GetIncludeProofTypes returns the values for if the consensus supports including proofs or not or both.
-func (SimpleConsConfig) GetIncludeProofsTypes(gt GetOptionType) []bool {
+func (SimpleConsConfig) GetIncludeProofsTypes(GetOptionType) []bool {
 	return types.WithFalse
 }
 
@@ -456,19 +470,19 @@ func (SimpleConsConfig) GetMemberCheckerTypes(gt GetOptionType) []types.MemberCh
 }
 
 // GetRandMemberCheckerTypes returns the types of random member checkers supported by the consensus
-func (SimpleConsConfig) GetRandMemberCheckerTypes(gt GetOptionType) []types.RndMemberType {
+func (SimpleConsConfig) GetRandMemberCheckerTypes(GetOptionType) []types.RndMemberType {
 	return []types.RndMemberType{types.NonRandom}
 }
 
 // GetUseMultiSigTypes() []bool
 // GetRotateCoordTypes returns the values for if the consensus supports rotating coordinator or not or both.
-func (SimpleConsConfig) GetRotateCoordTypes(gt GetOptionType) []bool {
+func (SimpleConsConfig) GetRotateCoordTypes(GetOptionType) []bool {
 	return types.WithFalse
 }
 
 // GetAllowSupportCoinTypes returns the values for if the the consensus supports sending messages supporting the coin
 // (for randomized binary consensus) or not or both.
-func (SimpleConsConfig) GetAllowSupportCoinTypes(gt GetOptionType) []bool {
+func (SimpleConsConfig) GetAllowSupportCoinTypes(GetOptionType) []bool {
 	return types.WithFalse
 }
 
@@ -511,6 +525,17 @@ var AllTestConfig = OptionStruct{
 	CoinTypes:              types.AllCoins,
 	UseFixedCoinPresets:    types.WithBothBool,
 }
+
+var BasicTestConfigs = ReplaceNilFields(OptionStruct{
+	StateMachineTypes:    []types.StateMachineType{types.CurrencyTxProposer},
+	MemberCheckerTypes:   []types.MemberCheckerType{types.CurrentTrueMC},
+	StopOnCommitTypes:    []types.StopOnCommitType{types.Immediate},
+	CoinTypes:            []types.CoinType{types.NoCoinType, types.FlipCoinType},
+	ByzTypes:             []types.ByzType{types.NonFaulty},
+	IncludeProofsTypes:   types.WithFalse,
+	EncryptChannelsTypes: types.WithFalse,
+	UsePubIndexTypes:     types.WithTrue,
+}, AllTestConfig)
 
 // SingleSMTest is the same as AllTestConfig with the state machine types replaced to one type.
 var SingleSMTest = ReplaceNilFields(OptionStruct{StateMachineTypes: []types.StateMachineType{types.BinaryProposer,

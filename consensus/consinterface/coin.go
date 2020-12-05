@@ -20,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package consinterface
 
 import (
-	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
@@ -34,7 +34,7 @@ type CoinItemInterface interface {
 	// or false if already decided, and return true in second position if the message should be forwarded.
 	// A message is returned if a message should be sent.
 	// If the message is invalid an error is returned.
-	CheckCoinMessage(deser *channelinterface.DeserializedItem, isLocal bool, alwaysGenerate bool, consItem ConsItem,
+	CheckCoinMessage(deser *deserialized.DeserializedItem, isLocal bool, alwaysGenerate bool, consItem ConsItem,
 		coinMsgState CoinMessageStateInterface, msgState MessageState) (round types.ConsensusRound,
 		ret messages.MsgHeader, progress, shouldForward bool, err error)
 
@@ -45,7 +45,7 @@ type CoinItemInterface interface {
 type CoinMessageStateInterface interface {
 	// CheckFinishedMessage checks if the message is for the coin and if the coin is already know.
 	// If so true is returned, false otherwise.
-	CheckFinishedMessage(deser *channelinterface.DeserializedItem) bool
+	CheckFinishedMessage(deser *deserialized.DeserializedItem) bool
 
 	// GetCoinSignType returns what type of signature is used to sign coin messages.
 	GetCoinSignType() types.SignType
@@ -53,7 +53,7 @@ type CoinMessageStateInterface interface {
 	// GotMsg is called by the MessageState of the consensus using this coin.
 	// deser is the deserialized message object.
 	// It returns an error if the message is invalid.
-	GotMsg(msgState MessageState, deser *channelinterface.DeserializedItem,
+	GotMsg(msgState MessageState, deser *deserialized.DeserializedItem,
 		gc *generalconfig.GeneralConfig, mc *MemCheckers) (types.ConsensusRound, error)
 
 	// GetCoins returns the set of binary coin values that are currently valid.

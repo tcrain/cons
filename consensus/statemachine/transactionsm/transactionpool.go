@@ -83,6 +83,20 @@ func AllocateTransactionPool(maxPoolSize int, minProposalSize, maxProposalSize i
 	return ret
 }
 
+func (tp *TransactionPool) GetStats() PoolStats {
+	tp.mutex.Lock()
+	defer tp.mutex.Unlock()
+
+	return tp.stats
+}
+
+func (tp *TransactionPool) ResetStats() {
+	tp.mutex.Lock()
+	defer tp.mutex.Unlock()
+
+	tp.stats = PoolStats{}
+}
+
 // Calls SubmitTransactionIfValid with a nil valid function.
 func (tp *TransactionPool) SubmitTransaction(
 	transList ...TransactionInterface) (inserted []TransactionInterface, errs []error) {

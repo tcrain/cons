@@ -23,16 +23,14 @@ ForwardCheckers keep track of successfully processes consensus messages and deci
 package forwardchecker
 
 import (
-	"fmt"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/stats"
 	"github.com/tcrain/cons/consensus/types"
 	"math/rand"
-	"strings"
-	"sync/atomic"
 	"time"
 
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/messages"
@@ -58,8 +56,8 @@ type internalForwardChecker interface {
 // buffMsg tracks a set of messaged to be forwarded, based on their messages.MsgID.
 // (i.e. there will be one of these object per unique messages.MsgID)
 type buffMsg struct {
-	msgID messages.MsgID                       // the msgID
-	msgs  []*channelinterface.DeserializedItem // the set of messages
+	msgID messages.MsgID                   // the msgID
+	msgs  []*deserialized.DeserializedItem // the set of messages
 
 	count         int       // number of signatures the message has
 	sendTime      time.Time // last time the message was send
@@ -74,9 +72,11 @@ type buffMsg struct {
 }
 
 // newBufferForwarder creates a new absBufferForwarder using the internalForwardChecker
-func newBufferForwarder(internal internalForwardChecker) *absBufferForwarder {
+func newBufferForwarder(internal internalForwardChecker, gc *generalconfig.GeneralConfig, r *rand.Rand) *absBufferForwarder {
 	return &absBufferForwarder{
+		gc:                     gc,
 		internalForwardChecker: internal,
+		rand:                   r,
 		buffMsgMap:             make(map[messages.MsgID]*buffMsg)}
 }
 
@@ -87,14 +87,23 @@ type absBufferForwarder struct {
 	internalForwardChecker
 	buffMsgMap  map[messages.MsgID]*buffMsg
 	buffMsgList []*buffMsg
+	gc          *generalconfig.GeneralConfig
+	rand        *rand.Rand
 }
 
 // New creates a new buffer ForwardChecker for the consensus index. It will be always be called on an "initialForwardChecker" that is given as input to
 // MemberCheckerState.Init. A buffer forwarder forwards a message once it has recieved a threshold of messages with the same MsgID.
 func (fwd *absBufferForwarder) New(idx types.ConsensusIndex, participants, allPubs sig.PubList) consinterface.ForwardChecker {
-	f := newBufferForwarder(fwd.internalForwardChecker.newInternal(idx, participants))
+	_ = allPubs
+	f := newBufferForwarder(fwd.internalForwardChecker.newInternal(idx, participants), fwd.gc, fwd.rand)
 	f.idx = idx
 	return f
+}
+
+// ConsDecided does nothing for this forwarder.
+func (fwd *absBufferForwarder) ConsDecided(stats.NwStatsInterface) {
+
+	return
 }
 
 // CheckForward is called each time a message is successfully processes by ConsState, sndRcvChan is the channel who sent the message, shouldForward is given by the consensus
@@ -102,13 +111,14 @@ func (fwd *absBufferForwarder) New(idx types.ConsensusIndex, participants, allPu
 // It keeps track of the messages received so far based on messages.MsgID.
 func (fwd *absBufferForwarder) CheckForward(
 	sndRcvChan *channelinterface.SendRecvChannel,
-	msg *channelinterface.DeserializedItem,
+	msg *deserialized.DeserializedItem,
 	shouldForward bool,
 	isProposalMessage bool,
 	endThreshold, maxPossible, sigCount int,
 	msgID messages.MsgID,
 	memberChecker *consinterface.MemCheckers) {
 
+	_, _, _, _ = sndRcvChan, shouldForward, isProposalMessage, memberChecker
 	if msg.IsLocal == types.LocalMessage {
 		panic(msg.Header)
 	}
@@ -160,7 +170,7 @@ func (fwd *absBufferForwarder) CheckForward(
 // Messages are forwareded when they have reached a threshold based on their result of ContItem.GetBufferCount, or if they have not reached
 // the next threshold after a timeout. It returns nil for msgs if there are no messages ready to be forwarded.
 func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) (
-	msgs []*channelinterface.DeserializedItem,
+	msgs []*deserialized.DeserializedItem,
 	forwardFunc channelinterface.NewForwardFuncFilter) {
 
 	for _, nxt := range fwd.buffMsgList {
@@ -173,20 +183,24 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 			// this means that message with endthreshold = 1 should be globally broadcast at the beginning
 			// TODO maybe do this differently
 			panic(1)
-			continue
+			// continue
 		}
 
 		// We only forward the message if we have reached a threshold, or if a timeout has passed without reaching the threshold
-		passedTimeout := time.Since(nxt.sendTime) > config.ForwardTimeout*time.Millisecond
+		var rndAdd time.Duration
+		if fwd.gc.RandForwardTimeout > 0 {
+			rndAdd = (time.Duration(fwd.rand.Intn(2*fwd.gc.RandForwardTimeout) - fwd.gc.RandForwardTimeout)) * time.Millisecond
+		}
+		passedTimeout := time.Since(nxt.sendTime) > time.Duration(fwd.gc.ForwardTimeout)*time.Millisecond+rndAdd
 		if passedTimeout {
 			stats.BufferForwardTimeout()
 		}
 		if (nxt.count >= nxt.nextThreshold && nxt.count > nxt.previousCount) || passedTimeout {
 
-			var info strings.Builder
-			info.WriteString(fmt.Sprintf("MsgID: %v, ", nxt.msgID))
-			info.WriteString(fmt.Sprintf("Passed thrsh: %v >= %v, Got new: %v > %v, Passed timeout: %v, ",
-				nxt.count, nxt.nextThreshold, nxt.count, nxt.previousCount, passedTimeout))
+			// var info strings.Builder
+			// info.WriteString(fmt.Sprintf("MsgID: %v, ", nxt.msgID))
+			// info.WriteString(fmt.Sprintf("Passed thrsh: %v >= %v, Got new: %v > %v, Passed timeout: %v, ",
+			//	nxt.count, nxt.nextThreshold, nxt.count, nxt.previousCount, passedTimeout))
 
 			nxt.sendTime = time.Now()
 			nxt.previousCount = nxt.count
@@ -201,15 +215,15 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 				nxt.forwardCount++
 			}
 
-			info.WriteString(fmt.Sprintf("Pass endThresh: %v >= %v, ", nxt.previousCount, nxt.endThreshold))
+			// info.WriteString(fmt.Sprintf("Pass endThresh: %v >= %v, ", nxt.previousCount, nxt.endThreshold))
 
 			// If we passed the current forward threshold then we go to the next
 			if nxt.count >= nxt.nextThreshold {
-				info.WriteString(fmt.Sprintf("PassedNxtThresh: %v >= %v, ", nxt.count, nxt.nextThreshold))
+				// info.WriteString(fmt.Sprintf("PassedNxtThresh: %v >= %v, ", nxt.count, nxt.nextThreshold))
 				if nxt.nextThreshold >= nxt.endThreshold || nxt.count >= nxt.endThreshold {
 
-					info.WriteString(fmt.Sprintf(
-						"PassedEndThrsh: %v/%v >= %v, ", nxt.nextThreshold, nxt.count, nxt.endThreshold))
+					//info.WriteString(fmt.Sprintf(
+					//	"PassedEndThrsh: %v/%v >= %v, ", nxt.nextThreshold, nxt.count, nxt.endThreshold))
 					// if we passed the end threshold, then our next threshold is just the max possible
 					nxt.nextThreshold = nxt.maxPossible
 				} else {
@@ -218,7 +232,7 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 					nxt.nextThreshold = utils.Min(nxt.nextThreshold*fwd.internalForwardChecker.GetFanOut(), nxt.endThreshold)
 					//nxt.nextThreshold = utils.Min(nxt.nextThreshold*2-1, nxt.endThreshold)
 				}
-				info.WriteString(fmt.Sprintf("Set NxtThrsh: %v, ", nxt.nextThreshold))
+				// info.WriteString(fmt.Sprintf("Set NxtThrsh: %v, ", nxt.nextThreshold))
 			}
 
 			// sendCount := fwd.internalForwardChecker.GetFanOut()
@@ -230,8 +244,7 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 			// }
 			nxt.totalForwards++
 
-			info.WriteString(fmt.Sprintf("TotalForwards: %v\n", nxt.totalForwards))
-			// fmt.Println(info.String())
+			// info.WriteString(fmt.Sprintf("TotalForwards: %v\n", nxt.totalForwards))
 
 			// get the forward function for the index
 			// TODO may want to send to different number of nodes for different ways of propogation
@@ -252,7 +265,7 @@ func (fwd *absBufferForwarder) GetNextForwardItem(stats stats.NwStatsInterface) 
 // it is processed.
 type absDirectForwarder struct {
 	internalForwardChecker
-	msg        *channelinterface.DeserializedItem
+	msg        *deserialized.DeserializedItem
 	sndRcvChan *channelinterface.SendRecvChannel
 }
 
@@ -264,7 +277,15 @@ func newDirectForwarder(internal internalForwardChecker) *absDirectForwarder {
 // New creates a new forwarder for consensus index that forwards a message directly once
 // it is processed.
 func (fwd *absDirectForwarder) New(idx types.ConsensusIndex, participants, allPubs sig.PubList) consinterface.ForwardChecker {
+
+	_ = allPubs
 	return newDirectForwarder(fwd.internalForwardChecker.newInternal(idx, participants))
+}
+
+// ConsDecided does nothing for this forwarder.
+func (fwd *absDirectForwarder) ConsDecided(stats.NwStatsInterface) {
+
+	return
 }
 
 // CheckForward takes a successfully processes message and prepares it to be forwarded
@@ -272,12 +293,14 @@ func (fwd *absDirectForwarder) New(idx types.ConsensusIndex, participants, allPu
 // It expects GetNextForwardItem to be called before CheckForward is called again.
 func (fwd *absDirectForwarder) CheckForward(
 	sndRcvChan *channelinterface.SendRecvChannel,
-	msg *channelinterface.DeserializedItem,
+	msg *deserialized.DeserializedItem,
 	shouldForward bool,
 	isProposalMessage bool,
 	endThreshold, maxPossible, sigCount int,
 	msgID messages.MsgID,
 	memberChecker *consinterface.MemCheckers) {
+
+	_, _, _, _, _ = endThreshold, maxPossible, sigCount, msgID, memberChecker
 
 	if fwd.msg != nil || fwd.sndRcvChan != nil {
 		panic("should have forwarded")
@@ -293,12 +316,12 @@ func (fwd *absDirectForwarder) CheckForward(
 
 // GetNextFowardItem returns the last message that was called with CheckForward
 // if forwarding is enabled.
-func (fwd *absDirectForwarder) GetNextForwardItem(stats stats.NwStatsInterface) (
-	msg []*channelinterface.DeserializedItem,
+func (fwd *absDirectForwarder) GetNextForwardItem(_ stats.NwStatsInterface) (
+	msg []*deserialized.DeserializedItem,
 	forwardFunc channelinterface.NewForwardFuncFilter) {
 
 	if fwd.msg != nil {
-		msg = []*channelinterface.DeserializedItem{fwd.msg}
+		msg = []*deserialized.DeserializedItem{fwd.msg}
 	}
 	fwd.msg = nil
 	fwd.sndRcvChan = nil
@@ -327,23 +350,30 @@ type AllToAllForwarder struct {
 // New creates a new AllToAllForwarder for the consensus index. It will be always be called on an "initialForwardChecker" that is given as input to
 // MemberCheckerState.Init.
 func (fwd *AllToAllForwarder) New(idx types.ConsensusIndex, participants, allPubs sig.PubList) consinterface.ForwardChecker {
+	_, _ = allPubs, idx
 	ret := NewAllToAllForwarder().(*AllToAllForwarder)
 	ret.pubs = participants
 	return ret
+}
+
+// ConsDecided does nothing for this forwarder.
+func (fwd *AllToAllForwarder) ConsDecided(stats.NwStatsInterface) {
+
+	return
 }
 
 func (fwd *AllToAllForwarder) NewForwardFunc() sig.PubList {
 	return fwd.pubs
 }
 
-func (fwd *AllToAllForwarder) newInternal(idx types.ConsensusID) internalForwardChecker {
+func (fwd *AllToAllForwarder) newInternal() internalForwardChecker {
 	panic("not used")
 }
 
 // CheckForward does nothing for the AllToAllForwarder.
 func (fwd *AllToAllForwarder) CheckForward(
 	sndRcvChan *channelinterface.SendRecvChannel,
-	msg *channelinterface.DeserializedItem,
+	msg *deserialized.DeserializedItem,
 	shouldForward bool,
 	isProposalMessage bool,
 	endThreshold, maxPossible, sigCount int,
@@ -351,11 +381,13 @@ func (fwd *AllToAllForwarder) CheckForward(
 	memberChecker *consinterface.MemCheckers) {
 
 	// no forwarding in all to all
+	_, _, _, _, _, _, _ = sndRcvChan, msg, shouldForward, isProposalMessage, endThreshold, maxPossible, sigCount
+	_, _ = msgID, memberChecker
 }
 
 // GetNextForwardItem always returns a nil result for the AllToAllForwarder.
-func (fwd *AllToAllForwarder) GetNextForwardItem(stats stats.NwStatsInterface) (
-	msg []*channelinterface.DeserializedItem,
+func (fwd *AllToAllForwarder) GetNextForwardItem(_ stats.NwStatsInterface) (
+	msg []*deserialized.DeserializedItem,
 	forwardFunc channelinterface.NewForwardFuncFilter) {
 
 	// no forwarding in all to all
@@ -365,6 +397,7 @@ func (fwd *AllToAllForwarder) GetNextForwardItem(stats stats.NwStatsInterface) (
 // ShouldForward always returns false for the AllToAll forwarder.
 func (fwd *AllToAllForwarder) ShouldForward(progress bool, isProposalMessage bool) bool {
 	// no forwarding in all to all
+	_, _ = progress, isProposalMessage
 	return false
 }
 
@@ -374,6 +407,7 @@ func (fwd *AllToAllForwarder) GetFanOut() int {
 }
 
 func (fwd *AllToAllForwarder) getSpecificForwardListFunc(count int) channelinterface.NewForwardFuncFilter {
+	_ = count
 	return channelinterface.ForwardAllPub
 }
 
@@ -402,14 +436,17 @@ func (fwd *AllToAllForwarder) GetNoProgressForwardFunc() channelinterface.NewFor
 // If bufferForwarder is true, then it buffers messages before forwarding them as described in
 // the buffer forwarder functions.
 // If requestForwarder is true then this is being used for a local random member checker.
-func NewP2PForwarder(requestForwarder bool, fanOut int, bufferForwarder bool, forwardPubs []sig.PubList) consinterface.ForwardChecker {
-	if requestForwarder && bufferForwarder {
+func NewP2PForwarder(requestForwarder bool, fanOut int, forwardPubs []sig.PubList,
+	gc *generalconfig.GeneralConfig) consinterface.ForwardChecker {
+	if requestForwarder && gc.BufferForwardType != types.NoBufferForward {
 		panic("can't have both requestForwarder and bufferForwarder")
 	}
-	p2p := newP2PForwarder(requestForwarder, fanOut, bufferForwarder, forwardPubs)
-	switch bufferForwarder {
-	case true:
-		return newBufferForwarder(p2p)
+	p2p := newP2PForwarder(requestForwarder, fanOut, gc.BufferForwardType != types.NoBufferForward, forwardPubs)
+	switch gc.BufferForwardType {
+	case types.ThresholdBufferForward:
+		return newBufferForwarder(p2p, gc, rand.New(rand.NewSource(int64(gc.TestIndex))))
+	case types.FixedBufferForward:
+		return newFixedBufferForwarder(p2p, gc)
 	default:
 		return newDirectForwarder(p2p)
 	}
@@ -451,7 +488,7 @@ func newP2PForwarder(requestForwarder bool, fanOut int, bufferForwarder bool, fo
 		forwardPubs: forwardPubs, fwdFuncs: forwardFuncs}
 }
 
-func (fwd *P2PForwarder) newInternal(idx types.ConsensusIndex, participants sig.PubList) internalForwardChecker {
+func (fwd *P2PForwarder) newInternal(_ types.ConsensusIndex, _ sig.PubList) internalForwardChecker {
 	return &P2PForwarder{requestForwarder: fwd.requestForwarder, fanOut: fwd.fanOut, forwardPubs: fwd.forwardPubs,
 		bufferFowarder: fwd.bufferFowarder, fwdFuncs: fwd.fwdFuncs} //, participants: participants}
 }
@@ -507,7 +544,7 @@ func (fwd *P2PForwarder) GetNoProgressForwardFunc() channelinterface.NewForwardF
 //
 /////////////////////////////////////////////////////////////////////////////////
 
-var rndFwdSeed int64 // for testing
+// var rndFwdSeed int64 // for testing
 
 // RandomForwarder will forward messages to a random set of nodes.
 type RandomForwarder struct {
@@ -521,13 +558,16 @@ type RandomForwarder struct {
 // NewRandomForwarder creates a new random forwarder.
 // If bufferForwarder is true, then it buffers messages before forwarding them as described in
 // the buffer forwarder functions.
-func NewRandomForwarder(bufferForwarder bool, fanOut int) consinterface.ForwardChecker {
-	randlocal := rand.New(rand.NewSource(atomic.AddInt64(&rndFwdSeed, 1)))
-	switch bufferForwarder {
-	case true:
-		return newBufferForwarder(&RandomForwarder{
-			fanOut: fanOut,
-			rand:   randlocal})
+func NewRandomForwarder(fanOut int, gc *generalconfig.GeneralConfig) consinterface.ForwardChecker {
+	randlocal := rand.New(rand.NewSource(int64(gc.TestIndex)))
+	rndFwd := &RandomForwarder{
+		fanOut: fanOut,
+		rand:   randlocal}
+	switch gc.BufferForwardType {
+	case types.ThresholdBufferForward:
+		return newBufferForwarder(rndFwd, gc, randlocal)
+	case types.FixedBufferForward:
+		return newFixedBufferForwarder(rndFwd, gc)
 	default:
 		return &absDirectForwarder{
 			internalForwardChecker: &RandomForwarder{
@@ -536,7 +576,7 @@ func NewRandomForwarder(bufferForwarder bool, fanOut int) consinterface.ForwardC
 	}
 }
 
-func (fwd *RandomForwarder) newInternal(idx types.ConsensusIndex, participants sig.PubList) internalForwardChecker {
+func (fwd *RandomForwarder) newInternal(_ types.ConsensusIndex, participants sig.PubList) internalForwardChecker {
 	return &RandomForwarder{
 		participants: participants,
 		fanOut:       fwd.fanOut,
@@ -582,6 +622,7 @@ func (fwd *RandomForwarder) GetHalfHalfForwardListFunc() (firstHalf, secondHalf 
 
 // ShouldForward returns the same value as progress (i.e. only forward a message if it made progress towards a consensus decision.
 func (fwd *RandomForwarder) ShouldForward(progress bool, isProposalMessage bool) bool {
+	_ = isProposalMessage
 	return progress
 }
 
@@ -592,6 +633,7 @@ func (fwd *RandomForwarder) GetNoProgressForwardFunc() channelinterface.NewForwa
 
 // TODO use semi-random here based on a configuration
 func (fwd *RandomForwarder) getSpecificForwardListFunc(count int) channelinterface.NewForwardFuncFilter {
+	_ = count
 	return fwd.GetNewForwardListFunc()
 	/*	if fwd.fwdFunc == nil {
 			// Here the forward function returns a random permutation of the channels of lenght count

@@ -44,20 +44,22 @@ type blsSigItem struct {
 }
 
 type blsSigMsgState struct {
-	cond *sync.Cond
-	// msgID messages.MsgID
-	msgHeader        *sig.MultipleSignedMessage
-	sigs             map[int]*blsSigItem
+	cond           *sync.Cond
+	msgHeader      *sig.MultipleSignedMessage
+	sigs           map[int]*blsSigItem
+	allSigs        bitid.NewBitIDInterface
+	validatingSigs bitid.NewBitIDInterface
+	hasNewSigs     int // 0 means we have new sigs not added to the signed count yet, a larger number means we computed a merged sig that had requested that amount (but may have had more or less signatures at the time)
+
 	fullSigList      SortBlsItem
-	allSigs          bitid.BitIDInterface
-	validatingSigs   bitid.BitIDInterface
-	hasNewSigs       int
 	nonDuplicateSigs map[blsSigItem]bool
+	intFunc          bitid.FromIntFunc
+	pool             bitid.BitIDPoolInterface
 }
 
 type blsSigMsgIDState struct {
 	sync.Mutex
-	allSigs bitid.BitIDInterface
+	allSigs bitid.NewBitIDInterface
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -111,52 +113,59 @@ func (smm *blsSigState) getAllMsgSigs(priv sig.Priv, localOnly bool,
 
 type blsSigState struct {
 	sync.Mutex
-	msgMap   map[types.HashStr]*blsSigMsgState
-	msgIDMap map[messages.MsgID]*blsSigMsgIDState
-	numPubs  int
-	index    types.ConsensusIndex
+	msgMap       map[types.HashStr]*blsSigMsgState
+	msgIDMap     map[messages.MsgID]*blsSigMsgIDState
+	numPubs      int
+	index        types.ConsensusIndex
+	intFunc      bitid.FromIntFunc
+	newBitIDFunc bitid.NewBitIDFunc
+	pool         bitid.BitIDPoolInterface
 }
 
-func newBlsSigMsgState(sm *sig.MultipleSignedMessage) (*blsSigMsgState, error) {
-	allSigs, err := bitid.CreateBitIDTypeFromInts(nil)
-	if err != nil {
-		panic(err)
-	}
-	validatingSigs, err := bitid.CreateBitIDTypeFromInts(nil)
-	if err != nil {
-		panic(err)
-	}
+func newBlsSigMsgState(sm *sig.MultipleSignedMessage, intFunc bitid.FromIntFunc, _ bitid.NewBitIDFunc,
+	pool bitid.BitIDPoolInterface) (*blsSigMsgState, error) {
+	allSigs := intFunc(nil)
+	validatingSigs := intFunc(nil)
 
 	return &blsSigMsgState{
 		msgHeader:      sm.ShallowCopy().(*sig.MultipleSignedMessage),
 		cond:           sync.NewCond(&sync.Mutex{}),
 		sigs:           make(map[int]*blsSigItem),
 		allSigs:        allSigs,
-		validatingSigs: validatingSigs}, nil
+		validatingSigs: validatingSigs,
+		intFunc:        intFunc,
+		// newBitIDFunc: idFunc,
+		pool: pool, // bitid.NewBitIDPool(idFunc, false),
+	}, nil
 }
 
-func newBlsSigState(index types.ConsensusIndex) *blsSigState {
+func newBlsSigState(index types.ConsensusIndex, intFunc bitid.FromIntFunc, idFunc bitid.NewBitIDFunc,
+	prev *blsSigState) *blsSigState {
 	if !sig.GetUsePubIndex() {
 		panic("should only be used with pub indecies")
 	}
+	// pool := bitid.NewBitIDPool(idFunc, false)
 
 	return &blsSigState{
-		index:    index,
-		numPubs:  math.MaxInt32,
-		msgMap:   make(map[types.HashStr]*blsSigMsgState),
-		msgIDMap: make(map[messages.MsgID]*blsSigMsgIDState)}
+		index:        index,
+		newBitIDFunc: idFunc,
+		pool:         prev.pool,
+		intFunc:      intFunc,
+		numPubs:      math.MaxInt32,
+		msgMap:       make(map[types.HashStr]*blsSigMsgState),
+		msgIDMap:     make(map[messages.MsgID]*blsSigMsgIDState)}
 }
 
 // getCoinVal is not supported.
-func (smm *blsSigState) getCoinVal(_ types.HashStr) (coinVal types.BinVal, ready bool) {
+func (smm *blsSigState) getCoinVal(types.HashStr) (coinVal types.BinVal, ready bool) {
 	panic("unsupported")
 }
 
-func (smm *blsSigState) gotUnsignedMsg(sm *sig.UnsignedMessage) error {
+func (smm *blsSigState) gotUnsignedMsg(*sig.UnsignedMessage) error {
 	panic("unsupported")
 }
-func (smm *blsSigState) storeUnsignedMsg(sm *sig.UnsignedMessage,
-	mc *consinterface.MemCheckers) (int, int, error) {
+func (smm *blsSigState) storeUnsignedMsg(*sig.UnsignedMessage,
+	*consinterface.MemCheckers) (int, int, error) {
 
 	panic("unsupported")
 }
@@ -213,7 +222,7 @@ func (smm *blsSigState) getSignedMsgState(sm *sig.MultipleSignedMessage) (*blsSi
 	item, ok := smm.msgMap[hashStr]
 	if !ok {
 		var err error
-		item, err = newBlsSigMsgState(sm)
+		item, err = newBlsSigMsgState(sm, smm.intFunc, smm.newBitIDFunc, smm.pool)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -222,10 +231,7 @@ func (smm *blsSigState) getSignedMsgState(sm *sig.MultipleSignedMessage) (*blsSi
 	msgID := sm.GetMsgID()
 	idItem, ok := smm.msgIDMap[msgID]
 	if !ok {
-		allSigs, err := bitid.CreateBitIDTypeFromInts(nil)
-		if err != nil {
-			panic(err)
-		}
+		allSigs := smm.newBitIDFunc()
 		idItem = &blsSigMsgIDState{allSigs: allSigs}
 		smm.msgIDMap[msgID] = idItem
 	}
@@ -237,7 +243,9 @@ type SortSigItem []*sig.SigItem
 func (a SortSigItem) Len() int      { return len(a) }
 func (a SortSigItem) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a SortSigItem) Less(i, j int) bool {
-	return a[i].Pub.(*bls.Blspub).GetBitID().GetNumItems() > a[j].Pub.(*bls.Blspub).GetBitID().GetNumItems()
+	_, _, _, iCount := a[i].Pub.(*bls.Blspub).GetBitID().GetBasicInfo()
+	_, _, _, jCount := a[j].Pub.(*bls.Blspub).GetBitID().GetBasicInfo()
+	return iCount < jCount
 }
 
 type SortBlsItem []*blsSigItem
@@ -245,7 +253,9 @@ type SortBlsItem []*blsSigItem
 func (a SortBlsItem) Len() int      { return len(a) }
 func (a SortBlsItem) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a SortBlsItem) Less(i, j int) bool {
-	return a[i].pub.GetBitID().GetNumItems() > a[j].pub.GetBitID().GetNumItems()
+	_, _, _, iCount := a[i].pub.GetBitID().GetBasicInfo()
+	_, _, _, jCount := a[j].pub.GetBitID().GetBasicInfo()
+	return iCount < jCount
 }
 
 func (smm *blsSigState) gotMsg(sm *sig.MultipleSignedMessage) error {
@@ -271,7 +281,9 @@ tryValidate:
 	// TODO remove me?
 	if config.StopMultiSigEarly {
 		smm.Lock()
-		if item.allSigs.GetNumItems() > smm.numPubs || item.validatingSigs.GetNumItems() > smm.numPubs {
+		_, _, allCount, _ := item.allSigs.GetBasicInfo()
+		_, _, validatingCount, _ := item.validatingSigs.GetBasicInfo()
+		if allCount > smm.numPubs || validatingCount > smm.numPubs {
 			item.cond.L.Unlock()
 			smm.Unlock()
 			return types.ErrNoValidSigs
@@ -280,10 +292,7 @@ tryValidate:
 	}
 
 	var newItems []*sig.SigItem
-	imValidating, err := bitid.CreateBitIDTypeFromInts(nil)
-	if err != nil {
-		panic(err)
-	}
+	imValidating := item.pool.Get()
 
 	for i, si := range sigItems {
 		// str, err := si.Pub.GetPubID()
@@ -294,36 +303,45 @@ tryValidate:
 		// we only keep the sig if it gives information for at least 1 new sig
 		// TODO also keep sig if it contains more members
 		pbid := si.Pub.(sig.MultiPub).GetBitID()
-		newSigs := item.allSigs.GetNewItems(pbid)
-		if err != nil {
-			panic(err)
-		}
+		// newSigs := bitid.GetNewItemsHelper(item.allSigs, pbid, item.pool.Get)
 		// TODO check this???
-		if imValidating.HasNewItems(newSigs) {
+		if bitid.HasNewItemsBothHelper(item.allSigs, imValidating, pbid) {
+			// if bitid.HasNewItemsHelper(imValidating, newSigs) {
 			// check if someone is already validating these sigs
 			// if len(item.validatingSigs.GetNewItems(pbid)) == 0 {
-			if item.validatingSigs.HasIntersection(pbid) {
+
+			if bitid.HasIntersectionHelper(item.validatingSigs, pbid) {
 				// conflicting validate, retry
 				// item.cond.Signal()
 				retry++
 				item.cond.Wait()
 				sigItems = append(newItems, sigItems[i:]...)
+				// item.pool.Done(newSigs)
+				item.pool.Done(imValidating)
 				goto tryValidate
 			}
 			newItems = append(newItems, si)
-			bitid.AddBitIDType(imValidating, pbid, false)
+
+			imValidating, err = bitid.AddHelper(imValidating, pbid, false, false, item.pool.Get, item.pool.Done)
+			utils.PanicNonNil(err)
+			// bitid.AddBitIDType(imValidating, pbid, false)
 			// imValidating = sig.MergeBitIDType(imValidating, pbid, false)
 		} else {
 			// logging.Info("no new sigs", pbid.GetItemList(), item.allSigs.GetItemList(), imValidating.GetItemList())
 		}
+		// item.pool.Done(newSigs)
 	}
 
 	// Let the oters know what you are validating
 	if len(newItems) > 0 {
-		bitid.AddBitIDType(item.validatingSigs, imValidating, false)
+		item.validatingSigs, err = bitid.AddHelper(item.validatingSigs, imValidating,
+			false, false, item.pool.Get, item.pool.Done)
+		utils.PanicNonNil(err)
+		// bitid.AddBitIDType(item.validatingSigs, imValidating, false)
 		// item.validatingSigs = sig.MergeBitIDType(item.validatingSigs, imValidating, false)
 	}
 
+	item.pool.Done(imValidating)
 	item.cond.L.Unlock()
 
 	sm.SetSigItems(newItems)
@@ -359,27 +377,42 @@ func (smm *blsSigState) storeMsg(sm *sig.MultipleSignedMessage, invalidSigs []*s
 	for _, si := range validSigs {
 		bid := si.Pub.(sig.MultiPub).GetBitID()
 		// indicate we are no longer validating this
-		item.validatingSigs = bitid.SubBitIDType(item.validatingSigs, bid)
-		if item.allSigs.HasNewItems(bid) {
+		item.validatingSigs, err = bitid.SubHelper(item.validatingSigs, bid, bitid.NotSafe, item.pool.Get, item.pool.Done)
+		utils.PanicNonNil(err)
+		// item.validatingSigs = bitid.SubBitIDType(item.validatingSigs, bid)
+		if bitid.HasNewItemsHelper(item.allSigs, bid) {
+			// if item.allSigs.HasNewItems(bid) {
 			item.hasNewSigs = 0
 			// item.addSig(si.Pub.(*sig.Blspub), si.Sig.(*sig.Blssig), si.SigBytes, mc)
 
 			// TODO DO this merge in single loop
 
 			// update the state with the new sig
-			newBid := item.allSigs.GetNewItems(bid)
-			if newBid.GetNumItems() > 0 {
-				bitid.AddBitIDType(item.allSigs, newBid, false)
-				// item.allSigs = sig.MergeBitIDType(item.allSigs, newBid, false)
-			}
-
+			// newBid := bitid.GetNewItemsHelper(item.allSigs, bid, item.pool.Get)
+			//_, _, count, _ := newBid.GetBasicInfo()
+			//if count > 0 {
+			// newBid := item.allSigs.GetNewItems(bid)
+			//if newBid.GetNumItems() > 0 {
+			item.allSigs, err = bitid.AddHelper(item.allSigs, bid, false,
+				false, item.pool.Get, item.pool.Done)
+			utils.PanicNonNil(err)
+			// bitid.AddBitIDType(item.allSigs, newBid, false)
+			// item.allSigs = sig.MergeBitIDType(item.allSigs, newBid, false)
+			//}
+			//item.pool.Done(newBid)
 			// update for the msg id
-			newBid = itemID.allSigs.GetNewItems(bid)
-			if newBid.GetNumItems() > 0 {
-				bitid.AddBitIDType(itemID.allSigs, newBid, false)
-				// itemID.allSigs = sig.MergeBitIDType(itemID.allSigs, newBid, false)
-			}
-
+			//newBid = bitid.GetNewItemsHelper(itemID.allSigs, bid, item.pool.Get)
+			//_, _, count, _ = newBid.GetBasicInfo()
+			//if count > 0 {
+			// newBid = itemID.allSigs.GetNewItems(bid)
+			// if newBid.GetNumItems() > 0 {
+			itemID.allSigs, err = bitid.AddHelper(itemID.allSigs, bid,
+				false, false, item.pool.Get, item.pool.Done)
+			utils.PanicNonNil(err)
+			// bitid.AddBitIDType(itemID.allSigs, newBid, false)
+			// itemID.allSigs = sig.MergeBitIDType(itemID.allSigs, newBid, false)
+			//}
+			//item.pool.Done(newBid)
 			item.fullSigList = append(item.fullSigList, &blsSigItem{pub: si.Pub.(sig.AllMultiPub),
 				sig: si.Sig.(sig.AllMultiSig), proof: si.VRFProof, sigBytes: &si.SigBytes})
 
@@ -390,10 +423,15 @@ func (smm *blsSigState) storeMsg(sm *sig.MultipleSignedMessage, invalidSigs []*s
 	sort.Sort(item.fullSigList)
 	for _, invalid := range invalidSigs {
 		// indicate we are no longer validating this
-		item.validatingSigs = bitid.SubBitIDType(item.validatingSigs, invalid.Pub.(sig.MultiPub).GetBitID())
+		item.validatingSigs, err = bitid.SubHelper(item.validatingSigs,
+			invalid.Pub.(sig.MultiPub).GetBitID(), bitid.NonIntersecting, item.pool.Get, item.pool.Done)
+		utils.PanicNonNil(err)
+		// item.validatingSigs = bitid.SubBitIDType(item.validatingSigs, invalid.Pub.(sig.MultiPub).GetBitID())
 	}
-	ret := item.allSigs.GetNumItems()
-	ret2 := itemID.allSigs.GetNumItems()
+	_, _, ret, _ := item.allSigs.GetBasicInfo()
+	_, _, ret2, _ := itemID.allSigs.GetBasicInfo()
+	// ret := item.allSigs.GetNumItems()
+	// ret2 := itemID.allSigs.GetNumItems()
 
 	itemID.Unlock()
 	item.cond.L.Unlock()
@@ -414,7 +452,8 @@ func (smm *blsSigState) getSigCountMsgIDList(msgID messages.MsgID) []consinterfa
 	for _, item := range smm.msgMap {
 		if item.msgHeader.GetMsgID() == msgID {
 			item.cond.L.Lock()
-			ret = append(ret, consinterface.MsgIDCount{MsgHeader: item.msgHeader, Count: item.allSigs.GetNumItems()})
+			_, _, count, _ := item.allSigs.GetBasicInfo()
+			ret = append(ret, consinterface.MsgIDCount{MsgHeader: item.msgHeader, Count: count})
 			item.cond.L.Unlock()
 		}
 	}
@@ -429,7 +468,11 @@ func (smm *blsSigState) getSigCountMsg(hash types.HashStr) int {
 		panic(err)
 	}
 	item.cond.L.Lock()
-	ret := item.allSigs.GetNumItems()
+	_, _, ret, oth := item.allSigs.GetBasicInfo()
+	if ret != oth {
+		panic(fmt.Sprint(ret, oth))
+	}
+	// ret := item.allSigs.GetNumItems()
 	item.cond.L.Unlock()
 	return ret
 }
@@ -442,7 +485,7 @@ func (smm *blsSigState) getSigCountMsgID(msgID messages.MsgID) int {
 		panic(err)
 	}
 	item.Lock()
-	ret := item.allSigs.GetNumItems()
+	_, _, ret, _ := item.allSigs.GetBasicInfo()
 	item.Unlock()
 	return ret
 }
@@ -496,7 +539,7 @@ func (smm *blsSigState) setupSigs(sm *sig.MultipleSignedMessage, priv sig.Priv, 
 
 	if addOtherSigsCount > 0 {
 		if sigCount < maxCount && sigCount < addOtherSigsCount {
-			panic(fmt.Sprint(sigCount, maxCount)) // sanity check
+			panic(fmt.Sprint(sigCount, maxCount, addOtherSigsCount)) // sanity check
 		}
 	}
 	if sigCount < addOtherSigsCount {
@@ -515,13 +558,12 @@ func (ss *blsSigMsgState) checkSubSig(item *blsSigItem) {
 		if len(dups) == 0 {
 			break
 		}
-		dupBid, err := bitid.CreateBitIDTypeFromInts(dups)
-		if err != nil {
-			panic(err)
-		}
+		dupBid := ss.intFunc(dups)
 
 		for _, nxt := range ss.fullSigList {
-			if len(dupBid.CheckIntersection(nxt.pub.GetBitID())) == nxt.pub.GetBitID().GetNumItems() {
+			_, _, nxtCount, _ := nxt.pub.GetBitID().GetBasicInfo()
+			if bitid.HasIntersectionCountHelper(dupBid, nxt.pub.GetBitID()) == nxtCount {
+				// if len(dupBid.CheckIntersection(nxt.pub.GetBitID())) == nxt.pub.GetBitID().GetNumItems() {
 				// panic(1)
 				// we can sub
 				newPub, err := item.pub.SubMultiPub(nxt.pub)
@@ -555,31 +597,40 @@ func (ss *blsSigMsgState) checkSubSig(item *blsSigItem) {
 // (allows a single sig to be merge multiple times)
 func (ss *blsSigMsgState) computeMergedSigsMultiple(maxSigCount int, mc *consinterface.MemCheckers) {
 	// if we have no sigs then just return
-	if ss.allSigs.GetNumItems() == 0 || ss.hasNewSigs >= maxSigCount {
+	_, _, allCount, _ := ss.allSigs.GetBasicInfo()
+	if allCount == 0 || ss.hasNewSigs >= maxSigCount {
 		return
 	}
 	ss.hasNewSigs = maxSigCount
 	// Loop until we cover all sigs
-	soFar, err := bitid.CreateBitIDTypeFromInts(nil)
-	if err != nil {
-		panic(err)
-	}
+	soFar := ss.pool.Get()
 	var sigItemList []*blsSigItem
-	var toCheck bitid.BitIDInterface
+	var toCheck bitid.NewBitIDInterface
+	var err error
 	if config.StartWithNonConflictingMultiSig {
-		toCheck = bitid.SubBitIDType(ss.allSigs, soFar) // to check is all sigs
+		toCheck, err = bitid.SubHelper(ss.allSigs, soFar, bitid.NotSafe, ss.pool.Get, nil)
+		utils.PanicNonNil(err)
+		// toCheck = bitid.SubBitIDType(ss.allSigs, soFar) // to check is all sigs
 		item := ss.computeNonConflitingSig(toCheck, mc)
 		sigItemList = append(sigItemList, item)
-		bitid.AddBitIDType(soFar, item.pub.GetBitID(), false)
+		soFar, err = bitid.AddHelper(soFar, item.pub.GetBitID(), false, false, ss.pool.Get, ss.pool.Done)
+		utils.PanicNonNil(err)
+		// bitid.AddBitIDType(soFar, item.pub.GetBitID(), false)
 		// soFar = sig.MergeBitIDType(soFar, item.pub.GetBitID(), false)
+		ss.pool.Done(toCheck)
 	}
-	for toCheck = bitid.SubBitIDType(ss.allSigs, soFar); toCheck.GetNumItems() > 0 && soFar.GetNumItems() < maxSigCount; toCheck = bitid.SubBitIDType(ss.allSigs, soFar) {
+
+	var toCheckCount, soFarCount int
+	toCheck, toCheckCount, soFarCount = ss.getToCheck(soFar)
+	for toCheckCount > 0 && soFarCount < maxSigCount {
+		// for toCheck = bitid.SubBitIDType(ss.allSigs, soFar); toCheck.GetNumItems() > 0 && soFar.GetNumItems() < maxSigCount; toCheck = bitid.SubBitIDType(ss.allSigs, soFar) {
 
 		// find the sig that covers the most
 		var item *blsSigItem
 		var itemIntersect int
 		for _, nxt := range ss.fullSigList {
-			intersect := len(toCheck.CheckIntersection(nxt.pub.GetBitID()))
+			intersect := bitid.HasIntersectionCountHelper(toCheck, nxt.pub.GetBitID())
+			// intersect := len(toCheck.CheckIntersection(nxt.pub.GetBitID()))
 			if intersect > itemIntersect {
 				item = nxt
 				itemIntersect = intersect
@@ -589,9 +640,15 @@ func (ss *blsSigMsgState) computeMergedSigsMultiple(maxSigCount int, mc *consint
 			panic("should not be nil")
 		}
 		sigItemList = append(sigItemList, item)
-		bitid.AddBitIDType(soFar, item.pub.GetBitID(), false)
+		soFar, err = bitid.AddHelper(soFar, item.pub.GetBitID(), false, false, ss.pool.Get, ss.pool.Done)
+		utils.PanicNonNil(err)
+		// bitid.AddBitIDType(soFar, item.pub.GetBitID(), false)
 		// soFar = sig.MergeBitIDType(soFar, item.pub.GetBitID(), false)
+		ss.pool.Done(toCheck)
+		toCheck, toCheckCount, soFarCount = ss.getToCheck(soFar)
 	}
+	ss.pool.Done(toCheck)
+	ss.pool.Done(soFar)
 
 	// Make the merged sig
 	newItem := ss.createMergedSig(sigItemList, mc)
@@ -607,12 +664,19 @@ func (ss *blsSigMsgState) computeMergedSigsMultiple(maxSigCount int, mc *consint
 	ss.updateMergedSigState([]*blsSigItem{newItem})
 }
 
-func (ss *blsSigMsgState) computeNonConflitingSig(toCheck bitid.BitIDInterface, mc *consinterface.MemCheckers) *blsSigItem {
+func (ss *blsSigMsgState) getToCheck(soFar bitid.NewBitIDInterface) (
+	bitid.NewBitIDInterface, int, int) {
+
+	toCheck, err := bitid.SubHelper(ss.allSigs, soFar, bitid.NotSafe, ss.pool.Get, nil)
+	utils.PanicNonNil(err)
+	_, _, toCheckCount, _ := toCheck.GetBasicInfo()
+	_, _, _, soFarCount := soFar.GetBasicInfo()
+	return toCheck, toCheckCount, soFarCount
+}
+
+func (ss *blsSigMsgState) computeNonConflitingSig(toCheck bitid.NewBitIDInterface, mc *consinterface.MemCheckers) *blsSigItem {
 	// Find the group of mergeable sigs that covers the most of the remaining bits (toCheck)
-	toMerge, err := bitid.CreateBitIDTypeFromInts(nil)
-	if err != nil {
-		panic(err)
-	}
+	toMerge := ss.pool.Get()
 	found := true
 	var internalItemList []*blsSigItem // list of mergeable sigs
 	for found {
@@ -621,8 +685,10 @@ func (ss *blsSigMsgState) computeNonConflitingSig(toCheck bitid.BitIDInterface, 
 		var itemIntersect int
 		found = false
 		for _, nxt := range ss.fullSigList {
-			if !toMerge.HasIntersection(nxt.pub.GetBitID()) {
-				intersect := len(toCheck.CheckIntersection(nxt.pub.GetBitID()))
+			if !bitid.HasIntersectionHelper(toMerge, nxt.pub.GetBitID()) {
+				// if !toMerge.HasIntersection(nxt.pub.GetBitID()) {
+				intersect := bitid.HasIntersectionCountHelper(toCheck, nxt.pub.GetBitID())
+				// intersect := len(toCheck.CheckIntersection(nxt.pub.GetBitID()))
 				if intersect > itemIntersect {
 					item = nxt
 					itemIntersect = intersect
@@ -631,11 +697,16 @@ func (ss *blsSigMsgState) computeNonConflitingSig(toCheck bitid.BitIDInterface, 
 		}
 		if item != nil {
 			internalItemList = append(internalItemList, item)
-			bitid.AddBitIDType(toMerge, item.pub.GetBitID(), false)
+			var err error
+			toMerge, err = bitid.AddHelper(toMerge, item.pub.GetBitID(), false,
+				false, ss.pool.Get, ss.pool.Done)
+			utils.PanicNonNil(err)
+			// bitid.AddBitIDType(toMerge, item.pub.GetBitID(), false)
 			// toMerge = sig.MergeBitIDType(toMerge, item.pub.GetBitID(), false)
 			found = true
 		}
 	}
+	ss.pool.Done(toMerge)
 
 	// Add it to the list of items found so far
 	newItem := ss.createMergedSig(internalItemList, mc)
@@ -646,17 +717,17 @@ func (ss *blsSigMsgState) computeNonConflitingSig(toCheck bitid.BitIDInterface, 
 // (does not allow a single sig to be merged multiple times)
 // TODO make this concurrent with GotMsg and StoreMsg?
 func (ss *blsSigMsgState) computeMergedSigs(maxSigCount int, mc *consinterface.MemCheckers) {
-	if ss.allSigs.GetNumItems() == 0 || ss.hasNewSigs >= maxSigCount {
+	_, _, count, _ := ss.allSigs.GetBasicInfo()
+	if count == 0 || ss.hasNewSigs >= maxSigCount {
 		return
 	}
 	ss.hasNewSigs = maxSigCount
 	// Loop until we cover all sigs
-	soFar, err := bitid.CreateBitIDTypeFromInts(nil)
-	if err != nil {
-		panic(err)
-	}
+	soFar := ss.pool.Get()
 	var sigItemList []*blsSigItem
-	for toCheck := bitid.SubBitIDType(ss.allSigs, soFar); toCheck.GetNumItems() > 0 && soFar.GetNumItems() < maxSigCount; toCheck = bitid.SubBitIDType(ss.allSigs, soFar) {
+	toCheck, toCheckCount, soFarCount := ss.getToCheck(soFar)
+	for toCheckCount > 0 && soFarCount < maxSigCount {
+		// for toCheck := bitid.SubBitIDType(ss.allSigs, soFar); toCheck.GetNumItems() > 0 && soFar.GetNumItems() < maxSigCount; toCheck = bitid.SubBitIDType(ss.allSigs, soFar) {
 
 		// // Find the group of mergeable sigs that covers the most of the remaining bits (toCheck)
 		// toMerge, err := sig.CreateBitIDTypeFromInts(nil)
@@ -690,10 +761,16 @@ func (ss *blsSigMsgState) computeMergedSigs(maxSigCount int, mc *consinterface.M
 		newItem := ss.computeNonConflitingSig(toCheck, mc)
 
 		sigItemList = append(sigItemList, newItem)
-		bitid.AddBitIDType(soFar, newItem.pub.GetBitID(), false)
+		var err error
+		soFar, err = bitid.AddHelper(soFar, newItem.pub.GetBitID(), false, false, ss.pool.Get, ss.pool.Done)
+		utils.PanicNonNil(err)
+		// bitid.AddBitIDType(soFar, newItem.pub.GetBitID(), false)
 		// soFar = sig.MergeBitIDType(soFar, newItem.pub.GetBitID(), false)
-
+		ss.pool.Done(toCheck)
+		toCheck, toCheckCount, soFarCount = ss.getToCheck(soFar)
 	}
+	ss.pool.Done(toCheck)
+	ss.pool.Done(soFar)
 	ss.updateMergedSigState(sigItemList)
 }
 
@@ -702,11 +779,12 @@ func (ss *blsSigMsgState) createMergedSig(internalItemList []*blsSigItem, mc *co
 	_ = mc
 
 	// Create the merged sig from this group
+	bitids := make([]bitid.NewBitIDInterface, 0, len(internalItemList))
 	comSig := internalItemList[0].sig
 	comSigBuff := *internalItemList[0].sigBytes
-	comPub := internalItemList[0].pub
+	comPub := internalItemList[0].pub.Clone().(sig.AllMultiPub)
+	bitids = append(bitids, internalItemList[0].pub.GetBitID())
 	var err error
-
 	// TODO merge at once1!!!
 
 	for _, nxtSigItem := range internalItemList[1:] {
@@ -719,11 +797,14 @@ func (ss *blsSigMsgState) createMergedSig(internalItemList []*blsSigItem, mc *co
 
 		// newPub := smc.getPub(sig.PubKeyID(sig.MergeBitIDType(comPub.GetBitID(), nxtSigItem.pub.GetBitID(), true).GetStr()))
 		//if newPub == nil {
-		newComPub, err := comPub.MergePub(nxtSigItem.pub)
-		if err != nil {
-			panic(err)
-		}
-		comPub = newComPub.(sig.AllMultiPub)
+		comPub.MergePubPartial(nxtSigItem.pub)
+		bitids = append(bitids, nxtSigItem.pub.GetBitID())
+
+		//newComPub, err := comPub.MergePub(nxtSigItem.pub)
+		//if err != nil {
+		//	panic(err)
+		//}
+		//comPub = newComPub.(sig.AllMultiPub)
 		// So we generate the bitID
 		// _, err := newPub.InformState(nil)
 		// if err != nil {
@@ -733,6 +814,9 @@ func (ss *blsSigMsgState) createMergedSig(internalItemList []*blsSigItem, mc *co
 		//}
 		// comPub = newPub
 	}
+	bitSet, err := bitid.AddHelperSet(true, false, bitids[0].New, bitids...)
+	utils.PanicNonNil(err)
+	comPub.DonePartialMerge(bitSet)
 	// Create the sig bytes if needed
 	if len(internalItemList) > 1 {
 		comSigBuff, err = comPub.GenerateSerializedSig(comSig)
@@ -763,7 +847,9 @@ func (ss *blsSigMsgState) updateMergedSigState(sigItemList []*blsSigItem) {
 	for _, newSigItem := range sigItemList {
 		// Update the added sigs
 		// newLen := newSigItem.pub.GetBitID().GetNumItems()
-		for _, i := range newSigItem.pub.GetBitID().GetItemList() {
+		bid := newSigItem.pub.GetBitID()
+		iter := bid.NewIterator()
+		for i, err := iter.NextID(); err == nil; i, err = iter.NextID() {
 			sigIdx[i] = true
 			// for _, i := range ss.allSigs.GetItemList() {
 
@@ -776,6 +862,7 @@ func (ss *blsSigMsgState) updateMergedSigState(sigItemList []*blsSigItem) {
 			// item = &newSigItem
 			// }
 		}
+		iter.Done()
 	}
 
 	// Update the map of non-duplicate sigs

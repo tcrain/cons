@@ -22,12 +22,12 @@ package mvbinconsrnd2
 import (
 	"bytes"
 	"github.com/tcrain/cons/consensus/auth/sig"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/cons/bincons1"
 	"github.com/tcrain/cons/consensus/cons/binconsrnd2"
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/consinterface/messagestate"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -106,8 +106,8 @@ func (sms *MessageState) getSupportedCommitHash() (hash types.HashBytes, msgCoun
 // (3) HdrMvCommit - commit messages
 // (4) HdrMvRequestRecover - unsigned message asking for the init message received for a given hash
 func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
-	deser *channelinterface.DeserializedItem, gc *generalconfig.GeneralConfig,
-	mc *consinterface.MemCheckers) ([]*channelinterface.DeserializedItem, error) {
+	deser *deserialized.DeserializedItem, gc *generalconfig.GeneralConfig,
+	mc *consinterface.MemCheckers) ([]*deserialized.DeserializedItem, error) {
 
 	if !deser.IsDeserialized {
 		// Only track deserialzed messages
@@ -191,7 +191,7 @@ func (sms *MessageState) GotMsg(hdrFunc consinterface.HeaderFunc,
 	case messages.HdrMvRequestRecover:
 		// we handle this in cons
 		// Nothing to do since it is just asking for a message
-		return []*channelinterface.DeserializedItem{deser}, nil
+		return []*deserialized.DeserializedItem{deser}, nil
 	default:
 		// check if it is a bin cons message
 		return sms.BinConsMessageStateInterface.GotMsg(hdrFunc, deser, gc, mc)

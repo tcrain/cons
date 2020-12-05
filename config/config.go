@@ -52,6 +52,8 @@ const (
 	LOGINFO
 )
 
+//panic("add random forward timeout")
+
 const (
 	// for logging
 	LoggingType     = GOLOG
@@ -60,12 +62,14 @@ const (
 	//Timeouts
 	ForwardTimeout              = 500  // milliseconds 	// for msg forwarder when you dont receive enough messages to foward a buffer automatically
 	ProgressTimeout             = 1000 // milliseconds, if no progress in this time, let neighbors know
-	MvConsTimeout               = 1000 // millseconds timeout when taking an action in the 3 step mv to bin reduction
+	MvConsTimeout               = 1000 // millseconds timeout when taking an action in the MV consensus algorithms
+	MvConsVRFTimeout            = 300  // millseconds timeout for waiting for a proposal when VRFs are enabled (only used by MVCons3)
 	MvConsRequestRecoverTimeout = 500  // millseconds timeout before requesting the full proposal after delivering the hash
 
 	// For the main channel
-	Timeoutrecvms    = 500  // number of miliseconds before timeout on receiving a message, before performing some recovery action, based on ProgressTimeout (ie this value should be smaller)
-	InternalBuffSize = 1000 // buffer of messages to process for the main thread loop
+	Timeoutrecvms        = 500                  // number of miliseconds before timeout on receiving a message, before performing some recovery action, based on ProgressTimeout (ie this value should be smaller)
+	InternalBuffSize     = 50                   // buffer of messages to process for the main thread loop
+	MaxMsgReprocessCount = InternalBuffSize / 2 // number of messages queued to be reprocessed (should be smaller than InternalBuffSize)
 	// SendBuffSize = 100 * InternalBuffSize
 	RcvConUDPTimeout = 30000 // milliseconds if we don't hear from a rcv connection we close it
 	RcvConUDPUpdate  = 5000  // milliseconds how often we send a keep alive for UDP conns
@@ -86,7 +90,8 @@ const (
 	UDPConnCount           = 10                                              // number of udp open ports to use at each node
 	UDPMaxSendRate         = 100000                                          // maximum send rate of a single udp connection (in bytes/sec), set to 0 for no limit
 	UDPMovingAvgWindowSize = 20                                              // how many previous messages are used for tracking the moving average msg send size, which is then used to caluculate how much to sleep to not exceed UDPMaxSendRate
-	TCPDialTimeout         = 3000                                            // time in ms for TCP dial timeout
+	TCPDialTimeout         = 120000                                          // time in ms for TCP dial timeout
+	RetryConnectionTimeout = 5000                                            // milliseconds beore retrying to connect to a node
 
 	DefaultMsgProcesThreads = 10    // number of threads processing messages (deserialization/verification) before passing to the single consensus thread
 	ConnectRetires          = 10    // number of times to retry TCP connections
@@ -138,11 +143,25 @@ const (
 	SignCausalAssets = false // We don't need to sign assets since the outter message must be signed by the proposer.
 
 	// TODO this is here because small number of nodes we might not get enough randoms, should not use normally though, howto fix this?
-	DefaultCoordinatorRelaxtion = 30 // The percentage chance of each node announcing itself as a coordinator (the lowest wins) for when using VRF.
+	DefaultCoordinatorRelaxtion = 10 // The percentage chance of each node announcing itself as a coordinator (the lowest wins) for when using VRF.
 	DefaultNodeRelaxation       = 10 // Additional percentage chance a node will be chosen as a member for when using VRF.
 
 	Thrshn, Thrsht   = 10, 7 // For threshold signature tests
 	Thrshn2, Thrsht2 = 10, 4
+
+	// for benchmarks
+	BuildTablePDFs = false
+
+	// For MvCons3
+	// Number of instances in the future past the supporting instance that made the supported index commit for which membership
+	// is fixed (when using random membership changed)
+	FixedMemberFuture = 5
+
+	// For MvCons4
+	// When a slow node is recovering, send up to this many indices of events that the node is missing
+	MvCons4MaxRecoverIndices = 2
+	// When a slow node is recovering, send up to this many events that the node is missing
+	MvCons4MaxRecoverEvents = 100
 )
 
 var Encoding = binary.LittleEndian // encoding for marshalling

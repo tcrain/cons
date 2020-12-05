@@ -22,6 +22,7 @@ package messages
 import (
 	"bytes"
 	"github.com/tcrain/cons/consensus/types"
+	"github.com/tcrain/cons/consensus/utils"
 )
 
 type Any interface {
@@ -121,6 +122,40 @@ func SerializeHeaders(headers []MsgHeader) (*Message, error) {
 		}
 	}
 	return mb, nil
+}
+
+// CreateMsgFromBytes creates a serialzed messages from bytes.
+func CreateMsgFromBytes(buf []byte) (*Message, error) {
+	mb := NewMsgBufferSize(4, 4+len(buf))
+	n, err := mb.Write(buf)
+	utils.PanicNonNil(err)
+	if n != len(buf) {
+		panic("error writing")
+	}
+	err = mb.WriteUint32AtStart(uint32(mb.RemainingLen() - 4))
+	if err != nil {
+		return nil, err
+	}
+
+	return (*Message)(mb), nil
+}
+
+// DecodeHelperMsg reads a slice of bytes that was written to the message
+// by utils.EncodeHelper
+func DecodeHelperMsg(msg *MsgBuffer) (n int, buff []byte, err error) {
+	var n1 int
+	var size uint64
+	size, n1, err = utils.ReadUvarintByteReader(msg)
+	n += n1
+	if err != nil {
+		return
+	}
+	if size == 0 {
+		return
+	}
+	buff, err = msg.ReadBytes(int(size))
+	n += int(size)
+	return
 }
 
 // CreateMsg creates a serialzed messages from a set of headers

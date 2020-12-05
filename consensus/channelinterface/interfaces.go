@@ -24,6 +24,7 @@ package channelinterface
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/stats"
 	"time"
 
@@ -53,7 +54,7 @@ type BehaviorTracker interface {
 type ForwardFuncFilter func(sendChans []SendChannel) []SendChannel
 type NewForwardFuncFilter func(allConnections []sig.Pub) (destinations sig.PubList,
 	sendToRecv, sendToSend bool, sendRange SendRange)
-type MsgConstructFunc func(pieces int) (toSelf *DeserializedItem, toOthers [][]byte)
+type MsgConstructFunc func(pieces int) (toSelf *deserialized.DeserializedItem, toOthers [][]byte)
 
 // SendRange is used as a percentage of the recipients returned from NewForwardFuncFilter to send to.
 type SendRange struct {
@@ -112,7 +113,7 @@ type MainChannel interface {
 	// this method is concurrent safe.
 	// The timer should either fire or be closed before the program exits.
 	// I.E. it should be closed during the Collect() method called on consensus items.
-	SendToSelf(deser []*DeserializedItem, timeout time.Duration) TimerInterface
+	SendToSelf(deser []*deserialized.DeserializedItem, timeout time.Duration) TimerInterface
 	// ComputeDestinations returns the list of destinations given the forward filter function.
 	ComputeDestinations(forwardFunc NewForwardFuncFilter) []SendChannel
 	// Send sends a message to the outgoing connections
@@ -122,22 +123,34 @@ type MainChannel interface {
 	// For example if it returns the input list, then the send is a broadcast to all nodes
 	// IsProposal should be true if the message is a proposal message.
 	// This method is not concurrent safe.
-	Send(buff []byte, isProposal, toSelf bool, forwardChecker NewForwardFuncFilter, countStats bool)
+	// consStats is the statistics object of the specific consensus instance broadcasting the message
+	// or nil if there is none
+	Send(buff []byte, isProposal, toSelf bool, forwardChecker NewForwardFuncFilter, countStats bool,
+		consStats stats.ConsNwStatsInterface)
 	// SendHeader is the same as Send except it take a messasges.MsgHeader instead of a byte slice.
 	// This should be used in the consensus implementations.
 	// IsProposal should be true if the message is a proposal message.
-	SendHeader(headers []messages.MsgHeader, isProposal, toSelf bool, forwardChecker NewForwardFuncFilter, countStats bool)
+	// consStats is the statistics object of the specific consensus instance broadcasting the message
+	// or nil if there is none
+	SendHeader(headers []messages.MsgHeader, isProposal, toSelf bool, forwardChecker NewForwardFuncFilter,
+		countStats bool, consStats stats.ConsNwStatsInterface)
 	// SendAlways is the same as Send, except the message will be sent even if the consensus is in initialization.
 	// This is just used to request the state from neighbour nodes on initialization.
-	SendAlways(buff []byte, toSelf bool, forwardChecker NewForwardFuncFilter, countStats bool)
+	// consStats is the statistics object of the specific consensus instance broadcasting the message
+	// or nil if there is none
+	SendAlways(buff []byte, toSelf bool, forwardChecker NewForwardFuncFilter, countStats bool, consStats stats.ConsNwStatsInterface)
 	// SendTo sends buff to dest
-	SendTo(buff []byte, dest SendChannel, countStats bool)
+	// consStats is the statistics object of the specific consensus instance broadcasting the message
+	// or nil if there is none
+	SendTo(buff []byte, dest SendChannel, countStats bool, consStats stats.ConsNwStatsInterface)
 	// SendToPub sends buff to the node associated with the public key (if it exists), it returns an error if pub is not found
 	// in the list of connections
-	SendToPub(headers []messages.MsgHeader, pub sig.Pub, countStats bool) error
+	// consStats is the statistics object of the specific consensus instance broadcasting the message
+	// or nil if there is none
+	SendToPub(headers []messages.MsgHeader, pub sig.Pub, countStats bool, consStats stats.ConsNwStatsInterface) error
 	// HasProposal should be called by the state machine when it is ready with its proposal for the next round of consensus.
 	// It should be called after ProposalInfo object interface (package consinterface) method HasDecided had been called for the previous consensus instance.
-	HasProposal(*DeserializedItem)
+	HasProposal(*deserialized.DeserializedItem)
 	// Recv should be called as the main consensus loop every time the node is ready to process a message.
 	// It is expected to be called one at a time (not concurrent safe).
 	// It will return utils.ErrTimeout after a timeout to ensure progress.
@@ -150,6 +163,8 @@ type MainChannel interface {
 	// StartMsgProcessThreads starts the threads that will process the messages.
 	StartMsgProcessThreads()
 
+	// SetStaticNodeList can optionally set an initial read only list of nodes in the network.
+	SetStaticNodeList(staticNodeList map[sig.PubKeyStr]NetNodeInfo)
 	// AddExternalNode should be called with the list of addresses that a single external node will have.
 	// In UDP a node might split packets over multiple connections, so this lets us know this list for each node.
 	// In TCP this does nothing. // TODO should do something?
@@ -170,6 +185,9 @@ type MainChannel interface {
 	InitInProgress() bool
 	// Reprocess is called on messages that were unable to be deserialized upon first reception, it is called by concurrent threads
 	ReprocessMessage(*RcvMsg)
+	// ReprocessMessageBytes is called on messages that have already been received and need to be reprocesses.
+	// It is safe to be called by many threads.
+	ReprocessMessageBytes(msg []byte)
 	// GetBehaviorTracker returns the BehaviorTracker object
 	GetBehaviorTracker() BehaviorTracker
 	// GetStats returns the stats object being used

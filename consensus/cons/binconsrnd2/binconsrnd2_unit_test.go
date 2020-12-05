@@ -72,9 +72,9 @@ func createBinConsTestItems(idx types.ConsensusIndex, to types.TestOptions) *bin
 	msgState := NewBinConsRnd2MessageState(false, gc).New(idx).(*MessageState)
 	memberChecker := &consinterface.MemCheckers{
 		MC:  memberchecker.InitTrueMemberChecker(false, privKeys[0], gc).New(idx),
-		SMC: memberchecker.NewThrshSigMemChecker([]sig.Pub{privKeys[0].(sig.BasicThresholdInterface).GetSharedPub()})}
+		SMC: memberchecker.NewThrshSigMemChecker([]sig.Pub{privKeys[0].(sig.BasicThresholdInterface).GetSharedPub()}).New(idx)}
 	forwardChecker := forwardchecker.NewAllToAllForwarder().New(idx, memberChecker.MC.GetParticipants(), memberChecker.MC.GetAllPubs())
-	memberChecker.MC.(*memberchecker.TrueMemberChecker).AddPubKeys(nil, pubKeys, nil, [32]byte{})
+	memberChecker.MC.(*memberchecker.TrueMemberChecker).AddPubKeys(nil, pubKeys, nil, [32]byte{}, nil)
 	mmc := &testobjects.MockMainChannel{}
 	consItems := &consinterface.ConsInterfaceItems{
 		MC:         memberChecker,
@@ -150,7 +150,7 @@ func runBinConsBasicTest(proposal types.BinVal, t *testing.T) types.ConsensusRou
 
 	// proposal
 	p := messagetypes.NewBinProposeMessage(idx, proposal)
-	bct.bcons.Start()
+	bct.bcons.Start(false)
 	err := bct.bcons.GotProposal(p, bct.mainChannel)
 	assert.Nil(t, err)
 
@@ -236,7 +236,7 @@ func runBinConsBasicTest(proposal types.BinVal, t *testing.T) types.ConsensusRou
 		t.Error("should have decided")
 	}
 
-	_, decision, _ := bct.bcons.GetDecision()
+	_, decision, _, _ := bct.bcons.GetDecision()
 	if !bytes.Equal(decision, []byte{byte(proposal)}) {
 		t.Errorf("should have decided proposal, but decided %v", decision)
 	}

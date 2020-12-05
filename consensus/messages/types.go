@@ -39,7 +39,34 @@ type HeaderID uint32
 type MsgID interface {
 	IsMsgID() bool                             // IsMsgID to satisfy the interface and returns true
 	ToBytes(index types.ConsensusIndex) []byte // Returns the byte representation of MsgID
+	ToMsgIDInfo() MsgIDInfo                    // ToMsgIDInfo converts the MsgID to a MsgIDInfo
 	// CheckEqual(MsgID) bool
+}
+
+// MsgIDInfo is just used for statistics
+type MsgIDInfo struct {
+	Round    uint32
+	HeaderID uint32
+	Extra    byte
+}
+
+func (a MsgIDInfo) Less(b MsgIDInfo) bool {
+	switch {
+	case a.HeaderID < b.HeaderID:
+		return true
+	case a.HeaderID > b.HeaderID:
+		return false
+	case a.Round < b.Round:
+		return true
+	case a.Round > b.Round:
+		return false
+	case a.Extra < b.Extra:
+		return true
+	case a.Extra > b.Extra:
+		return false
+	default:
+		return false
+	}
 }
 
 // BasicMsgID implements the MsgID interface as a HeaderID.
@@ -56,4 +83,32 @@ func (bm BasicMsgID) ToBytes(index types.ConsensusIndex) []byte {
 	m.AddConsensusID(index.Index)
 	m.AddHeaderID(HeaderID(bm))
 	return m.GetRemainingBytes()
+}
+
+// ToMsgIDInfo converts the MsgID to a MsgIDInfo
+func (bm BasicMsgID) ToMsgIDInfo() MsgIDInfo {
+	return MsgIDInfo{
+		HeaderID: uint32(bm),
+	}
+}
+
+// EventInfoMsgID implements the MsgID interface as a Hash, so every different message is different
+type EventInfoMsgID types.HashBytes
+
+// IsMsgID to satisfy the interface and returns true
+func (EventInfoMsgID) IsMsgID() bool {
+	return true
+}
+
+func (bm EventInfoMsgID) ToBytes(types.ConsensusIndex) []byte {
+	m := NewMsgBuffer()
+	m.AddBytes(bm)
+	return m.GetRemainingBytes()
+}
+
+// ToMsgIDInfo converts the MsgID to a MsgIDInfo
+func (bm EventInfoMsgID) ToMsgIDInfo() MsgIDInfo {
+	return MsgIDInfo{
+		HeaderID: uint32(HdrEventInfo),
+	}
 }

@@ -20,6 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package csnet
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -37,7 +38,8 @@ var encoding = config.Encoding
 // For TCP conInfos must contain a single element, it creates and maintains a connection
 // For UDP multiple addresses can be used for a node. When sending to the node, messages will be sent in a round robin order, cycling through the addresses.
 // (UDP doesn't maintain any connections, it uses NetPortListenerUDP accessed through NetMainChannel (TODO cleanup))
-func NewNetSendConnection(conInfo channelinterface.NetNodeInfo, connStatus *ConnStatus, netMainChannel *NetMainChannel) (channelinterface.SendChannel, error) {
+func NewNetSendConnection(conInfo channelinterface.NetNodeInfo, context context.Context,
+	connStatus *ConnStatus, netMainChannel *NetMainChannel) (channelinterface.SendChannel, error) {
 	if len(conInfo.AddrList) < 1 {
 		return nil, fmt.Errorf("Must have at least 1 conn info")
 	}
@@ -49,5 +51,5 @@ func NewNetSendConnection(conInfo channelinterface.NetNodeInfo, connStatus *Conn
 	// nsc.sendRecvChan = &channelinterface.SendRecvChannel{
 	// 	ReturnChan: nsc,
 	// 	ConnectionInfo: conInfo[0]}
-	return newNetConnectionTCP(conInfo, connStatus, netMainChannel)
+	return newNetConnectionTCP(conInfo, context, connStatus, netMainChannel)
 }

@@ -21,7 +21,9 @@ package bitid
 
 import (
 	"encoding/binary"
+	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
+	"io"
 	"sort"
 
 	"github.com/tcrain/cons/config"
@@ -29,9 +31,89 @@ import (
 )
 
 type MultiBitID struct {
-	itemList sort.IntSlice
-	encode   []byte
-	str      string
+	itemList        sort.IntSlice
+	encode          []byte
+	str             string
+	uniqueItemCount int // number of unique items in the BitID
+}
+
+func NewMultiBitIDFromInts(items sort.IntSlice) NewBitIDInterface {
+	ret, err := CreateMultiBitIDFromInts(items)
+	utils.PanicNonNil(err)
+	return ret
+}
+
+func (bid *MultiBitID) New() NewBitIDInterface {
+	return &MultiBitID{}
+}
+func (bid *MultiBitID) DoMakeCopy() NewBitIDInterface {
+	ret := &MultiBitID{}
+	ret.itemList = make(sort.IntSlice, len(bid.itemList))
+	copy(ret.itemList, bid.itemList)
+	ret.encode = make([]byte, len(bid.encode))
+	copy(ret.encode, bid.encode)
+	ret.str = bid.str
+	ret.uniqueItemCount = bid.uniqueItemCount
+	return ret
+}
+
+func (bid *MultiBitID) NewIterator() BIDIter {
+	return &sliceBitIDIter{
+		items: bid.itemList,
+	}
+}
+
+// GetBasicInfo returns the smallest element, the largest element, and the total number of elements
+func (bid *MultiBitID) GetBasicInfo() (min, max, count, uniqueCount int) {
+	if len(bid.itemList) == 0 {
+		return
+	}
+	return bid.itemList[0], bid.itemList[len(bid.itemList)-1], len(bid.itemList), bid.uniqueItemCount
+}
+
+// SetInitialSize allocates the expected initial size
+func (bid *MultiBitID) SetInitialSize(v int) {
+	bid.itemList = make(sort.IntSlice, 0, v)
+}
+
+// Done is called when this item is no longer needed
+func (bid *MultiBitID) Done() {
+	panic("TODO")
+}
+
+// AppendItem appends an item at the end of the bitID (must be bigger than all existing items)
+func (bid *MultiBitID) AppendItem(v int) {
+	if len(bid.itemList) == 0 || v != bid.itemList[len(bid.itemList)-1] {
+		bid.uniqueItemCount++
+	}
+	bid.itemList = append(bid.itemList, v)
+}
+
+func (bid *MultiBitID) Encode(writer io.Writer) (n int, err error) {
+	return utils.EncodeHelper(bid.DoEncode(), writer)
+}
+func (bid *MultiBitID) Deserialize(msg *messages.Message) (n int, err error) {
+	var buff []byte
+	n, buff, err = messages.DecodeHelperMsg((*messages.MsgBuffer)(msg))
+	if err != nil {
+		return
+	}
+	err = bid.doDecode(buff)
+	return
+}
+func (bid *MultiBitID) Decode(reader io.Reader) (n int, err error) {
+	var buff []byte
+	n, buff, err = utils.DecodeHelper(reader)
+	if err != nil {
+		return
+	}
+	err = bid.doDecode(buff)
+	return
+}
+
+// AllowDuplicates returns true.
+func (bid *MultiBitID) AllowsDuplicates() bool {
+	return true
 }
 
 func (bid *MultiBitID) NextID(iter *BitIDIterator) (nxt int, err error) {
@@ -47,7 +129,7 @@ func (bid *MultiBitID) GetStr() string {
 	// panic(1)
 	if bid.str == "" {
 		if bid.encode == nil {
-			bid.Encode()
+			bid.DoEncode()
 		}
 		bid.str = string(bid.encode)
 	}
@@ -58,10 +140,11 @@ func (bid *MultiBitID) MakeCopy() BitIDInterface {
 	newItemList := make([]int, len(bid.itemList))
 	copy(newItemList, bid.itemList)
 	return &MultiBitID{
-		itemList: newItemList}
+		uniqueItemCount: bid.uniqueItemCount,
+		itemList:        newItemList}
 }
 
-func (bid *MultiBitID) Encode() []byte {
+func (bid *MultiBitID) DoEncode() []byte {
 	if len(bid.itemList) == 0 {
 		return nil
 	}
@@ -76,7 +159,7 @@ func (bid *MultiBitID) Encode() []byte {
 	if err != nil {
 		panic(err)
 	}
-	prebid := prebids.Encode()
+	prebid := prebids.DoEncode()
 
 	// encode the duplicates
 	enc := make([]byte, 0, len(duplicates)*binary.MaxVarintLen32)
@@ -90,7 +173,7 @@ func (bid *MultiBitID) Encode() []byte {
 	// First byte is the id, next 4 bytes are the size of the Simple bitid
 	// then the duplicates
 	fullEnc := make([]byte, 5+len(prebid)+len(enc))
-	fullEnc[0] = byte(BitIDMulti)
+	fullEnc[0] = byte(types.BitIDMulti)
 	pos := 1
 	config.Encoding.PutUint32(fullEnc[pos:], uint32(len(prebid)))
 	pos += 4
@@ -106,26 +189,29 @@ func (bid *MultiBitID) Encode() []byte {
 	return fullEnc
 }
 
-func DecodeMultiBitID(buff []byte) (*MultiBitID, error) {
+func (bid *MultiBitID) doDecode(buff []byte) error {
 	// First byte is the id, next 4 bytes are the size of the Simple bitid
 	// then the duplicates
+	if len(buff) == 0 {
+		return nil
+	}
 	pos := 5
 	if len(buff) < pos {
-		return nil, types.ErrInvalidBitID
+		return types.ErrInvalidBitID
 	}
 	// Check it has the correct encoding
-	if buff[0] != byte(BitIDMulti) {
-		return nil, types.ErrInvalidBitIDEncoding
+	if buff[0] != byte(types.BitIDMulti) {
+		return types.ErrInvalidBitIDEncoding
 	}
 
 	prebidEnd := int(config.Encoding.Uint32(buff[1:])) + pos
 	if len(buff) < prebidEnd {
-		return nil, types.ErrInvalidBitID
+		return types.ErrInvalidBitID
 	}
 	prebid, err := DecodeBitID(buff[pos:prebidEnd])
 	pos = prebidEnd
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var duplicates sort.IntSlice
@@ -135,106 +221,24 @@ func DecodeMultiBitID(buff []byte) (*MultiBitID, error) {
 		duplicates = append(duplicates, int(v))
 	}
 	if !sort.IsSorted(duplicates) {
-		return nil, types.ErrInvalidBitID
+		return types.ErrInvalidBitID
 	}
 
 	// allItems := append(prebid.GetItemList(), duplicates...)
 	// sort.Sort(allItems)
-	allItems := utils.SortSorted(prebid.GetItemList(), duplicates)
+	preItems := prebid.GetItemList()
+	bid.uniqueItemCount = len(preItems)
+	allItems := utils.SortSorted(preItems, duplicates)
 
-	return &MultiBitID{
-		itemList: allItems,
-		encode:   buff,
-		str:      string(buff)}, nil
+	bid.itemList = allItems
+	bid.encode = buff
+	bid.str = string(buff)
+	return nil
 }
 
 func (bid *MultiBitID) GetNumItems() int {
 	// we construct the itemList lazily
 	return len(bid.GetItemList())
-}
-
-func MergeMultiBitID(bid1 *MultiBitID, bid2 *MultiBitID) *MultiBitID {
-	// newItemList := make(sort.IntSlice, len(bid1.itemList) + len(bid2.itemList))
-	// n := copy(newItemList, bid1.itemList)
-	// copy(newItemList[n:], bid2.itemList)
-	// sort.Sort(newItemList)
-	newItemList := utils.SortSorted(bid1.itemList, bid2.itemList)
-
-	return &MultiBitID{
-		itemList: newItemList}
-}
-
-func MergeMultiBitIDList(bidList ...BitIDInterface) *MultiBitID {
-	// newItemList := make(sort.IntSlice, len(bid1.itemList) + len(bid2.itemList))
-	// n := copy(newItemList, bid1.itemList)
-	// copy(newItemList[n:], bid2.itemList)
-	// sort.Sort(newItemList)
-	items := make([]sort.IntSlice, len(bidList))
-	for i, bid := range bidList {
-		items[i] = bid.GetItemList()
-	}
-
-	return &MultiBitID{
-		itemList: utils.SortSortedList(items...)}
-}
-
-func MergeMultiBitIDNoDup(bid1 *MultiBitID, bid2 *MultiBitID) *MultiBitID {
-	var err error
-	if bid1 == nil {
-		bid1, err = CreateMultiBitIDFromInts(nil)
-		if err != nil {
-			panic(err)
-		}
-	}
-	if bid2 == nil {
-		bid2, err = CreateMultiBitIDFromInts(nil)
-		if err != nil {
-			panic(err)
-		}
-	}
-	nonDupList := utils.SortSortedNoDuplicates(bid1.itemList, bid2.itemList)
-
-	// newItemList := make(sort.IntSlice, len(bid1.itemList) + len(bid2.itemList))
-	// if len(newItemList) == 0 {
-	//	return &MultiBitID{}
-	// }
-	// n := copy(newItemList, bid1.itemList)
-	// copy(newItemList[n:], bid2.itemList)
-	// sort.Sort(newItemList)
-
-	// nonDupList := make(sort.IntSlice, 1, len(newItemList))
-	// nonDupList[0] = newItemList[0]
-	// for _, nxt := range newItemList[1:] {
-	//	if nxt != nonDupList[len(nonDupList)-1] {
-	//		nonDupList = append(nonDupList, nxt)
-	//	}
-	// }
-	return &MultiBitID{
-		itemList: nonDupList}
-}
-
-// SubMultiBitID assumes bid1 and bid2 are already valid to subtract
-// bid 2 is the smaller one
-func SubMultiBitID(bid1 *MultiBitID, bid2 *MultiBitID) *MultiBitID {
-	newItemList := make(sort.IntSlice, 0, len(bid1.itemList))
-	partialItemList := bid2.itemList
-	for _, nxt := range bid1.itemList {
-		idx := sort.SearchInts(partialItemList, nxt)
-		rest := idx
-		if idx < len(partialItemList) && partialItemList[idx] == nxt {
-			// we found it so it is removed
-			rest++
-		} else {
-			newItemList = append(newItemList, nxt)
-		}
-		if rest < len(partialItemList) {
-			partialItemList = partialItemList[rest:]
-		} else {
-			partialItemList = nil
-		}
-	}
-	return &MultiBitID{
-		itemList: newItemList}
 }
 
 func (bid *MultiBitID) HasNewItems(otherint BitIDInterface) bool {
@@ -363,9 +367,16 @@ func CreateMultiBitIDFromInts(items sort.IntSlice) (*MultiBitID, error) {
 		return nil, types.ErrInvalidBitID
 	}
 	return &MultiBitID{
-		itemList: items}, nil
+		uniqueItemCount: utils.GetUniqueCount(items),
+		itemList:        items}, nil
 }
 
 func (bid *MultiBitID) GetItemList() sort.IntSlice {
 	return bid.itemList
+}
+
+func DecodeMultiBitID(buff []byte) (*MultiBitID, error) {
+	ret := &MultiBitID{}
+	err := ret.doDecode(buff)
+	return ret, err
 }

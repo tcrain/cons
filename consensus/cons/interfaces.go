@@ -21,6 +21,7 @@ package cons
 
 import (
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/messages"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 // var binconsSeed int64
 
 type ConsStateInterface interface {
+	Start()
 	// ProcessMessage should be called when a message sent from an external node is ready to be processed.
 	// It returns a list of messages to be sent back to the sender of the original message (if any).
 	ProcessMessage(rcvMsg *channelinterface.RcvMsg) (returnMsg [][]byte, returnErrs []error)
@@ -41,6 +43,8 @@ type ConsStateInterface interface {
 
 	// SMStatsString prints the statistics of the state machine.
 	SMStatsString(testDuration time.Duration) string
+	// SMStats returns the stats object of the state machine.
+	SMStats() consinterface.SMStats
 
 	// Collect is called when the process is terminating
 	Collect()
@@ -76,7 +80,7 @@ type BinConsInterface interface {
 }
 
 // GetMvMsgRound is a helper method to the the round from either a MvInitMessage, PartialMessage, MvCommitMessage, MvEchoMessage
-func GetMvMsgRound(deser *channelinterface.DeserializedItem) (round types.ConsensusRound) {
+func GetMvMsgRound(deser *deserialized.DeserializedItem) (round types.ConsensusRound) {
 	switch v := deser.Header.(messages.InternalSignedMsgHeader).GetBaseMsgHeader().(type) {
 	case *messagetypes.MvInitMessage:
 		round = v.Round
@@ -85,6 +89,8 @@ func GetMvMsgRound(deser *channelinterface.DeserializedItem) (round types.Consen
 	case *messagetypes.MvEchoMessage:
 		round = v.Round
 	case *messagetypes.MvCommitMessage:
+		round = v.Round
+	case *messagetypes.MvEchoHashMessage:
 		round = v.Round
 	default:
 		panic("invalid msg type")
@@ -142,4 +148,6 @@ type ConfigOptions interface {
 	GetBroadcastFunc(types.ByzType) consinterface.ByzBroadcastFunc
 	// GetAllowNoSignatures returns true if the consensus can run without signatures
 	GetAllowNoSignatures(GetOptionType) []bool
+	// GetAllowsNonMembers returns true if there can be replicas that are not members of the consensus.
+	GetAllowsNonMembers() bool
 }

@@ -29,10 +29,12 @@ import (
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 	"github.com/tcrain/cons/consensus/utils"
 	"sort"
@@ -85,19 +87,19 @@ type roundMvState struct {
 type MvCons2 struct {
 	cons.AbsConsItem
 	cons.AbsMVRecover
-	myProposal          *messagetypes.MvProposeMessage                       // My proposal for this round
-	round               types.ConsensusRound                                 // the current consensus round
-	roundState          map[types.ConsensusRound]roundMvState                // state for each round
-	skipTimeoutRound    types.ConsensusRound                                 // will not wait on timeouts until this round
-	decisionHash        types.HashStr                                        // the hash of the decided value
-	decisionHashBytes   types.HashBytes                                      // the hash of the decided value
-	decisionRound       types.ConsensusRound                                 // the round of decision
-	decisionInitMsg     *messagetypes.MvInitMessage                          // the actual decided value (should be same as proposal if nonfaulty coord)
-	decisionPub         sig.Pub                                              // the pub of the decisionInitMsg
-	zeroHash            types.HashBytes                                      // if we don't receive an init message after the timeout we just send a zero hash to let others know we didn't receive anything
-	includeProofs       bool                                                 // if true then we should include proofs with our echo/commit messages
-	validatedInitHashes map[types.HashStr]*channelinterface.DeserializedItem // hashes of init messages that have been validated by the state machine
-	initMessageByRound  map[types.ConsensusRound]cons.DeserSortVRF           // map from round to init hash
+	myProposal          *messagetypes.MvProposeMessage                   // My proposal for this round
+	round               types.ConsensusRound                             // the current consensus round
+	roundState          map[types.ConsensusRound]roundMvState            // state for each round
+	skipTimeoutRound    types.ConsensusRound                             // will not wait on timeouts until this round
+	decisionHash        types.HashStr                                    // the hash of the decided value
+	decisionHashBytes   types.HashBytes                                  // the hash of the decided value
+	decisionRound       types.ConsensusRound                             // the round of decision
+	decisionInitMsg     *messagetypes.MvInitMessage                      // the actual decided value (should be same as proposal if nonfaulty coord)
+	decisionPub         sig.Pub                                          // the pub of the decisionInitMsg
+	zeroHash            types.HashBytes                                  // if we don't receive an init message after the timeout we just send a zero hash to let others know we didn't receive anything
+	includeProofs       bool                                             // if true then we should include proofs with our echo/commit messages
+	validatedInitHashes map[types.HashStr]*deserialized.DeserializedItem // hashes of init messages that have been validated by the state machine
+	initMessageByRound  map[types.ConsensusRound]cons.DeserSortVRF       // map from round to init hash
 
 	initTimer   channelinterface.TimerInterface // timer for the init message for the current round
 	echoTimer   channelinterface.TimerInterface // timer for the echo messages for the current round
@@ -125,11 +127,20 @@ func (*MvCons2) GenerateNewItem(index types.ConsensusIndex,
 	newItem.zeroHash = types.GetZeroBytesHashLength()
 	newItem.roundState = make(map[types.ConsensusRound]roundMvState)
 	newItem.roundState = make(map[types.ConsensusRound]roundMvState)
-	newItem.validatedInitHashes = make(map[types.HashStr]*channelinterface.DeserializedItem)
+	newItem.validatedInitHashes = make(map[types.HashStr]*deserialized.DeserializedItem)
 	newItem.initMessageByRound = make(map[types.ConsensusRound]cons.DeserSortVRF)
-	newItem.InitAbsMVRecover(index)
+	newItem.InitAbsMVRecover(index, gc)
 
 	return newItem
+}
+
+// GetPrevCommitProof returns a signed message header that counts at the commit message for the previous consensus.
+// This should only be called after DoneKeep has been called on this instance.
+// cordPub is the expected public key of the coordinator of the current round (used for collect broadcast)
+func (sc *MvCons2) GetPrevCommitProof() (cordPub sig.Pub, proof []messages.MsgHeader) {
+	cordPub = cons.GetCoordPubCollectBroadcastEnd(0, sc.ConsItems, sc.GeneralConfig)
+	_, proof = sc.AbsConsItem.GetPrevCommitProof()
+	return
 }
 
 // GetCommitProof returns a signed message header that counts at the commit message for this consensus.
@@ -253,13 +264,14 @@ func (sc *MvCons2) HasDecided() bool {
 }
 
 // GetDecision returns the decided value as a byte slice.
-func (sc *MvCons2) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
+func (sc *MvCons2) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
 	if sc.decisionInitMsg != nil {
 		if len(sc.decisionInitMsg.Proposal) == 0 {
 			panic(sc.Index)
 		}
 		return sc.decisionPub, sc.decisionInitMsg.Proposal,
-			types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1)
+			types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
+			types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) + 1)
 	}
 	panic("should have decided")
 }
@@ -329,7 +341,8 @@ func (sc *MvCons2) CanStartNext() bool {
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *MvCons2) Start() {
+func (sc *MvCons2) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 	if sc.round == 0 {
 		err := sc.startRound(sc.MainChannel)
@@ -353,7 +366,7 @@ func (sc *MvCons2) GetProposalIndex() (prevIdx types.ConsensusIndex, ready bool)
 // If false is returned then the next is started, but the current instance has no state machine created. // TODO
 func (sc *MvCons2) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasInfo bool) {
 	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
-		nil, nil, true
+		nil, nil, sc.GeneralConfig.AllowConcurrent > 0
 }
 
 // HasReceivedProposal returns true if the cons has received a valid proposal.
@@ -376,7 +389,7 @@ func (sc *MvCons2) HasValidStarted() bool {
 // messages.HdrMvRequestRecover a node terminated bin cons with 1, but didn't get the init message, so if we have it we send it.
 // messages.HdrMvRecoverTimeout if a node terminated bin cons with 1, but didn't get the init mesage this timeout is started, once it runs out, we ask other nodes to send the init message.
 func (sc *MvCons2) ProcessMessage(
-	deser *channelinterface.DeserializedItem,
+	deser *deserialized.DeserializedItem,
 	isLocal bool,
 	senderChan *channelinterface.SendRecvChannel) (bool, bool) {
 
@@ -446,15 +459,18 @@ func (sc *MvCons2) ProcessMessage(
 		// Store it in a map of the proposals
 		round := cons.GetMvMsgRound(deser)
 		hashStr := types.HashStr(types.GetHash(deser.Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader.(*messagetypes.MvInitMessage).Proposal))
+
 		initMsgsByRound := sc.initMessageByRound[round]
 		if len(initMsgsByRound) != 0 || sc.validatedInitHashes[hashStr] != nil {
 			// we still process this message because it may be the message we commit
 			logging.Info("Received multiple inits in mv index %v, round %v", sc.Index, round)
 		}
-		sc.initMessageByRound[round] = append(initMsgsByRound, deser)
 		sc.validatedInitHashes[hashStr] = deser
-		w := deser.Header.(*sig.MultipleSignedMessage)
+		var shouldForward bool
+		sc.initMessageByRound[round], shouldForward = cons.CheckForwardProposal(deser, hashStr, sc.decisionHash,
+			initMsgsByRound, sc.ConsItems)
 
+		w := deser.Header.(*sig.MultipleSignedMessage)
 		// sanity checks to ensure the init message comes from the coordinator
 		err := consinterface.CheckMemberCoord(sc.ConsItems.MC, round, w.SigItems[0], w) // sanity check
 		if err != nil {
@@ -466,7 +482,7 @@ func (sc *MvCons2) ProcessMessage(
 		sc.checkProgress(round, t, nmt, sc.MainChannel)
 		// send any recovers that migt have requested this init msg
 		sc.SendRecover(sc.validatedInitHashes, sc.InitHeaders, sc.ConsItems)
-		return true, true
+		return true, shouldForward
 	case messages.HdrMvEcho, messages.HdrMvCommit:
 		// check if we have enough echos to decide
 		round := cons.GetMvMsgRound(deser)
@@ -572,7 +588,7 @@ func (sc *MvCons2) getProposal(round types.ConsensusRound) (proposal []byte, pro
 // isInitValid returns the valid init message received for the round, otherwise nil if there is none
 // If the zero hash is valid for the round it returns that as well.
 func (sc *MvCons2) isInitValid(round types.ConsensusRound, nmt int) (
-	zeroHashValid bool, validInit *channelinterface.DeserializedItem) {
+	zeroHashValid bool, validInit *deserialized.DeserializedItem) {
 
 	msgState := sc.ConsItems.MsgState.(*MessageState)
 	initMsgs := sc.initMessageByRound[round]
@@ -606,7 +622,7 @@ func (sc *MvCons2) isInitValid(round types.ConsensusRound, nmt int) (
 }
 
 // NeedsConcurrent returns 1.
-func (sc *MvCons2) NeedsConcurrent() types.ConsensusInt {
+func (sc *MvCons2) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -657,7 +673,7 @@ func (sc *MvCons2) checkProgressRound(round types.ConsensusRound, t, nmt int, ma
 			// if we have a valid init message then we don't care about the timeout (if we are not selecting random members)
 			var hash types.HashBytes
 			zeroHashValid, initMsg := sc.isInitValid(round, nmt)
-			selectRandMembers := consinterface.ShouldWaitForRndCoord(sc.ConsItems.MC.MC.RandMemberType())
+			selectRandMembers := consinterface.ShouldWaitForRndCoord(sc.ConsItems.MC.MC.RandMemberType(), sc.GeneralConfig)
 			if initMsg != nil && // have a valid init message and either (a) or (b)
 				((selectRandMembers && roundState.initTimeOutState == cons.TimeoutPassed) || // (a) the init timeout has passed and we are selecting random members
 					!selectRandMembers) { // (b) we are not selecting random members
@@ -708,7 +724,7 @@ func (sc *MvCons2) checkProgressRound(round types.ConsensusRound, t, nmt int, ma
 			}
 			if sc.decisionHashBytes == nil {
 				logging.Infof("Deciding on round %v, index %v", round, sc.Index)
-				sc.ConsItems.MC.MC.GetStats().AddFinishRound(round, false)
+				sc.ConsItems.MC.MC.GetStats().AddFinishRound(round+1, false)
 				sc.decisionHashBytes = commitHash
 				sc.decisionRound = round
 				sc.decisionHash = types.HashStr(commitHash)
@@ -716,10 +732,11 @@ func (sc *MvCons2) checkProgressRound(round types.ConsensusRound, t, nmt int, ma
 			// request recover if needed
 			if initMsg := sc.validatedInitHashes[sc.decisionHash]; initMsg == nil {
 				// we haven't yet received the init message for the hash, so we request it from other nodes after a timeout
-				sc.StartRecoverTimeout(sc.Index, mainChannel)
+				sc.StartRecoverTimeout(sc.Index, mainChannel, sc.ConsItems.MC)
 			} else {
 				// we have the init message so we decide
 				sc.decisionInitMsg = initMsg.Header.(*sig.MultipleSignedMessage).InternalSignedMsgHeader.(*messagetypes.MvInitMessage)
+				sc.SetDecided()
 				sc.decisionPub = initMsg.Header.(*sig.MultipleSignedMessage).SigItems[0].Pub
 				logging.Infof("Have decision init message index %v", sc.Index)
 
@@ -773,14 +790,15 @@ func (sc *MvCons2) startCommitTimeout(round types.ConsensusRound, t int, roundSt
 	}
 	if roundState.commitTimeOutState == cons.TimeoutNotSent && !sc.HasDecided() {
 		roundState.commitTimeOutState = cons.TimeoutSent
-		deser := []*channelinterface.DeserializedItem{
+		deser := []*deserialized.DeserializedItem{
 			{
 				Index:          sc.Index,
 				HeaderType:     messages.HdrMvCommitTimeout,
 				Header:         (messagetypes.MvCommitMessageTimeout)(round),
 				IsDeserialized: true,
+				MC:             sc.ConsItems.MC,
 				IsLocal:        types.LocalMessage}}
-		sc.commitTimer = mainChannel.SendToSelf(deser, cons.GetMvTimeout(round, t))
+		sc.commitTimer = mainChannel.SendToSelf(deser, cons.GetMvTimeout(round, t, sc.GeneralConfig))
 	}
 	return roundState
 }
@@ -793,6 +811,7 @@ func (sc *MvCons2) startCommitTimeout(round types.ConsensusRound, t int, roundSt
 func (sc *MvCons2) broadcastInit(newMsg messages.InternalSignedMsgHeader, proofMsg messages.MsgHeader,
 	mainChannel channelinterface.MainChannel) {
 
+	sc.ConsItems.MC.MC.GetStats().BroadcastProposal()
 	var forwardFunc channelinterface.NewForwardFuncFilter
 	if config.MvBroadcastInitForBufferForwarder { // we change who we broadcast to depending on the configuration
 		forwardFunc = channelinterface.ForwardAllPub // we broadcast the init message to all nodes directly
@@ -813,7 +832,7 @@ func (sc *MvCons2) broadcastEcho(nmt int, proposalHash []byte, round types.Conse
 	newMsg.ProposalHash = proposalHash
 	sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round)
 
-	if sc.CheckMemberLocalMsg(newMsg.GetMsgID()) { // only send the message if we are a participant of consensus
+	if sc.CheckMemberLocalMsg(newMsg) { // only send the message if we are a participant of consensus
 		var proofMsg messages.MsgHeader
 		var err error
 		if sc.includeProofs && round > 0 {
@@ -824,7 +843,7 @@ func (sc *MvCons2) broadcastEcho(nmt int, proposalHash []byte, round types.Conse
 				panic(err) // we should always have a valid proof msg here
 			}
 		}
-		cordPub := cons.GetCoordPubCollectBroadcast(round, sc.ConsItems, sc.GeneralConfig)
+		cordPub := cons.GetCoordPubCollectBroadcastEcho(round, sc.ConsItems, sc.GeneralConfig)
 		sc.BroadcastFunc(cordPub, sc.ConsItems, newMsg, true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
 			mainChannel, sc.GeneralConfig, proofMsg)
 		// BroadcastMv2(cordPub, sc.ByzType, sc, sc.ConsItems.FwdChecker.GetNewForwardListFunc(), newMsg, proofMsg, mainChannel)
@@ -840,7 +859,7 @@ func (sc *MvCons2) broadcastCommit(nmt int, proposalHash []byte, round types.Con
 	newMsg.ProposalHash = proposalHash
 	sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round)
 
-	if sc.CheckMemberLocalMsg(newMsg.GetMsgID()) { // only send the message if we are a participant of consensus
+	if sc.CheckMemberLocalMsg(newMsg) { // only send the message if we are a participant of consensus
 
 		// Check if we should include proofs and who to broadcast to based on the BroadcastCollect settings
 		includeProofs, nxtCoordPub := cons.CheckIncludeEchoProofs(round, sc.ConsItems,
@@ -876,10 +895,11 @@ func (sc *MvCons2) broadcastCommit(nmt int, proposalHash []byte, round types.Con
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *MvCons2) SetInitialState([]byte) {}
+func (sc *MvCons2) SetInitialState([]byte, storage.StoreInterface) {}
 
 // Collect is called when the item is being garbage collected.
 func (sc *MvCons2) Collect() {
+	sc.AbsConsItem.Collect()
 	sc.stopTimers()
 	sc.StopRecoverTimeout()
 }

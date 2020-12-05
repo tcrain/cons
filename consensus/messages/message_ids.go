@@ -21,6 +21,7 @@ package messages
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Each message type is encoded in a 4 byte integer
@@ -52,12 +53,14 @@ const (
 	HdrCoinProof                        // A proof for a coin.
 	HdrAuxProofTimeout                  // A round timeout in binary consensus
 	HdrMvInitTimeout                    // An init message timeout in multivalue consensus
+	HdrMvInitVRFTimeout                 // An init message timeout in multivalue consensus
 	HdrMvEchoTimeout                    // An echo message timeout in multivalue consensus
 	HdrMvCommitTimeout                  // A commit message timeout in multivalue consensus
 	HdrMvInit                           // A multivalue consensus init message
 	HdrMvMultiInit                      // A multivalue consensus init message with multiple proposals
 	HdrMvInitSupport                    // A multivalue consensus init message with pointers to a previous init message
 	HdrMvEcho                           // A multivalue consensus echo message
+	HdrMvEchoHash                       // A multivalue consensus echo message with an additional hash
 	HdrMvCommit                         // A multivalue consensus commit message
 	HdrMvRecoverTimeout                 // A multivalue consensus recovery timeout message
 	HdrMvRequestRecover                 // A multivalue consensus message requesting the decided value
@@ -76,6 +79,9 @@ const (
 	HdrDualPub    // A dual pub message
 	HdrPartialMsg // A message that is broken into several parts
 	HdrHash       // A message that contains a hash
+	HdrIdx        // A message that contains an index for each node
+	HdrIdxRecover // Same as HdrIdx except used during recovery
+	HdrEventInfo  // A message that contains a hash event info
 	HdrVrfProof   // A message that contains a VRF proof
 	HdrQsafeSig   // A quantum safe signature
 	HdrQsafePub   // A quantum safe public key
@@ -145,6 +151,8 @@ func (hi HeaderID) String() string {
 		msg = "HdrAuxProofTimeout"
 	case HdrMvInitTimeout:
 		msg = "HdrMvInitTimeout"
+	case HdrMvInitVRFTimeout:
+		msg = "HdrMvInitVRFTimeout"
 	case HdrMvEchoTimeout:
 		msg = "HdrMvEchoTimeout"
 	case HdrMvCommitTimeout:
@@ -177,8 +185,19 @@ func (hi HeaderID) String() string {
 		msg = "HdrHashMsg"
 	case HdrVrfProof:
 		msg = "HdrVrfProof"
+	case HdrEventInfo:
+		msg = "HdrEventInfo"
+	case HdrIdx:
+		msg = "HdrIdx"
+	case HdrIdxRecover:
+		msg = "HdrIdxRecover"
 	default:
 		msg = "UnknownHeaderID"
 	}
 	return fmt.Sprintf("%s:%d:", msg, hi)
+}
+
+func (h HeaderID) StringShort() string {
+	str := h.String()
+	return strings.Split(str, ":")[0][3:]
 }

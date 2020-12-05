@@ -289,6 +289,7 @@ type MemberCheckerType int
 const (
 	CurrentTrueMC MemberCheckerType = iota // Static membership, but membership checking only becomes available once the previous consensus instance terminates (for testing).
 	TrueMC                                 // Static membership.
+	LaterMC                                // Static membership, but may change, resulting in the undecided instances to be restarted (used for MvCons3)
 	BinRotateMC                            // Rotates one index through the list of members each time 0 is decided.
 	CurrencyMC                             // To be used with SimpleCurrencyTxProposer state machine
 )
@@ -304,6 +305,8 @@ func (mc MemberCheckerType) String() string {
 		return "BinRotateMC"
 	case CurrencyMC:
 		return "CurrencyMC"
+	case LaterMC:
+		return "LaterMC"
 	default:
 		return fmt.Sprintf("MemChecker%d", mc)
 	}
@@ -322,7 +325,7 @@ func UseTp1CoinThresh(to TestOptions) bool {
 }
 
 // AllMC is a list of all the possible member checker types.
-var AllMC = []MemberCheckerType{TrueMC, CurrentTrueMC, BinRotateMC, CurrencyMC}
+var AllMC = []MemberCheckerType{TrueMC, CurrentTrueMC, LaterMC, BinRotateMC, CurrencyMC}
 
 // ConsType tells what type of consensus is being used for the experiment.
 type ConsType int
@@ -342,6 +345,7 @@ const (
 	MvCons3Type                       // Multivalue HotStuff like
 	RbBcast1Type                      // Reliable broadcast like
 	RbBcast2Type                      // Reliable broadcast
+	MvCons4Type                       // Multivalue Hashgraph like
 	SimpleConsType                    // Nodes broadcast their id and public key and wait to recieve this from all other nodes, just for testing.
 	MockTestConsType                  // Test object
 )
@@ -373,6 +377,8 @@ func (ct ConsType) String() string {
 		return "MvCons2"
 	case MvCons3Type:
 		return "MvCons3"
+	case MvCons4Type:
+		return "MvCons4"
 	case SimpleConsType:
 		return "SimpleCons"
 	case RbBcast1Type:
@@ -543,4 +549,35 @@ func (v HashStr) MarshalBinary() (data []byte, err error) {
 		return nil, ErrInvalidHashSize
 	}
 	return []byte(v), nil
+}
+
+// IsMember is set when the node knows if it is a member or not
+type IsMember int
+
+const (
+	PossibleMember IsMember = iota
+	NonMemberNode
+	MemberNode
+)
+
+// MvCons4BcastType is the type of message broadcast used by MvCons4.
+type MvCons4BcastType int
+
+const (
+	Normal  MvCons4BcastType = iota // wait for n-t event before creating a new one at each index
+	Direct                          // create new events when you receive a new event
+	Indices                         // first send your current indices to another node then is replies with any newer events and creates an event
+)
+
+func (mv MvCons4BcastType) String() string {
+	switch mv {
+	case Direct:
+		return "Direct"
+	case Indices:
+		return "Indices"
+	case Normal:
+		return "Normal"
+	default:
+		return fmt.Sprintf("MvCons4BcastType:%d", mv)
+	}
 }

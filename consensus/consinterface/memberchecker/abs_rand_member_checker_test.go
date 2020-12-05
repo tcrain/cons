@@ -22,19 +22,25 @@ package memberchecker
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tcrain/cons/config"
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
+	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/types"
+	"github.com/tcrain/cons/consensus/utils"
 	"testing"
 )
 
+var testConfig = &generalconfig.GeneralConfig{NodeChoiceVRFRelaxation: config.DefaultNodeRelaxation,
+	CoordChoiceVRF: config.DefaultCoordinatorRelaxtion}
+
 func newAbsRnd(priv sig.Priv) absRandMemberInterface {
-	return initAbsRandMemberChecker(priv, nil)
+	return initAbsRandMemberChecker(priv, nil, testConfig)
 }
 func newAbsRndByID(priv sig.Priv) absRandMemberInterface {
-	return initAbsRandMemberCheckerByID(priv, nil)
+	return initAbsRandMemberCheckerByID(priv, nil, testConfig)
 }
 
 func TestAbsRandMemberCheckerEC(t *testing.T) {
@@ -43,15 +49,21 @@ func TestAbsRandMemberCheckerEC(t *testing.T) {
 }
 
 func TestAbsRandMemberCheckerBLS(t *testing.T) {
-	intTestAbsRandMemberChecker(bls.NewBlspriv, newAbsRnd, t)
-	intTestAbsRandMemberChecker(bls.NewBlspriv, newAbsRndByID, t)
+	blsFunc := func() (sig.Priv, error) {
+		return bls.NewBlspriv(bitid.NewMultiBitIDFromInts)
+	}
+	intTestAbsRandMemberChecker(blsFunc, newAbsRnd, t)
+	intTestAbsRandMemberChecker(blsFunc, newAbsRndByID, t)
 }
 
 func TestAbsRandKnownMemberChecker(t *testing.T) {
 	intAbsRandKnownMemberCheckerTest(ec.NewEcpriv, t)
 }
 
+var knownGC = &generalconfig.GeneralConfig{}
+
 func intAbsRandKnownMemberCheckerTest(newPrivFunc func() (sig.Priv, error), t *testing.T) {
+
 	numKeys := 100
 	privs := make(sig.PrivList, numKeys)
 	var err error
@@ -70,16 +82,22 @@ func intAbsRandKnownMemberCheckerTest(newPrivFunc func() (sig.Priv, error), t *t
 	for i, p := range privs {
 		pubs[i] = p.GetPub()
 	}
+	memMap := make(map[sig.PubKeyID]sig.Pub)
+	for _, p := range privs {
+		pid, err := p.GetPub().GetPubID()
+		utils.PanicNonNil(err)
+		memMap[pid] = p.GetPub()
+	}
 
 	count := len(privs) / 2
-	for i := range privs {
-		a[i] = initAbsRoundKnownMemberChecker(nil)
-		a[i].gotRand(initRnd, len(privs)/2, privs[0], pubs, nil)
+	for i, p := range privs {
+		a[i] = initAbsRoundKnownMemberChecker(p, nil, knownGC)
+		a[i].gotRand(initRnd, len(privs)/2, privs[0], pubs, memMap, nil)
 	}
 
 	var memCount int
 	for _, p := range pubs {
-		if a[0].checkRandMember(nil, false, count, len(privs), p) == nil {
+		if a[0].checkRandMember(nil, false, false, count, len(privs), p) == nil {
 			memCount++
 		}
 	}
@@ -110,13 +128,19 @@ func intTestAbsRandMemberChecker(newPrivFunc func() (sig.Priv, error), newMCFunc
 	}
 	// sort.Sort(privs)
 	privs.SetIndices()
+	memMap := make(map[sig.PubKeyID]sig.Pub)
+	for _, p := range privs {
+		pid, err := p.GetPub().GetPubID()
+		utils.PanicNonNil(err)
+		memMap[pid] = p.GetPub()
+	}
 
 	initMsg := sig.BasicSignedMessage("some message")
 	initRnd, _ := privs[0].(sig.VRFPriv).Evaluate(initMsg)
 	a := make([]absRandMemberInterface, len(privs))
 	for i, priv := range privs {
 		a[i] = newMCFunc(priv).newRndMC(types.SingleComputeConsensusIDShort(types.ConsensusInt(0)), nil)
-		a[i].gotRand(initRnd, 0, priv, nil, nil)
+		a[i].gotRand(initRnd, 0, priv, nil, memMap, nil)
 	}
 	count := len(privs)
 
@@ -126,19 +150,19 @@ func intTestAbsRandMemberChecker(newPrivFunc func() (sig.Priv, error), newMCFunc
 
 	for i, priv := range privs {
 		if i != 0 { // since we already added the VRF of the local key when gotRand was called, we only check this for other keys
-			assert.NotNil(t, a[0].checkRandMember(msgID, false, count, count, priv.GetPub()))
+			assert.NotNil(t, a[0].checkRandMember(msgID, false, false, count, count, priv.GetPub()))
 		}
 
-		prf := a[i].getMyVRF(msgID)
-		err := a[0].GotVrf(priv.GetPub(), msgID, prf)
+		prf := a[i].getMyVRF(false, msgID)
+		err := a[0].GotVrf(priv.GetPub(), false, msgID, prf)
 		assert.Nil(t, err)
 
-		assert.Nil(t, a[0].checkRandMember(msgID, false, count, count, priv.GetPub()))
+		assert.Nil(t, a[0].checkRandMember(msgID, false, false, count, count, priv.GetPub()))
 	}
 
 	var memberCount int
 	for _, priv := range privs {
-		if err := a[0].checkRandMember(msgID, false, count/2, count, priv.GetPub()); err == nil {
+		if err := a[0].checkRandMember(msgID, false, false, count/2, count, priv.GetPub()); err == nil {
 			memberCount++
 		}
 	}
@@ -153,8 +177,8 @@ func intTestAbsRandMemberChecker(newPrivFunc func() (sig.Priv, error), newMCFunc
 			somemsg := messagetypes.NewAuxProofMessage(false)
 			somemsg.Round = types.ConsensusRound(i)
 			msgID := somemsg.GetMsgID()
-			prf := a[j].getMyVRF(msgID)
-			err := a[0].GotVrf(priv.GetPub(), msgID, prf)
+			prf := a[j].getMyVRF(false, msgID)
+			err := a[0].GotVrf(priv.GetPub(), false, msgID, prf)
 			assert.Nil(t, err)
 
 			if _, _, err := a[0].checkRandCoord(count/2, count, msgID, types.ConsensusRound(i), priv.GetPub()); err == nil {
@@ -167,5 +191,5 @@ func intTestAbsRandMemberChecker(newPrivFunc func() (sig.Priv, error), newMCFunc
 	assert.True(t, coordCount > 0)
 	// be sure we didnt get too many coordinators
 	fifteenPc := int(float64(count) * .15)
-	assert.True(t, coordCount < config.DefaultCoordinatorRelaxtion*fifteenPc)
+	assert.True(t, coordCount < testConfig.CoordChoiceVRF*fifteenPc)
 }

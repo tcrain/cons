@@ -35,7 +35,14 @@ func getMvConsStateMachineTypes() []types.StateMachineType {
 }
 
 func TestRbBcast1Basic(t *testing.T) {
-	cons.RunBasicTests(types.TestOptions{}, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, nil, t)
+	to := types.TestOptions{}
+	cons.RunBasicTests(to, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, []int{}, t)
+}
+
+func TestRbBcast1CollectBcast(t *testing.T) {
+	to := types.TestOptions{}
+	to.CollectBroadcast = types.Commit
+	cons.RunBasicTests(to, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, []int{}, t)
 }
 
 func TestRbBcast1RandMC(t *testing.T) {
@@ -48,6 +55,10 @@ func TestRbBcast1Byz(t *testing.T) {
 }
 
 func TestRbBcast1MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(types.TestOptions{}, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, nil, t)
 }
 
@@ -56,10 +67,14 @@ func TestRbBcast1MsgDrop(t *testing.T) {
 }
 
 func TestRbBcast1MultiSig(t *testing.T) {
-	cons.RunMultiSigTests(types.TestOptions{}, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, nil, t)
+	cons.RunMultiSigTests(types.TestOptions{}, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, []int{}, t)
 }
 
 func TestRbBcast1P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunP2pNwTests(types.TestOptions{}, types.RbBcast1Type, &RbBcast1{}, RbBcast1Config{}, nil, t)
 }
 

@@ -24,7 +24,9 @@ package bincons1
 
 import (
 	"fmt"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 
 	"github.com/tcrain/cons/consensus/auth/sig"
@@ -100,11 +102,14 @@ func (*BinCons1) GenerateNewItem(index types.ConsensusIndex,
 
 // GetCommitProof returns a signed message header that counts at the commit message for this consensus.
 func (sc *BinCons1) GetCommitProof() []messages.MsgHeader {
-	return GetBinConsCommitProof(messages.HdrAuxProof, sc, sc.getMsgState(), true, sc.ConsItems.MC)
+
+	return GetBinConsCommitProof(messages.HdrAuxProof, sc,
+		sc.getMsgState(), true, sc.ConsItems.MC)
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *BinCons1) Start() {
+func (sc *BinCons1) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 	if sc.CheckMemberLocal() { // if the current node is a member then send an initial proposal
 		sc.NeedsProposal = true
@@ -162,7 +167,7 @@ func (sc *BinCons1) GotProposal(hdr messages.MsgHeader, mainChannel channelinter
 }
 
 // NeedsConcurrent returns 1.
-func (sc *BinCons1) NeedsConcurrent() types.ConsensusInt {
+func (sc *BinCons1) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -173,7 +178,7 @@ func (sc *BinCons1) NeedsConcurrent() types.ConsensusInt {
 // It returns true in first position if made progress towards decision, or false if already decided, and return true in second position if the message should be forwarded.
 // It processes AuxProofTimeout messages and AuxProof messages, moving through the rounds of consensus until a decision.
 func (sc *BinCons1) ProcessMessage(
-	deser *channelinterface.DeserializedItem,
+	deser *deserialized.DeserializedItem,
 	isLocal bool,
 	_ *channelinterface.SendRecvChannel) (bool, bool) {
 
@@ -228,10 +233,10 @@ func (sc *BinCons1) ProcessMessage(
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *BinCons1) SetInitialState([]byte) {}
+func (sc *BinCons1) SetInitialState([]byte, storage.StoreInterface) {}
 
 func (sc *BinCons1) checkDone(round types.ConsensusRound, nmt, t int) bool {
-	_ = t
+	_, _ = t, nmt
 	if sc.terminated {
 		return true
 	}
@@ -311,6 +316,7 @@ func (sc *BinCons1) CheckRound(nmt int, t int, round types.ConsensusRound,
 			panic("More than t faulty")
 		}
 		sc.Decided = int(mod)
+		sc.SetDecided()
 		// Only send next round msg after deciding if necessary
 		// TODO is other stopping mechanism better?
 		if sc.StopOnCommit == types.Immediate {
@@ -328,12 +334,13 @@ func (sc *BinCons1) CheckRound(nmt int, t int, round types.ConsensusRound,
 		if round > types.ConsensusRound(t) && sc.SkipTimeoutRound <= round { // if we haven't started a timeout for this round, then set one up
 			if roundStruct.timeoutState == cons.TimeoutNotSent {
 				roundStruct.timeoutState = cons.TimeoutSent
-				deser := []*channelinterface.DeserializedItem{
+				deser := []*deserialized.DeserializedItem{
 					{
 						Index:          sc.Index,
 						HeaderType:     messages.HdrAuxProofTimeout,
 						Header:         (messagetypes.AuxProofMessageTimeout)(round),
 						IsLocal:        types.LocalMessage,
+						MC:             sc.ConsItems.MC,
 						IsDeserialized: true}}
 				sc.roundTimers = append(sc.roundTimers, mainChannel.SendToSelf(deser, cons.GetTimeout(round, t)))
 				return true
@@ -396,7 +403,7 @@ func (sc *BinCons1) CheckRound(nmt int, t int, round types.ConsensusRound,
 			sc.ConsItems.MC.MC.GetStats().AddParticipationRound(round + 1)
 			roundStruct.sentProposal = true // Set to true before checking if we are a member, since check member will always
 			// give the same result for this round
-			if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+			if sc.CheckMemberLocalMsg(auxMsg) {
 				if sc.IncludeProofs {
 					// collect signatures to support your choice
 					var err error
@@ -477,15 +484,17 @@ func (sc *BinCons1) CanStartNext() bool {
 // It returns sc.Index - 1, nil.
 // If false is returned then the next is started, but the current instance has no state machine created.
 func (sc *BinCons1) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasNextInfo bool) {
-	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1), nil, nil, true
+	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1), nil, nil,
+		sc.GeneralConfig.AllowConcurrent > 0
 }
 
 // GetDecision returns the binary value decided as a single byte slice.
-func (sc *BinCons1) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
+func (sc *BinCons1) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
 	if sc.Decided == -1 {
 		panic("should have decided")
 	}
-	return nil, []byte{byte(sc.Decided)}, types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1)
+	return nil, []byte{byte(sc.Decided)}, types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
+		types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) + 1)
 }
 
 // stopTimers stops any current running round timers.
@@ -531,5 +540,6 @@ func (*BinCons1) GenerateMessageState(gc *generalconfig.GeneralConfig) consinter
 
 // Collect is called when the item is being garbage collected.
 func (sc *BinCons1) Collect() {
+	sc.AbsConsItem.Collect()
 	sc.stopTimers()
 }

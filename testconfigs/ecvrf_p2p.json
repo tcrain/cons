@@ -4,8 +4,7 @@
     "StateMachineType": 1,
     "MaxRounds": 10,
     "NumTotalProcs": 40,
-    "RndMemberCount": 20,
-    "GenRandBytes": true,
+    "RndMemberCount": 30,
     "NetworkType": 1,
     "FanOut": 4,
     "ConnectionType": 1,
@@ -18,5 +17,14 @@
     "MvProposalSizeBytes": 10,
     "BinConsPercentOnes": 100,
     "SleepCrypto": true,
-    "RndMemberType": 2
+    "SharePubsRPC": true,
+    "GenRandBytes": true,
+    "RndMemberType": 2,
+    "NodeChoiceVRFRelaxation":  10,
+    "CoordChoiceVRF": 10,
+    "WarmUpInstances": 2,
+    "KeepPast": 1,
+    "ProgressTimeout": 5000,
+    "MvConsTimeout": 1000,
+    "MvConsRequestRecoverTimeout": 1500
 }

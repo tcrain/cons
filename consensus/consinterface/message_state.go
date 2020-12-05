@@ -21,7 +21,7 @@ package consinterface
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
-	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
@@ -43,7 +43,7 @@ type MessageState interface {
 	// number of signatures for the MsgID of the message (see messages.MsgID).
 	// If the message is not a signed type message (not type *sig.MultipleSignedMessage then (0, 0, nil) is returned).
 	GotMsg(HeaderFunc,
-		*channelinterface.DeserializedItem, *generalconfig.GeneralConfig, *MemCheckers) ([]*channelinterface.DeserializedItem, error)
+		*deserialized.DeserializedItem, *generalconfig.GeneralConfig, *MemCheckers) ([]*deserialized.DeserializedItem, error)
 	// GetMsgState should return the serialized state of all the valid messages received for this consensus instance.
 	// This should be able to be processed by UnwrapMessage.
 	// If generalconfig.UseFullBinaryState is true it returns the received signed messages together in a list.
@@ -66,7 +66,7 @@ type MessageState interface {
 	SetupUnsignedMessage(hdr messages.InternalSignedMsgHeader,
 		mc *MemCheckers) (*sig.UnsignedMessage, error)
 	// SetupSignedMessageDuplicates takes a list of headers that are assumed to have the same set of bytes to sign
-	// (i.e. the signed part are all the same though they may have different contents following the signed part,
+	// (i.e. the signed parts are all the same though they may have different contents following the signed part,
 	// for example this is true with partial messages)
 	SetupSignedMessagesDuplicates(combined *messagetypes.CombinedMessage, hdrs []messages.InternalSignedMsgHeader,
 		mc *MemCheckers) (combinedSigned *sig.MultipleSignedMessage, partialsSigned []*sig.MultipleSignedMessage, err error)

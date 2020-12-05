@@ -38,71 +38,91 @@ var baseTO = types.TestOptions{EncryptChannels: true, NoSignatures: true}
 var causalTO = types.TestOptions{OrderingType: types.Causal}
 
 func TestRbBcast2Basic(t *testing.T) {
-	cons.RunBasicTests(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, []int{}, t)
+	cons.RunBasicTests(baseTO, types.RbBcast2Type, &RbBcast2{}, Config{}, []int{}, t)
 }
 
 func TestRbBcast2RandMC(t *testing.T) {
-	cons.RunRandMCTests(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, true,
+	if !config.RunAllTests {
+		return
+	}
+
+	cons.RunRandMCTests(baseTO, types.RbBcast2Type, &RbBcast2{}, Config{}, true,
 		[]int{}, t)
 }
 
 func TestRbBcast2RandMCSleep(t *testing.T) {
 	to := baseTO
 	to.SleepCrypto = true
-	cons.RunRandMCTests(to, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, true,
+	cons.RunRandMCTests(to, types.RbBcast2Type, &RbBcast2{}, Config{}, true,
 		[]int{}, t)
 }
 
 func TestRbBcast2Byz(t *testing.T) {
 	// TODO
-	cons.RunByzTests(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, nil, t)
+	cons.RunByzTests(baseTO, types.RbBcast2Type, &RbBcast2{}, Config{}, nil, t)
 }
 
 func TestRbBcast2MemStore(t *testing.T) {
-	cons.RunMemstoreTest(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, nil, t)
+	if !config.RunAllTests {
+		return
+	}
+
+	cons.RunMemstoreTest(baseTO, types.RbBcast2Type, &RbBcast2{}, Config{}, nil, t)
 }
 
 func TestRbBcast2MsgDrop(t *testing.T) {
-	cons.RunMsgDropTest(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, nil, t)
+	cons.RunMsgDropTest(baseTO, types.RbBcast2Type, &RbBcast2{}, Config{}, nil, t)
 }
 
 func TestRbBcast2MultiSig(t *testing.T) {
-	cons.RunMultiSigTests(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, nil, t)
+	cons.RunMultiSigTests(baseTO, types.RbBcast2Type, &RbBcast2{}, Config{}, nil, t)
 }
 
 func TestRbBcast2P2p(t *testing.T) {
-	cons.RunP2pNwTests(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, nil, t)
+	if !config.RunAllTests {
+		return
+	}
+
+	cons.RunP2pNwTests(baseTO, types.RbBcast2Type, &RbBcast2{}, Config{}, nil, t)
 }
 
 func TestRbBcast2FailDisk(t *testing.T) {
-	cons.RunFailureTests(baseTO, types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, nil, t)
+	cons.RunFailureTests(baseTO, types.RbBcast2Type, &RbBcast2{}, Config{}, nil, t)
 }
 
 func TestRbBcast2CausalBasic(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunBasicTests(causalTO,
-		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, []int{}, t)
+		types.RbBcast2Type, &RbBcast2{}, Config{}, []int{}, t)
 }
 
 func TestRbBcast2CausalBasicSleep(t *testing.T) {
 	to := causalTO
 	to.SleepCrypto = true
 	cons.RunBasicTests(to,
-		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, []int{}, t)
+		types.RbBcast2Type, &RbBcast2{}, Config{}, []int{}, t)
 }
 
 func TestRbBcast2CausalFailDisk(t *testing.T) {
 	cons.RunFailureTests(causalTO,
-		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, nil, t)
+		types.RbBcast2Type, &RbBcast2{}, Config{}, nil, t)
 }
 
 func TestRbBcast2CausalRandMC(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunRandMCTests(causalTO,
-		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, true, []int{}, t)
+		types.RbBcast2Type, &RbBcast2{}, Config{}, true, []int{}, t)
 }
 
 func TestRbBcast2CausalRandMCSleep(t *testing.T) {
 	to := causalTO
 	to.SleepCrypto = true
 	cons.RunRandMCTests(to,
-		types.RbBcast2Type, &RbBcast2{}, RbBcast2Config{}, true, []int{}, t)
+		types.RbBcast2Type, &RbBcast2{}, Config{}, true, []int{}, t)
 }

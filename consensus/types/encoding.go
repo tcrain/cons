@@ -46,7 +46,7 @@ func MarshalBinaryHelper(item EncodeInterface) (data []byte, err error) {
 }
 
 func UnmarshalBinaryHelper(item EncodeInterface, data []byte) error {
-	reader := bytes.NewReader(data)
+	reader := bytes.NewBuffer(data)
 	n, err := item.Decode(reader)
 	if err != nil {
 		return err

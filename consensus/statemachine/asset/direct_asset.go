@@ -49,6 +49,7 @@ func CreateInitialDirectAsset(assetName []byte, instanceID []byte) *DirectAsset 
 }
 
 func GenDirectAssetTransfer(priv sig.Priv, participants []sig.Pub, table *AccountTable) (tr *AssetTransfer) {
+	_ = participants
 	pub := priv.GetPub()
 	acc, err := table.GetAccount(pub)
 	if err != nil {
@@ -74,7 +75,7 @@ func GenDirectAssetTransfer(priv sig.Priv, participants []sig.Pub, table *Accoun
 }
 
 // genMultipleOutput takes as input the last asset of acc, outputs an output for each receiver.
-func GenDirectAssetOutput(acc *AssetAccount, assets []AssetInterface) (inputs []AssetInterface, outputs []AssetInterface) {
+func GenDirectAssetOutput(_ *AssetAccount, assets []AssetInterface) (inputs []AssetInterface, outputs []AssetInterface) {
 
 	inputs = make([]AssetInterface, len(assets))
 	outputs = make([]AssetInterface, len(assets))
@@ -86,7 +87,7 @@ func GenDirectAssetOutput(acc *AssetAccount, assets []AssetInterface) (inputs []
 	return
 }
 
-func CheckDirectOutputFunc(account *AssetAccount, inputs []AssetInterface, outputs []AssetInterface) error {
+func CheckDirectOutputFunc(_ *AssetAccount, inputs []AssetInterface, outputs []AssetInterface) error {
 	if len(inputs) != len(outputs) {
 		return errInvalidAssetCount
 	}
@@ -101,7 +102,7 @@ func CheckDirectOutputFunc(account *AssetAccount, inputs []AssetInterface, outpu
 }
 
 // DirectSendToSelf returns the inputs as outputs with new hashes.
-func DirectSendToSelf(account *AssetAccount, inputs []AssetInterface) (outputs []AssetInterface) {
+func DirectSendToSelf(_ *AssetAccount, inputs []AssetInterface) (outputs []AssetInterface) {
 	outputs = make([]AssetInterface, len(inputs))
 	for i, nxt := range inputs {
 		outputs[i] = &DirectAsset{BasicAsset: *NewBasicAsset(types.GetHash(nxt.GetID()))}

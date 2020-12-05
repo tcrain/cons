@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/tcrain/cons/consensus/auth/bitid"
 	"github.com/tcrain/cons/consensus/auth/sig/bls"
 	"github.com/tcrain/cons/consensus/auth/sig/dual"
 	"github.com/tcrain/cons/consensus/auth/sig/ec"
@@ -74,6 +75,33 @@ func SetTestConfigOptions(to *types.TestOptions, fistCall bool) {
 	if to.NumMsgProcessThreads == 0 {
 		to.NumMsgProcessThreads = config.DefaultMsgProcesThreads
 	}
+	if to.WarmUpInstances == 0 {
+		to.WarmUpInstances = config.WarmUpInstances
+	}
+	if to.KeepPast == 0 {
+		to.KeepPast = config.KeepPast
+	}
+	if to.ForwardTimeout == 0 {
+		to.ForwardTimeout = config.ForwardTimeout
+	}
+	if to.ProgressTimeout == 0 {
+		to.ProgressTimeout = config.ProgressTimeout
+	}
+	if to.MvConsTimeout == 0 {
+		to.MvConsTimeout = config.MvConsTimeout
+	}
+	if to.MvConsVRFTimeout == 0 {
+		to.MvConsVRFTimeout = config.MvConsVRFTimeout
+	}
+	if to.MvConsRequestRecoverTimeout == 0 {
+		to.MvConsRequestRecoverTimeout = config.MvConsRequestRecoverTimeout
+	}
+	if to.NodeChoiceVRFRelaxation == 0 {
+		to.NodeChoiceVRFRelaxation = config.DefaultNodeRelaxation
+	}
+	if to.CoordChoiceVRF == 0 {
+		to.CoordChoiceVRF = config.DefaultCoordinatorRelaxtion
+	}
 
 	if fistCall {
 		SetConfigOptions(*to)
@@ -93,10 +121,10 @@ func getStatsStringInternal(to types.TestOptions, msList []stats.MergedStats, sa
 
 	var ret strings.Builder
 
-	perProcMerged, mergedStats := stats.MergeStats(msList)
+	perProcMerged, mergedStats := stats.MergeStats(to, msList)
 	// perProcNw, mergedNwStats := stats.MergeNwStats(int(to.MaxRounds), nwStatsList)
-	ret.WriteString(fmt.Sprintf("\nMerged stats: %v, %v\n", mergedStats.String(), mergedStats.BasicNwStats.NwString()))
-	ret.WriteString(fmt.Sprintf("\nMerged stats (per proc): %v, %v\n", perProcMerged.String(), perProcMerged.BasicNwStats.NwString()))
+	ret.WriteString(fmt.Sprintf("\nMerged stats: %v,\n%v\n%v\n", mergedStats.String(), mergedStats.ConsMergedNwStats.ConsNWString(), mergedStats.BasicNwStats.NwString()))
+	ret.WriteString(fmt.Sprintf("\nMerged stats (per proc): %v,\n%v\n%v\n", perProcMerged.String(), perProcMerged.ConsMergedNwStats.ConsNWString(), perProcMerged.BasicNwStats.NwString()))
 
 	if saveToDisk {
 		for i, nxt := range []stats.MergedStats{perProcMerged, mergedStats} {
@@ -207,7 +235,7 @@ func GenerateExtraParticipantRegisterState(to types.TestOptions, priv sig.Priv, 
 func GenerateCausalStateMachine(to types.TestOptions, priv sig.Priv, proposer sig.Pub,
 	extraParticipantInfo [][]byte, pid int64, testProc channelinterface.MainChannel,
 	finishedChan chan channelinterface.ChannelCloseType, memberCheckerState consinterface.ConsStateInterface,
-	generalConfig *generalconfig.GeneralConfig) (ret consinterface.CausalStateMachineInterface) {
+	generalConfig *generalconfig.GeneralConfig, basicInit bool) (ret consinterface.CausalStateMachineInterface) {
 
 	memberCount := to.NumTotalProcs - to.NumNonMembers
 
@@ -235,7 +263,7 @@ func GenerateCausalStateMachine(to types.TestOptions, priv sig.Priv, proposer si
 	default:
 		panic(to.StateMachineType)
 	}
-	ret.Init(generalConfig, computeSMFinish(to), memberCheckerState, testProc, finishedChan)
+	ret.Init(generalConfig, computeSMFinish(to), memberCheckerState, testProc, finishedChan, basicInit)
 	return ret
 }
 
@@ -243,7 +271,7 @@ func GenerateCausalStateMachine(to types.TestOptions, priv sig.Priv, proposer si
 func GenerateStateMachine(to types.TestOptions, priv sig.Priv,
 	extraParticipantInfo [][]byte, pid int64, testProc channelinterface.MainChannel,
 	finishedChan chan channelinterface.ChannelCloseType, newPubFunc func() sig.Pub, newSigFunc func() sig.Sig,
-	generalConfig *generalconfig.GeneralConfig) (ret consinterface.StateMachineInterface) {
+	generalConfig *generalconfig.GeneralConfig, basicInit bool) (ret consinterface.StateMachineInterface) {
 
 	smSeed := nonFixedSmSeed
 	if to.UseFixedSeed {
@@ -279,18 +307,18 @@ func GenerateStateMachine(to types.TestOptions, priv sig.Priv,
 	default:
 		panic(to.StateMachineType)
 	}
-	ret.Init(generalConfig, computeSMFinish(to), types.ConsensusInt(to.AllowConcurrent), testProc, finishedChan)
+	ret.Init(generalConfig, computeSMFinish(to), types.ConsensusInt(to.AllowConcurrent), testProc, finishedChan, basicInit)
 	return
 }
 
 // GenerateForwardChecker creates a forward checker object given by the test configuration.
 func GenerateForwardChecker(t assert.TestingT, pub sig.Pub, pubKeys sig.PubList, to types.TestOptions,
-	parRegs ...network.PregInterface) consinterface.ForwardChecker {
+	generalConfig *generalconfig.GeneralConfig, parRegs ...network.PregInterface) consinterface.ForwardChecker {
 
 	switch to.NetworkType {
 	case types.P2p, types.RequestForwarder:
 		var pubCons []sig.PubList
-		if to.BufferForwarder {
+		if to.BufferForwardType != types.NoBufferForward {
 			pstr, err := pub.GetRealPubBytes()
 			if err != nil {
 				panic(err)
@@ -303,11 +331,11 @@ func GenerateForwardChecker(t assert.TestingT, pub sig.Pub, pubKeys sig.PubList,
 			}
 		}
 		return forwardchecker.NewP2PForwarder(to.NetworkType == types.RequestForwarder,
-			to.FanOut, to.BufferForwarder, pubCons)
+			to.FanOut, pubCons, generalConfig)
 	case types.AllToAll:
 		return forwardchecker.NewAllToAllForwarder()
 	case types.Random:
-		return forwardchecker.NewRandomForwarder(to.BufferForwarder, to.FanOut)
+		return forwardchecker.NewRandomForwarder(to.FanOut, generalConfig)
 	default:
 		panic("invalid nw type")
 	}
@@ -377,6 +405,7 @@ func GenLocalRand(to types.TestOptions, key [32]byte) *rand.Rand {
 
 // MakeMemberChecker generates a member checker for the given configuration initialized with pubKeys.
 func MakeMemberChecker(to types.TestOptions, randKey [32]byte, priv sig.Priv, pubKeys []sig.Pub,
+	shared *consinterface.Shared,
 	gc *generalconfig.GeneralConfig) (memberChecker consinterface.MemberChecker) {
 
 	switch to.MCType {
@@ -384,6 +413,9 @@ func MakeMemberChecker(to types.TestOptions, randKey [32]byte, priv sig.Priv, pu
 		memberChecker = memberchecker.InitTrueMemberChecker(to.RotateCord, priv, gc)
 	case types.CurrentTrueMC:
 		memberChecker = memberchecker.InitCurrentTrueMemberChecker(GenLocalRand(to, randKey), to.RotateCord,
+			to.RndMemberCount, to.RndMemberType, types.ConsensusInt(to.LocalRandMemberChange), priv, gc)
+	case types.LaterMC:
+		memberChecker = memberchecker.InitLaterMemberChecker(GenLocalRand(to, randKey), to.RotateCord,
 			to.RndMemberCount, to.RndMemberType, types.ConsensusInt(to.LocalRandMemberChange), priv, gc)
 	case types.BinRotateMC:
 		memberChecker = memberchecker.InitBinRotateMemberChecker(priv, gc)
@@ -400,7 +432,7 @@ func MakeMemberChecker(to types.TestOptions, randKey [32]byte, priv sig.Priv, pu
 	}
 	// The non-members are at the end of the list of pub keys
 	numParticipants := to.NumTotalProcs - to.NumNonMembers
-	memberChecker.AddPubKeys(fixedCoord, pubKeys[:numParticipants], pubKeys[numParticipants:], config.InitRandBytes)
+	memberChecker.AddPubKeys(fixedCoord, pubKeys[:numParticipants], pubKeys[numParticipants:], config.InitRandBytes, shared)
 	return
 }
 
@@ -417,17 +449,21 @@ func MakePrivBlsS(to types.TestOptions, thrsh int, idx sig.PubKeyIndex, blsShare
 // instead used an input to functions to that only use the new functions of the interfaces
 // to generate new key objects.
 func MakeUnusedKey(i sig.PubKeyIndex, to types.TestOptions) (p sig.Priv, err error) {
+	intFunc, _ := bitid.GetBitIDFuncs(to.SigBitIDType)
+	newBlsFunc := func() (sig.Priv, error) {
+		return bls.NewBlspriv(intFunc)
+	}
 	switch to.SigType {
 	case types.TBLS:
-		p, err = bls.NewBlspriv()
+		p, err = bls.NewBlspriv(intFunc)
 	case types.TBLSDual:
 		coinType := types.NormalSignature
 		if types.UseTp1CoinThresh(to) {
 			coinType = types.SecondarySignature
 		}
-		p, err = dual.NewDualpriv(bls.NewBlspriv, bls.NewBlspriv, coinType, types.SecondarySignature)
+		p, err = dual.NewDualpriv(newBlsFunc, newBlsFunc, coinType, types.SecondarySignature)
 	case types.CoinDual:
-		p, err = dual.NewDualpriv(ec.NewEcpriv, bls.NewBlspriv, types.SecondarySignature, types.NormalSignature)
+		p, err = dual.NewDualpriv(ec.NewEcpriv, newBlsFunc, types.SecondarySignature, types.NormalSignature)
 	case types.EDCOIN:
 		p, err = ed.NewSchnorrpriv() // we will use this to create the EDCOIN later
 	default:
@@ -446,10 +482,11 @@ func MakeKey(i sig.PubKeyIndex, to types.TestOptions) (p sig.Priv, err error) {
 			p, err = ec.NewEcpriv()
 		}
 	case types.BLS:
+		intFunc, _ := bitid.GetBitIDFuncs(to.SigBitIDType)
 		if to.SleepCrypto {
-			p, err = sleep.NewBLSPriv(i)
+			p, err = sleep.NewBLSPriv(i, intFunc)
 		} else {
-			p, err = bls.NewBlspriv()
+			p, err = bls.NewBlspriv(intFunc)
 		}
 	case types.QSAFE:
 		if to.SleepCrypto {
@@ -522,12 +559,13 @@ func MakeKeys(to types.TestOptions) ([]sig.Priv, []sig.Pub) {
 		}
 	case types.BLS:
 		privFunc = func(i sig.PubKeyIndex) (p sig.Priv) {
+			intFunc, _ := bitid.GetBitIDFuncs(to.SigBitIDType)
 			var err error
 			if to.SleepCrypto {
-				p, err = sleep.NewBLSPriv(i)
+				p, err = sleep.NewBLSPriv(i, intFunc)
 				utils.PanicNonNil(err)
 			} else {
-				p, err = bls.NewBlspriv()
+				p, err = bls.NewBlspriv(intFunc)
 				utils.PanicNonNil(err)
 			}
 			return
@@ -723,17 +761,17 @@ func GenTBLSDualDSSThresh(to types.TestOptions) (blsSharedPrimary, blsSharedSeco
 
 // computeLastIndex returns the largest consensus instance a process should participate in.
 func computeLasIndex(to types.TestOptions, initItem consinterface.ConsItem) types.ConsensusInt {
-	return types.ConsensusInt(to.MaxRounds) + initItem.NeedsConcurrent() - 1 + config.WarmUpInstances
+	return types.ConsensusInt(to.MaxRounds) + initItem.NeedsCompletionConcurrentProposals() - 1 + types.ConsensusInt(to.WarmUpInstances)
 }
 
 // computeSMFinish returns the index a normal state machine should send on the done channel.
 func computeSMFinish(to types.TestOptions) types.ConsensusInt {
-	return types.ConsensusInt(to.MaxRounds) + config.WarmUpInstances
+	return types.ConsensusInt(to.MaxRounds) + types.ConsensusInt(to.WarmUpInstances)
 }
 
 // computeFailRound returns the index a fail process should send on the done channel.
 func computeFailRound(to types.TestOptions) types.ConsensusInt {
-	return types.ConsensusInt(to.FailRounds) + config.WarmUpInstances - 1
+	return types.ConsensusInt(to.FailRounds) + types.ConsensusInt(to.WarmUpInstances-1)
 }
 
 func SetInitIndex(initSM consinterface.CausalStateMachineInterface) {
@@ -747,7 +785,7 @@ func SetInitIndex(initSM consinterface.CausalStateMachineInterface) {
 func GenerateConsState(t assert.TestingT, to types.TestOptions, priv sig.Priv, randKey [32]byte, proposer sig.Pub,
 	pubKeys sig.PubList, i int, initItem consinterface.ConsItem, ds storage.StoreInterface, stats stats.StatsInterface,
 	retExtraParRegInfo [][]byte, testProc channelinterface.MainChannel, finishedChan chan channelinterface.ChannelCloseType,
-	generalConfig *generalconfig.GeneralConfig, broadcastFunc consinterface.ByzBroadcastFunc,
+	generalConfig *generalconfig.GeneralConfig, broadcastFunc consinterface.ByzBroadcastFunc, shared *consinterface.Shared,
 	isFailure bool, parRegs ...network.PregInterface) (ret ConsStateInterface, memberCheckerState consinterface.ConsStateInterface) {
 
 	// Let the stats know they can be used again
@@ -759,25 +797,25 @@ func GenerateConsState(t assert.TestingT, to types.TestOptions, priv sig.Priv, r
 	switch to.OrderingType {
 	case types.Total:
 		sm = GenerateStateMachine(to, priv.GetBaseKey(), retExtraParRegInfo, int64(i), testProc, finishedChan,
-			priv.GetBaseKey().GetPub().New, priv.GetBaseKey().NewSig, generalConfig)
+			priv.GetBaseKey().GetPub().New, priv.GetBaseKey().NewSig, generalConfig, false)
 		if isFailure {
 			sm.FailAfter(computeFailRound(to))
 		}
 	case types.Causal:
 		causalSM = GenerateCausalStateMachine(to, priv, proposer, retExtraParRegInfo, int64(i), testProc, finishedChan,
-			memberCheckerState, generalConfig)
+			memberCheckerState, generalConfig, false)
 		if isFailure {
 			causalSM.FailAfter(computeFailRound(to))
 		}
 	}
 
 	// Generate the member checker
-	memberChecker := MakeMemberChecker(to, randKey, priv, pubKeys, generalConfig)
+	memberChecker := MakeMemberChecker(to, randKey, priv, pubKeys, shared, generalConfig)
 	specialMemberChecker := CheckSpecialKeys(to, priv, pubKeys, memberChecker)
 	// Generate the message state
 	messageState := initItem.GenerateMessageState(generalConfig)
 	// Generate the cons state
-	forwardChecker := GenerateForwardChecker(t, priv.GetPub(), pubKeys, to, parRegs...)
+	forwardChecker := GenerateForwardChecker(t, priv.GetPub(), pubKeys, to, generalConfig, parRegs...)
 	memberCheckerState = GenerateConsStateInterface(to, initItem, memberChecker, specialMemberChecker,
 		messageState, forwardChecker, ds, broadcastFunc, generalConfig)
 
@@ -843,14 +881,23 @@ func GenerateParticipantRegisters(to types.TestOptions) (ret []network.PregInter
 	return ret
 }
 
-func RegisterOtherNodes(t assert.TestingT, to types.TestOptions, testProc channelinterface.MainChannel,
-	genPub func(sig.PubKeyBytes) sig.Pub, parRegs ...network.PregInterface) {
+func GetParticipants(t assert.TestingT, to types.TestOptions, parReg network.PregInterface) (
+	allParticipants []*network.ParticipantInfo) {
 
-	allParticipants, err := parRegs[0].GetAllParticipants()
+	var err error
+	allParticipants, err = parReg.GetAllParticipants()
 	if len(allParticipants) != to.NumTotalProcs {
 		panic(fmt.Sprint(allParticipants, to.NumTotalProcs))
 	}
 	assert.Nil(t, err)
+
+	return allParticipants
+}
+
+func RegisterOtherNodes(t assert.TestingT, to types.TestOptions, testProc channelinterface.MainChannel,
+	genPub func(sig.PubKeyBytes) sig.Pub, parRegs ...network.PregInterface) {
+
+	allParticipants := GetParticipants(t, to, parRegs[0])
 	for _, parInfo := range allParticipants {
 		nodeInfo := channelinterface.NetNodeInfo{
 			AddrList: parInfo.ConInfo,
@@ -860,11 +907,7 @@ func RegisterOtherNodes(t assert.TestingT, to types.TestOptions, testProc channe
 
 	switch to.NetworkType {
 	case types.RequestForwarder:
-		allParticipants, err := parRegs[1].GetAllParticipants()
-		if len(allParticipants) != to.NumTotalProcs {
-			panic(fmt.Sprint(allParticipants, to.NumTotalProcs))
-		}
-		assert.Nil(t, err)
+		allParticipants := GetParticipants(t, to, parRegs[1])
 		for _, parInfo := range allParticipants {
 			nodeInfo := channelinterface.NetNodeInfo{
 				AddrList: parInfo.ConInfo,
@@ -880,22 +923,17 @@ func MakeConnections(t assert.TestingT, to types.TestOptions, testProc channelin
 
 	testProc.StartMsgProcessThreads()
 	pstr, err := gc.Priv.GetPub().GetRealPubBytes()
+	assert.Nil(t, err)
 
 	// main network
-	parInfoList, err := parRegs[0].GetParticipants(sig.PubKeyStr(pstr))
-	assert.Nil(t, err)
-	var connectionPubs []sig.Pub
-	for _, parInfo := range parInfoList {
-		connectionPubs = append(connectionPubs, network.ParInfoListToPubList(parInfo, pubKeys)...)
-	}
-	connectionPubs = sig.RemoveDuplicatePubs(connectionPubs)
+	connectionPubs := GetConnectionPubs(t, sig.PubKeyStr(pstr), pubKeys, parRegs[0])
 
 	switch to.NetworkType {
 	case types.RequestForwarder:
 		numCons[0] = to.RndMemberCount - 1 // -1 for yourself
-		if len(parInfoList) != 0 {
-			panic("connections should be made through the absRandLocal member checker")
-		}
+		//if len(parInfoList) != 0 {
+		//	panic("connections should be made through the absRandLocal member checker")
+		//}
 	default:
 		numCons[0] = len(connectionPubs)
 	}
@@ -908,13 +946,7 @@ func MakeConnections(t assert.TestingT, to types.TestOptions, testProc channelin
 	// secondary network
 	switch to.NetworkType {
 	case types.RequestForwarder:
-		parInfoList, err := parRegs[1].GetParticipants(sig.PubKeyStr(pstr))
-		assert.Nil(t, err)
-		var connectionPubs []sig.Pub
-		for _, parInfo := range parInfoList {
-			connectionPubs = append(connectionPubs, network.ParInfoListToPubList(parInfo, pubKeys)...)
-		}
-		connectionPubs = sig.RemoveDuplicatePubs(connectionPubs)
+		connectionPubs := GetConnectionPubs(t, sig.PubKeyStr(pstr), pubKeys, parRegs[1])
 
 		numCons[1] = len(connectionPubs)
 		errs := testProc.(*csnet.DualNetMainChannel).Secondary.MakeConnections(connectionPubs)
@@ -922,6 +954,17 @@ func MakeConnections(t assert.TestingT, to types.TestOptions, testProc channelin
 			panic(errs)
 		}
 	}
+}
+
+func GetConnectionPubs(t assert.TestingT, pstr sig.PubKeyStr, pubKeys []sig.Pub, parReg network.PregInterface) []sig.Pub {
+	parInfoList, err := parReg.GetParticipants(pstr)
+	assert.Nil(t, err)
+	var connectionPubs []sig.Pub
+	for _, parInfo := range parInfoList {
+		connectionPubs = append(connectionPubs, network.ParInfoListToPubList(parInfo, pubKeys)...)
+	}
+	connectionPubs = sig.RemoveDuplicatePubs(connectionPubs)
+	return connectionPubs
 }
 
 func MakeMainChannel(to types.TestOptions, priv sig.Priv, initItem consinterface.ConsItem, stats stats.NwStatsInterface,
@@ -1175,7 +1218,7 @@ func RunConsType(initItem consinterface.ConsItem,
 	// We need to compute the value of the initial hash // TODO clean this up
 	if to.OrderingType == types.Causal {
 		initSM := GenerateCausalStateMachine(to, privKeys[0], pubKeys[0], retExtraParRegInfo, int64(0),
-			testProcs[0], nil, nil, generalConfigs[0])
+			testProcs[0], nil, nil, generalConfigs[0], true)
 		SetInitIndex(initSM)
 	}
 
@@ -1194,7 +1237,7 @@ func RunConsType(initItem consinterface.ConsItem,
 	for i := 0; i < to.NumFailProcs; i++ {
 		consStates[i], memberCheckerStates[i] = GenerateConsState(t, to, privKeys[i], randKeys[i], pubKeys[0], pubKeys,
 			i, initItem, ds[i], statsList[i], retExtraParRegInfo, testProcs[i], finishedFailChan, generalConfigs[i],
-			broadcastFunc, true, parRegs...)
+			broadcastFunc, nil, true, parRegs...)
 	}
 
 	// Start the remaining processes that do not fail.
@@ -1202,8 +1245,15 @@ func RunConsType(initItem consinterface.ConsItem,
 	for i := to.NumFailProcs; i < to.NumTotalProcs; i++ {
 		consStates[i], memberCheckerStates[i] = GenerateConsState(t, to, privKeys[i], randKeys[i], pubKeys[0], pubKeys,
 			i, initItem, ds[i], statsList[i], retExtraParRegInfo, testProcs[i], finishedChan, generalConfigs[i],
-			broadcastFunc, false, parRegs...)
+			broadcastFunc, nil, false, parRegs...)
 	}
+	// Copy to avoid data race for non-failed processes reading the keys
+	// (since we update the IDs in the initial member checker generation)
+	newPubKeys := make(sig.PubList, len(pubKeys))
+	for i, nxt := range pubKeys {
+		newPubKeys[i] = nxt.ShallowCopy()
+	}
+	pubKeys = newPubKeys
 
 	// Connect the nodes to eachother
 	numCons := make([][]int, to.NumTotalProcs)
@@ -1291,7 +1341,7 @@ func RunConsType(initItem consinterface.ConsItem,
 
 		consStates[i], memberCheckerStates[i] = GenerateConsState(t, to, privKeys[i], randKeys[i], pubKeys[0], pubKeys,
 			i, initItem, ds[i], statsList[i], retExtraParRegInfo, testProcs[i], finishedChan, generalConfigs[i],
-			broadcastFunc, false, parRegs...)
+			broadcastFunc, nil, false, parRegs...)
 
 		// make the connections to the other nodes
 		MakeConnections(t, to, testProcs[i], memberCheckerStates[i],
@@ -1372,10 +1422,9 @@ func RunConsType(initItem consinterface.ConsItem,
 	if config.PrintStats {
 		msList := make([]stats.MergedStats, len(statsList))
 		for i, nxt := range statsList {
-			msList[i] = nxt.MergeLocalStats(int(types.ComputeNumRounds(to)))
+			msList[i] = nxt.MergeLocalStats(to, int(types.ComputeNumRounds(to)))
 			sString := fmt.Sprintf("Stats for proc %v: %v, %v", i, msList[i].String(), msList[i].NwString())
 			logging.Infof(sString)
-
 		}
 		logging.Print(GetStatsString(to, msList, false, ""))
 		logging.Print(consStates[to.NumTotalProcs-1].SMStatsString(msList[0].FinishTime.Sub(msList[0].StartTime))) // TODO merge these stats also???
@@ -1416,7 +1465,7 @@ func UpdateStorageAfterFail(to types.TestOptions, ds storage.StoreInterface) {
 
 // GetDecisions returns the list of decided values for a given consensus item and storage.
 func GetDecisions(to types.TestOptions, consItem consinterface.ConsItem, ds storage.StoreInterface) (res [][]byte) {
-	for j := types.ConsensusInt(1); j <= types.ConsensusInt(to.MaxRounds)+config.WarmUpInstances; j++ {
+	for j := types.ConsensusInt(1); j <= types.ConsensusInt(to.MaxRounds)+types.ConsensusInt(to.WarmUpInstances); j++ {
 		st, dec, err := ds.Read(j)
 		if err != nil {
 			panic(err)
@@ -1431,15 +1480,14 @@ func VerifyDecisions(to types.TestOptions, retExtraParRegInfo [][]byte, consType
 
 	sm := GenerateStateMachine(to, nil, retExtraParRegInfo,
 		0, nil, nil, privKey.GetBaseKey().GetPub().New,
-		privKey.GetBaseKey().NewSig, generalConfig)
+		privKey.GetBaseKey().NewSig, generalConfig, true)
 	outOfOrderErrs, errs := CheckDecisions(decs, sm, to)
 	if len(errs) > 0 {
 		panic(fmt.Sprint(errs, outOfOrderErrs))
 	}
 	if len(outOfOrderErrs) > 0 {
-		logging.Errorf("Got some out of order errors: %v", outOfOrderErrs)
+		logging.Warningf("Got some out of order errors: %v", outOfOrderErrs)
 		if !to.AllowsOutOfOrderProposals(consType) {
-			fmt.Println(decs)
 			panic(outOfOrderErrs)
 		}
 	}
@@ -1451,7 +1499,7 @@ func VerifyCausalDecisions(to types.TestOptions, retExtraParRegInfo [][]byte,
 	orderedDecisions [][]byte) {
 
 	errs := CheckCausalDecisions(roots, orderedDecisions, GenerateCausalStateMachine(to, privKey, privKey.GetPub(),
-		retExtraParRegInfo, 0, nil, nil, nil, generalConfig), to)
+		retExtraParRegInfo, 0, nil, nil, nil, generalConfig, true), to)
 	if len(errs) > 0 {
 		panic(fmt.Sprint(errs))
 	}
@@ -1508,15 +1556,17 @@ func recCheckEqual(nodes []*utils.StringNode, to types.TestOptions) error {
 // CheckDecisions checks if the decided values are valid.
 // (1) Checks that all processes decided the same value.
 // (2) Checks with the state machine that the decided values are valid.
-func CheckDecisions(decidedValues [][][]byte, pi consinterface.StateMachineInterface, to types.TestOptions) (outOforderErrors, errors []error) {
+func CheckDecisions(decidedValues [][][]byte, pi consinterface.StateMachineInterface,
+	to types.TestOptions) (outOforderErrors, errors []error) {
+
 	if len(decidedValues) < 2 {
 		panic("not enough processes")
 	}
 	var decs [][]byte
-	for j := types.ConsensusInt(0); j < types.ConsensusInt(to.MaxRounds)+config.WarmUpInstances; j++ {
+	for j := types.ConsensusInt(0); j < types.ConsensusInt(to.MaxRounds)+types.ConsensusInt(to.WarmUpInstances); j++ {
 		initial := decidedValues[0][j]
 		decs = append(decs, initial)
-		logging.Infof("Decided cons %v, %v", j, initial)
+		logging.Infof("Decided cons %v, %v", j, initial[:utils.Min(10, len(initial))])
 		for i := 1; i < to.NumTotalProcs; i++ {
 			next := decidedValues[i][j]
 			if !bytes.Equal(initial, next) {

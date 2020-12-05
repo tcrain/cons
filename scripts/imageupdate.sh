@@ -20,4 +20,4 @@ set -e
 echo "Waiting for restart"
 # wait for reboot
 until ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -o ConnectTimeout=5 -i $key $user@$ip "exit"; do sleep 5; done
-
+sleep 15

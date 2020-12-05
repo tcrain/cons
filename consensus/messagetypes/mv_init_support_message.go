@@ -32,22 +32,26 @@ import (
 // its proposal with the additional information about the previous proposal it points to.
 // It implements messages.MsgHeader
 type MvInitSupportMessage struct {
-	Proposal       []byte             // The proposal
-	ByzProposal    []byte             // Alternative proposal for byzantine nodes
-	SupportedIndex types.ConsensusInt // the index supported by this init
-	SupportedHash  types.HashBytes    // the hash of the init message supported
+	Proposal        []byte             // The proposal
+	ByzProposal     []byte             // Alternative proposal for byzantine nodes
+	SupportedIndex  types.ConsensusInt // the index supported by this init
+	SupportedHash   types.HashBytes    // the hash of the init message supported
+	RandHash        types.HashBytes    // the hash to identify the unique set of members (when using types.LaterMC and random members)
+	IncludeRandHash bool               // if true we include the rand hash in the message
 }
 
 // NewMvInitMessage creates a new mv init message
-func NewMvInitSupportMessage() *MvInitSupportMessage {
-	return &MvInitSupportMessage{}
+func NewMvInitSupportMessage(includeRandHash bool) *MvInitSupportMessage {
+	return &MvInitSupportMessage{IncludeRandHash: includeRandHash}
 }
 
 // ShallowCopy makes a shallow copy of the message
 func (mvi *MvInitSupportMessage) ShallowCopy() messages.InternalSignedMsgHeader {
 	return &MvInitSupportMessage{Proposal: mvi.Proposal,
-		SupportedIndex: mvi.SupportedIndex,
-		SupportedHash:  mvi.SupportedHash}
+		SupportedIndex:  mvi.SupportedIndex,
+		SupportedHash:   mvi.SupportedHash,
+		RandHash:        mvi.RandHash,
+		IncludeRandHash: mvi.IncludeRandHash}
 }
 
 // GetSignType returns types.NormalSignature
@@ -100,6 +104,16 @@ func (mvi *MvInitSupportMessage) SerializeInternal(m *messages.Message) (bytesWr
 	bytesWritten += v
 	signEndOffset += v
 
+	if mvi.IncludeRandHash {
+		if len(mvi.RandHash) != types.GetHashLen() {
+			err = types.ErrInvalidHash
+			return
+		}
+		v, signEndOffset = (*messages.MsgBuffer)(m).AddBytes(mvi.RandHash)
+		bytesWritten += v
+		signEndOffset += v
+	}
+
 	// End of signed message
 	return
 }
@@ -132,6 +146,15 @@ func (mvi *MvInitSupportMessage) DeserializeInternal(m *messages.Message) (bytes
 		return
 	}
 	bytesRead += hashLen
+
+	if mvi.IncludeRandHash {
+		// Get the rand hash
+		mvi.RandHash, err = (*messages.MsgBuffer)(m).ReadBytes(hashLen)
+		if err != nil {
+			return
+		}
+		bytesRead += hashLen
+	}
 
 	signEndOffset = (*messages.MsgBuffer)(m).GetReadOffset()
 	return

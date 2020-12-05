@@ -15,6 +15,7 @@ then
 
     # wait for reboot
     until ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -o ConnectTimeout=5 -i $key root@$ip "exit"; do sleep 5; done
+    sleep 25
 
     # Make a user, allow him to sudo without password
     echo Making a user $user;
@@ -31,6 +32,7 @@ fi
 echo "Waiting for node to start"
 # wait for reboot
 until ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -o ConnectTimeout=5 -i $key $user@$ip "exit"; do sleep 5; done
+sleep 25
 
 # Copy ssh key
 echo Copying ssh key
@@ -43,7 +45,7 @@ scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i $key $key
 # install packages
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i $key $user@$ip "
 echo Downloading packages;
-sudo apt-get -y install rsync wget emacs git gnuplot jq pkg-config autoconf automake libtool gcc libssl-dev python3-pytest unzip xsltproc doxygen graphviz make cmake ninja-build python3-pytest-xdist xsltproc;
+sudo apt-get -y install rsync wget emacs git tmux iftop iotop htop gnuplot jq pkg-config autoconf automake libtool gcc libssl-dev python3-pytest unzip xsltproc doxygen graphviz make cmake ninja-build python3-pytest-xdist xsltproc;
 "
 
 # update packages

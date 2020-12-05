@@ -24,6 +24,7 @@ package main
 
 import (
 	"flag"
+	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/consgen"
 	"github.com/tcrain/cons/consensus/logging"
@@ -31,6 +32,77 @@ import (
 	"github.com/tcrain/cons/consensus/types"
 	"math/rand"
 )
+
+var defaultTO = types.TestOptions{
+	UseFixedSeed: false,
+	OrderingType: types.Total,
+	FailRounds:   0,
+	FailDuration: 0,
+	MaxRounds:    config.MaxRounds,
+	NumFailProcs: 0,
+
+	ConsType:                types.MvBinConsRnd2Type,
+	NumTotalProcs:           config.ProcCount,
+	NumNonMembers:           config.NonMembers,
+	RndMemberCount:          config.ProcCount - 1,
+	RndMemberType:           types.KnownPerCons,
+	NetworkType:             types.AllToAll,
+	UseRandCoord:            true,
+	GenRandBytes:            true,
+	LocalRandMemberChange:   0,
+	NodeChoiceVRFRelaxation: 0,
+	CoordChoiceVRF:          0,
+	FanOut:                  3,
+	CoinType:                types.FlipCoinType,
+
+	StorageType:                 types.Diskstorage,
+	ClearDiskOnRestart:          false,
+	ConnectionType:              types.TCP,
+	ByzType:                     types.NonFaulty,
+	NumByz:                      0,
+	CheckDecisions:              true,
+	MsgDropPercent:              0,
+	IncludeProofs:               false,
+	SigType:                     types.BLS,
+	UsePubIndex:                 true,
+	SleepValidate:               true,
+	SleepCrypto:                 true,
+	MCType:                      types.CurrentTrueMC,
+	BufferForwardType:           types.NoBufferForward,
+	UseMultisig:                 false,
+	BlsMultiNew:                 true,
+	MemCheckerBitIDType:         types.BitIDSlice,
+	SigBitIDType:                types.BitIDChoose,
+	StateMachineType:            types.BytesProposer,
+	PartialMessageType:          types.NoPartialMessages,
+	AllowConcurrent:             0,
+	RotateCord:                  false,
+	AllowSupportCoin:            false,
+	UseFullBinaryState:          false,
+	StorageBuffer:               0,
+	IncludeCurrentSigs:          false,
+	CPUProfile:                  false,
+	MemProfile:                  false,
+	NumMsgProcessThreads:        2,
+	MvProposalSizeBytes:         0,
+	BinConsPercentOnes:          50,
+	CollectBroadcast:            types.Full,
+	StopOnCommit:                types.Immediate,
+	ByzStartIndex:               0,
+	TestID:                      0,
+	AdditionalP2PNetworks:       0,
+	EncryptChannels:             true,
+	NoSignatures:                false,
+	UseFixedCoinPresets:         false,
+	SharePubsRPC:                false,
+	WarmUpInstances:             0,
+	KeepPast:                    0,
+	ForwardTimeout:              0,
+	RandForwardTimeout:          0,
+	ProgressTimeout:             0,
+	MvConsTimeout:               0,
+	MvConsRequestRecoverTimeout: 0,
+}
 
 func main() {
 	var optionsFile string
@@ -40,14 +112,28 @@ func main() {
 	flag.BoolVar(&checkOnly, "c", false, "Only check if the test option is valid then exit")
 	flag.Parse()
 
-	logging.Info("Loading test options from file: ", optionsFile)
-	to, err := types.GetTestOptions(optionsFile)
-	if err != nil {
-		logging.Error(err)
-		panic(err)
-	}
-	if checkOnly {
-		return
+	var oFlagSet bool
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "o" || f.Name == "c" {
+			oFlagSet = true
+		}
+	})
+
+	var to types.TestOptions
+	var err error
+	if oFlagSet {
+		logging.Info("Loading test options from file: ", optionsFile)
+		to, err = types.GetTestOptions(optionsFile)
+		if err != nil {
+			logging.Error(err)
+			panic(err)
+		}
+		if checkOnly {
+			return
+		}
+	} else {
+		logging.Info("Using default test options")
+		to = defaultTO
 	}
 
 	logging.Infof("Loaded options: %s\n", to)

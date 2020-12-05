@@ -69,9 +69,18 @@ func CheckEchoMessage(mmc *MockMainChannel, index types.ConsensusInt, round type
 		if sigMsg.Index.Index != index {
 			t.Error("Sent msg with invalid index", sigMsg.Index)
 		}
-		echoMsg := sigMsg.GetBaseMsgHeader().(*messagetypes.MvEchoMessage)
-		if !bytes.Equal(echoMsg.ProposalHash, hash) || echoMsg.Round != round {
-			t.Error("Sent invalid echo msg: ", echoMsg)
+		var proposalHash types.HashBytes
+		var echoRound types.ConsensusRound
+		switch v := sigMsg.GetBaseMsgHeader().(type) {
+		case *messagetypes.MvEchoMessage:
+			proposalHash = v.ProposalHash
+			echoRound = v.Round
+		case *messagetypes.MvEchoHashMessage:
+			proposalHash = v.ProposalHash
+			echoRound = v.Round
+		}
+		if !bytes.Equal(proposalHash, hash) || echoRound != round {
+			t.Error("Sent invalid echo msg: ", sigMsg.GetBaseMsgHeader())
 		}
 	default:
 		t.Errorf("Got invalid type message: %T", sigMsg)

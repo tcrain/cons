@@ -36,15 +36,25 @@ import (
 //
 /////////////////////////////////////////////////////////////////////////////////
 
+type BinProposerStats struct {
+	Decided0, Decided1 uint64
+}
+
+func (ps *BinProposerStats) StatsString(time.Duration) string {
+	return fmt.Sprintf("decided 0: %v, decided 1: %v", ps.Decided0, ps.Decided1)
+}
+
 // BinCons1ProposalInfo represents a state machine for binary consensus that randomly proposes 0 or 1 for each binary consensus.
 type BinCons1ProposalInfo struct {
 	AbsStateMachine
 	AbsRandSMNotSupported
+	startedRecordingStats bool
 
 	perm []bool
 
 	binConsPercentOnes int // number of proposals that will be 1 vs 0 (randomly chosen) for testing
 	rand               *rand.Rand
+	*BinProposerStats
 }
 
 // NewBinCons1ProposalInfo generates a new BinCons1ProposalInfo object.
@@ -52,7 +62,7 @@ func NewBinCons1ProposalInfo(binConsPercentOnes int, seed int64, numParticipants
 	// rand := rand.New(rand.NewSource(atomic.AddInt64(&binconsSeed, 1)))
 	randlocal := rand.New(rand.NewSource(seed))
 
-	var perm []bool
+	var perm []bool                           // no longer used
 	if false && numParticipants == numNodes { // We use a random permutation to choose the number of ones exactly (otherwise we just choose randomly)
 		perm = make([]bool, numParticipants)
 		numOnes := int(float64(numParticipants) * (float64(binConsPercentOnes) / 100))
@@ -60,7 +70,10 @@ func NewBinCons1ProposalInfo(binConsPercentOnes int, seed int64, numParticipants
 			perm[i] = true
 		}
 	}
-	return &BinCons1ProposalInfo{rand: randlocal, binConsPercentOnes: binConsPercentOnes, perm: perm}
+	return &BinCons1ProposalInfo{rand: randlocal,
+		binConsPercentOnes: binConsPercentOnes,
+		perm:               perm,
+		BinProposerStats:   &BinProposerStats{}}
 }
 
 func (spi *BinCons1ProposalInfo) shuffleOnes() {
@@ -70,19 +83,17 @@ func (spi *BinCons1ProposalInfo) shuffleOnes() {
 }
 
 // Init initalizes the object.
-func (spi *BinCons1ProposalInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt, needsConcurrent types.ConsensusInt,
-	mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType) {
+func (spi *BinCons1ProposalInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt,
+	needsConcurrent types.ConsensusInt, mainChannel channelinterface.MainChannel,
+	doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
 
+	_ = basicInit
 	spi.AbsInit(gc, lastProposal, needsConcurrent, mainChannel, doneChan)
 }
 
 // GetInitialState returns []byte{0}.
 func (spi *BinCons1ProposalInfo) GetInitialState() []byte {
 	return []byte{0}
-}
-
-func (spi *BinCons1ProposalInfo) StatsString(testDuration time.Duration) string {
-	return ""
 }
 
 // GetProposal is called when a consensus index is ready for a proposal.
@@ -105,46 +116,65 @@ func (spi *BinCons1ProposalInfo) GetProposal() {
 	spi.AbsGetProposal(w)
 }
 
-func checkBinary(dec []byte) error {
+func checkBinary(dec []byte) (types.BinVal, error) {
 	if len(dec) != 1 {
-		return fmt.Errorf("not a binary decided value: %v", dec)
+		return 0, fmt.Errorf("not a binary decided value: %v", dec)
 	}
 	switch dec[0] {
 	case 0:
+		return 0, nil
 	case 1:
+		return 1, nil
 	default:
-		return fmt.Errorf("not a binary decided value: %v", dec)
+		return 0, fmt.Errorf("not a binary decided value: %v", dec)
 	}
-	return nil
 }
 
 // ValidateProposal should return true if the input proposal is valid.
 func (spi *BinCons1ProposalInfo) ValidateProposal(proposer sig.Pub, dec []byte) error {
-	return checkBinary(dec)
+	_ = proposer
+	_, err := checkBinary(dec)
+	return err
 }
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *BinCons1ProposalInfo) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
 	return []byte{1 - originProposal[0]}
 }
 
 // StartIndex is called when the previous consensus index has finished.
 func (spi *BinCons1ProposalInfo) StartIndex(nxt types.ConsensusInt) consinterface.StateMachineInterface {
-	ret := &BinCons1ProposalInfo{AbsStateMachine: spi.AbsStateMachine,
-		perm:               spi.perm,
-		binConsPercentOnes: spi.binConsPercentOnes,
-		rand:               spi.rand}
+	ret := &BinCons1ProposalInfo{}
+	*ret = *spi
 
 	ret.AbsStartIndex(nxt)
+	if !ret.startedRecordingStats && ret.GetStartedRecordingStats() {
+		ret.startedRecordingStats = true
+	}
 	return ret
+}
+
+// GetSMStats returns the statistics object for the SM.
+func (spi *BinCons1ProposalInfo) GetSMStats() consinterface.SMStats {
+	return spi.BinProposerStats
 }
 
 // HasDecided is called after the index nxt has decided.
 func (spi *BinCons1ProposalInfo) HasDecided(proposer sig.Pub, nxt types.ConsensusInt, decision []byte) {
-	if err := checkBinary(decision); err != nil {
+	_ = proposer
+	if bv, err := checkBinary(decision); err != nil {
 		panic(err)
+	} else {
+		if spi.startedRecordingStats {
+			switch bv {
+			case 0:
+				spi.Decided0++
+			default:
+				spi.Decided1++
+			}
+		}
 	}
 	spi.AbsHasDecided(nxt, decision)
 }

@@ -26,7 +26,9 @@ import (
 	"fmt"
 	"github.com/tcrain/cons/consensus/coin"
 	"github.com/tcrain/cons/consensus/cons/bincons1"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 
 	"github.com/tcrain/cons/consensus/auth/sig"
@@ -102,7 +104,8 @@ func (*BinConsRnd1) GenerateNewItem(index types.ConsensusIndex,
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *BinConsRnd1) Start() {
+func (sc *BinConsRnd1) Start(finishedLastRound bool) {
+	_ = finishedLastRound
 	sc.AbsConsItem.AbsStart()
 	if sc.CheckMemberLocal() { // if the current node is a member then send an initial proposal
 		sc.NeedsProposal = true
@@ -155,7 +158,7 @@ func (sc *BinConsRnd1) GotProposal(hdr messages.MsgHeader, mainChannel channelin
 }
 
 // NeedsConcurrent returns 1.
-func (sc *BinConsRnd1) NeedsConcurrent() types.ConsensusInt {
+func (sc *BinConsRnd1) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -170,7 +173,7 @@ func (sc *BinConsRnd1) GetBinDecided() (int, types.ConsensusRound) {
 // For this consensus implementation messageState must be an instance of BinConsMessageStateInterface.
 // It returns true in first position if made progress towards decision, or false if already decided, and return true in second position if the message should be forwarded.
 func (sc *BinConsRnd1) ProcessMessage(
-	deser *channelinterface.DeserializedItem,
+	deser *deserialized.DeserializedItem,
 	isLocal bool,
 	_ *channelinterface.SendRecvChannel) (bool, bool) {
 
@@ -226,7 +229,7 @@ func (sc *BinConsRnd1) CanSkipMvTimeout() bool {
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *BinConsRnd1) SetInitialState([]byte) {}
+func (sc *BinConsRnd1) SetInitialState([]byte, storage.StoreInterface) {}
 
 // CheckRound checks for the given round if enough messages have been received to progress to the next round
 // and return true if it can.
@@ -283,6 +286,7 @@ func (sc *BinConsRnd1) CheckRound(nmt int, t int, round types.ConsensusRound,
 				panic("More than t faulty")
 			}
 			sc.Decided = int(coinVal)
+			sc.SetDecided()
 			// Only send next round msg after deciding if necessary
 			// TODO is other stopping mechanism better?
 			if sc.StopOnCommit == types.Immediate {
@@ -460,7 +464,7 @@ func (sc *BinConsRnd1) checkBroadcastsAuxCoin(nmt int, t int, round types.Consen
 
 			// Set to true before checking if we are a member, since check member will always
 			// give the same result for this round
-			if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+			if sc.CheckMemberLocalMsg(auxMsg) {
 				// add the coin
 				if round > binMsgState.maxCoinPresetRound {
 					coinMsg := sc.coin.GenerateCoinMessage(round,
@@ -578,7 +582,7 @@ func (sc *BinConsRnd1) checkBroadcasts(nmt int, t int, round types.ConsensusRoun
 		auxMsg.Round = round + 1
 		// Set to true before checking if we are a member, since check member will always
 		// give the same result for this round
-		if sc.CheckMemberLocalMsg(auxMsg.GetMsgID()) {
+		if sc.CheckMemberLocalMsg(auxMsg) {
 			if sc.IncludeProofs {
 				// collect signatures to support your choice
 				var err error
@@ -652,15 +656,17 @@ func (sc *BinConsRnd1) CanStartNext() bool {
 // It returns sc.Index - 1, nil.
 // If false is returned then the next is started, but the current instance has no state machine created.
 func (sc *BinConsRnd1) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasNextInfo bool) {
-	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1), nil, nil, true
+	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1), nil, nil,
+		sc.GeneralConfig.AllowConcurrent > 0
 }
 
 // GetDecision returns the binary value decided as a single byte slice.
-func (sc *BinConsRnd1) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
+func (sc *BinConsRnd1) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
 	if sc.Decided == -1 {
 		panic("should have decided")
 	}
-	return nil, []byte{byte(sc.Decided)}, types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1)
+	return nil, []byte{byte(sc.Decided)}, types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
+		types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) + 1)
 }
 
 // GetConsType returns the type of consensus this instance implements.
@@ -689,18 +695,15 @@ func (sc *BinConsRnd1) ShouldCreatePartial(_ messages.HeaderID) bool {
 func (sc *BinConsRnd1) BroadcastCoin(coinMsg messages.MsgHeader,
 	mainChannel channelinterface.MainChannel) {
 
+	sts := sc.ConsItems.MC.MC.GetStats()
 	mainChannel.SendHeader(messages.AppendCopyMsgHeader(sc.PreHeaders, coinMsg),
 		messages.IsProposalHeader(sc.Index, coinMsg.(messages.InternalSignedMsgHeader).GetBaseMsgHeader()),
 		true, sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
-		sc.ConsItems.MC.MC.GetStats().IsRecordIndex())
+		sts.IsRecordIndex(), sts)
 }
 
 // GenerateMessageState generates a new message state object given the inputs.
 func (*BinConsRnd1) GenerateMessageState(gc *generalconfig.GeneralConfig) consinterface.MessageState {
 
 	return NewBinConsRnd1MessageState(false, gc)
-}
-
-// Collect is called when the item is being garbage collected.
-func (sc *BinConsRnd1) Collect() {
 }

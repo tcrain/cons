@@ -21,8 +21,8 @@ package knowncoin
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/types"
@@ -46,7 +46,7 @@ func (sc1 *KnownCoin) GenerateCoinMessage(types.ConsensusRound, bool, consinterf
 // It returns the round the coin corresponds to and true in first boolean position if made progress towards decision,
 // or false if already decided, and return true in second position if the message should be forwarded.
 // If the message is invalid an error is returned.
-func (*KnownCoin) CheckCoinMessage(*channelinterface.DeserializedItem,
+func (*KnownCoin) CheckCoinMessage(*deserialized.DeserializedItem,
 	bool, bool, consinterface.ConsItem, consinterface.CoinMessageStateInterface,
 	consinterface.MessageState) (round types.ConsensusRound, ret messages.MsgHeader,
 	progress, shouldForward bool, err error) {

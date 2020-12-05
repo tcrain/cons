@@ -22,8 +22,8 @@ package mvcons3
 import (
 	"bytes"
 	"github.com/stretchr/testify/assert"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/stats"
 	"testing"
@@ -45,8 +45,9 @@ var mvConsTestProposal = []byte("This is a proposal")
 // var mvConsOtherTestProposal = []byte("This is a different proposal")
 
 var mvCons3UnitTestOptions = types.TestOptions{
-	NumTotalProcs: config.ProcCount,
-	IncludeProofs: false,
+	NumTotalProcs:    config.ProcCount,
+	IncludeProofs:    false,
+	CollectBroadcast: types.Commit,
 }
 
 type mvCons1TestItems struct {
@@ -72,7 +73,7 @@ func createMvConsTestItems(privKeys []sig.Priv, pubKeys []sig.Pub, privKeyIdx in
 		MC:  memberchecker.InitTrueMemberChecker(false, privKeys[privKeyIdx], gc).New(idx),
 		SMC: memberchecker.NewNoSpecialMembers().New(idx)}
 	forwardChecker := forwardchecker.NewAllToAllForwarder().New(idx, memberChecker.MC.GetParticipants(), memberChecker.MC.GetAllPubs())
-	memberChecker.MC.(*memberchecker.TrueMemberChecker).AddPubKeys(nil, pubKeys, nil, [32]byte{})
+	memberChecker.MC.(*memberchecker.TrueMemberChecker).AddPubKeys(nil, pubKeys, nil, [32]byte{}, nil)
 	mmc := &testobjects.MockMainChannel{}
 	consItems := &consinterface.ConsInterfaceItems{
 		MC:         memberChecker,
@@ -81,7 +82,7 @@ func createMvConsTestItems(privKeys []sig.Priv, pubKeys []sig.Pub, privKeyIdx in
 	}
 	sci := (&MvCons3{}).GenerateNewItem(idx, consItems, mmc, nil,
 		MvCons3Config{}.GetBroadcastFunc(types.NonFaulty), gc).(*MvCons3)
-	sci.SetInitialState(initialState)
+	sci.SetInitialState(initialState, nil)
 	return &mvCons1TestItems{
 		ConsTestItems: cons.ConsTestItems{
 			PrivKeys: privKeys,
@@ -96,9 +97,10 @@ func createMvConsTestItems(privKeys []sig.Priv, pubKeys []sig.Pub, privKeyIdx in
 
 var initialState = []byte("some init state")
 var initialHash = types.GetHash(initialState)
+var zeroHash = types.GetHash(make([]byte, types.GetHashLen()))
 
 func createMvSendItems(hdrType messages.HeaderID, idx types.ConsensusIndex, proposal []byte,
-	supportHeaderSigMsg *sig.MultipleSignedMessage, bct cons.ConsTestItems, t *testing.T) []*channelinterface.DeserializedItem {
+	supportHeaderSigMsg *sig.MultipleSignedMessage, bct cons.ConsTestItems, t *testing.T) []*deserialized.DeserializedItem {
 
 	var supportHash types.HashBytes
 	var supportIndex types.ConsensusInt
@@ -112,24 +114,26 @@ func createMvSendItems(hdrType messages.HeaderID, idx types.ConsensusIndex, prop
 		supportIndex = 0
 	}
 
-	ret := make([]*channelinterface.DeserializedItem, len(bct.PrivKeys))
+	ret := make([]*deserialized.DeserializedItem, len(bct.PrivKeys))
 
 	for i := range bct.PrivKeys {
 		priv := bct.PrivKeys[i]
 		var hdr, dser messages.InternalSignedMsgHeader
 		switch hdrType {
 		case messages.HdrMvInitSupport:
-			w := messagetypes.NewMvInitSupportMessage()
+			w := messagetypes.NewMvInitSupportMessage(false)
 			w.Proposal = proposal
 			w.SupportedIndex = supportIndex
 			w.SupportedHash = supportHash
+			w.RandHash = zeroHash
 			hdr = w
-			dser = messagetypes.NewMvInitSupportMessage()
-		case messages.HdrMvEcho:
-			w := messagetypes.NewMvEchoMessage()
+			dser = messagetypes.NewMvInitSupportMessage(false)
+		case messages.HdrMvEchoHash:
+			w := messagetypes.NewMvEchoHashMessage(false)
 			w.ProposalHash = supportHash
+			w.RandHash = zeroHash
 			hdr = w
-			dser = messagetypes.NewMvEchoMessage()
+			dser = messagetypes.NewMvEchoHashMessage(false)
 		default:
 			panic("invalid type")
 		}
@@ -156,7 +160,7 @@ func createMvSendItems(hdrType messages.HeaderID, idx types.ConsensusIndex, prop
 			t.Error(err)
 		}
 
-		ret[i] = &channelinterface.DeserializedItem{
+		ret[i] = &deserialized.DeserializedItem{
 			Index:          idx,
 			HeaderType:     hdrType,
 			Header:         smd,
@@ -210,7 +214,7 @@ func TestMvCons3UnitGotMsg(t *testing.T) {
 	// Non member
 	privKeys2, pubKeys2 := cons.MakeKeys(to)
 	bctInvalid := createMvConsTestItems(privKeys2, pubKeys2, 0, idx, to)
-	echoItemsInvalid := createMvSendItems(messages.HdrMvEcho, idx, mvConsTestProposal,
+	echoItemsInvalid := createMvSendItems(messages.HdrMvEchoHash, idx, mvConsTestProposal,
 		nil, bctInvalid.ConsTestItems, t)
 	cons.MergeSigsForTest(echoItemsInvalid)
 	_, err = bct[0].msgState.GotMsg(bct[0].bcons.GetHeader, echoItemsInvalid[0], bct[0].gc, bct[0].memberChecker)
@@ -219,7 +223,7 @@ func TestMvCons3UnitGotMsg(t *testing.T) {
 	}
 
 	// valid echo
-	echoItems := createMvSendItems(messages.HdrMvEcho, idx, nil,
+	echoItems := createMvSendItems(messages.HdrMvEchoHash, idx, nil,
 		initItems[0].Header.(*sig.MultipleSignedMessage), bct[0].ConsTestItems, t)
 	cons.MergeSigsForTest(echoItems)
 	_, err = bct[0].msgState.GotMsg(bct[0].bcons.GetHeader, echoItems[0], bct[0].gc, bct[0].memberChecker)
@@ -250,7 +254,7 @@ func TestMvCons3UnitDecide(t *testing.T) {
 		// proposal
 		idx := types.SingleComputeConsensusIDShort(i)
 		p := messagetypes.NewMvProposeMessage(idx, mvConsTestProposal)
-		bct[i-1].bcons.Start()
+		bct[i-1].bcons.Start(false)
 		if i == 1 {
 			if err := bct[i-1].bcons.GotProposal(p, bct[i-1].mainChannel); err != nil {
 				panic(err)
@@ -259,7 +263,7 @@ func TestMvCons3UnitDecide(t *testing.T) {
 		} else {
 			testobjects.CheckNoSend(bct[i-1].mainChannel, t)
 		}
-		bct2[i-1].bcons.Start()
+		bct2[i-1].bcons.Start(false)
 		if i == 2 {
 			if err := bct2[i-1].bcons.GotProposal(p, bct2[i-1].mainChannel); err != nil {
 				panic(err)
@@ -288,7 +292,7 @@ func TestMvCons3UnitDecide(t *testing.T) {
 
 		// test with an invalid hash
 		invalidPrev := sig.NewMultipleSignedMsg(types.SingleComputeConsensusIDShort(i-1),
-			pubKeys[0].New(), messagetypes.NewMvInitSupportMessage())
+			pubKeys[0].New(), messagetypes.NewMvInitSupportMessage(false))
 		invalidPrev.Hash = types.GetHash([]byte("bad hash"))
 		initInvalidItems := createMvSendItems(messages.HdrMvInitSupport, types.SingleComputeConsensusIDShort(i),
 			mvConsTestProposal, invalidPrev, bct[i-1].ConsTestItems, t)
@@ -314,7 +318,7 @@ func TestMvCons3UnitDecide(t *testing.T) {
 		}
 		prevSupport = initItems[i-1].Header.(*sig.MultipleSignedMessage)
 		progress, forward = bct[i-1].bcons.ProcessMessage(initItems[i-1], false, nil)
-		if !progress || !forward {
+		if !progress {
 			t.Error("should have valid message")
 		}
 		if bct[i-1].bcons.HasDecided() {
@@ -336,7 +340,7 @@ func TestMvCons3UnitDecide(t *testing.T) {
 		testobjects.CheckEchoMessage(bct2[i-1].mainChannel, i, 0, prevSupport.Hash, t)
 
 		// send the echo
-		echoItems := createMvSendItems(messages.HdrMvEcho, types.SingleComputeConsensusIDShort(i),
+		echoItems := createMvSendItems(messages.HdrMvEchoHash, types.SingleComputeConsensusIDShort(i),
 			nil, prevSupport, bct[i-1].ConsTestItems, t)
 		cons.MergeSigsForTest(echoItems)
 		_, err = bct[i-1].msgState.GotMsg(bct[i-1].bcons.GetHeader, echoItems[0], bct[i-1].gc, bct[i-1].memberChecker)
@@ -369,8 +373,8 @@ func TestMvCons3UnitDecide(t *testing.T) {
 			assert.True(t, bct[idx-1].bcons.CanStartNext(), bct2[idx-1].bcons.CanStartNext())
 			if i == 4 && idx == 1 {
 				assert.True(t, bct[idx-1].bcons.HasDecided(), bct2[idx-1].bcons.HasDecided())
-				_, dec1, _ := bct[idx-1].bcons.GetDecision()
-				_, dec2, _ := bct2[idx-1].bcons.GetDecision()
+				_, dec1, _, _ := bct[idx-1].bcons.GetDecision()
+				_, dec2, _, _ := bct2[idx-1].bcons.GetDecision()
 				assert.Equal(t, mvConsTestProposal, dec1, dec2)
 			} else {
 				assert.False(t, bct[idx-1].bcons.HasDecided(), bct2[idx-1].bcons.HasDecided())
@@ -388,7 +392,7 @@ func TestMvCons3UnitDecideMissing(t *testing.T) {
 
 	// proposal
 	p := messagetypes.NewMvProposeMessage(types.SingleComputeConsensusIDShort(1), mvConsTestProposal)
-	bct[0].bcons.Start()
+	bct[0].bcons.Start(false)
 	err := bct[0].bcons.GotProposal(p, bct[0].mainChannel)
 	assert.Nil(t, err)
 	testobjects.CheckInitSupportMessage(bct[0].mainChannel, 1, 0, initialHash, mvConsTestProposal, t)
@@ -411,7 +415,7 @@ func TestMvCons3UnitDecideMissing(t *testing.T) {
 		if i == 2 {
 			// No init
 			// Just the init timeout
-			deser := &channelinterface.DeserializedItem{
+			deser := &deserialized.DeserializedItem{
 				Index:          types.SingleComputeConsensusIDShort(i),
 				HeaderType:     messages.HdrMvInitTimeout,
 				Header:         nil,
@@ -447,7 +451,7 @@ func TestMvCons3UnitDecideMissing(t *testing.T) {
 			}
 			testobjects.CheckEchoMessage(bct[i-1].mainChannel, i, 0, prevSupport.Hash, t)
 
-			echoItems := createMvSendItems(messages.HdrMvEcho, types.SingleComputeConsensusIDShort(i),
+			echoItems := createMvSendItems(messages.HdrMvEchoHash, types.SingleComputeConsensusIDShort(i),
 				nil, prevSupport, bct[i-1].ConsTestItems, t)
 			cons.MergeSigsForTest(echoItems)
 			_, err = bct[i-1].msgState.GotMsg(bct[i-1].bcons.GetHeader, echoItems[0], bct[i-1].gc, bct[i-1].memberChecker)
@@ -472,7 +476,7 @@ func TestMvCons3UnitDecideMissing(t *testing.T) {
 				if !bct[idx-1].bcons.HasDecided() {
 					t.Error("should have decided by now")
 				}
-				_, decision, _ := bct[idx-1].bcons.GetDecision()
+				_, decision, _, _ := bct[idx-1].bcons.GetDecision()
 				if !bytes.Equal(decision, mvConsTestProposal) {
 					t.Errorf("should have decided %v, but decided %v", mvConsTestProposal, decision)
 				}
@@ -481,7 +485,7 @@ func TestMvCons3UnitDecideMissing(t *testing.T) {
 			}
 		}
 		if i < 5 {
-			bct[i].bcons.Start()
+			bct[i].bcons.Start(false)
 		}
 	}
 }
@@ -494,7 +498,7 @@ func TestMvCons3UnitDecideSkip(t *testing.T) {
 
 	// proposal
 	p := messagetypes.NewMvProposeMessage(types.SingleComputeConsensusIDShort(1), mvConsTestProposal)
-	bct[0].bcons.Start()
+	bct[0].bcons.Start(false)
 	err := bct[0].bcons.GotProposal(p, bct[0].mainChannel)
 	assert.Nil(t, err)
 	testobjects.CheckInitSupportMessage(bct[0].mainChannel, 1, 0, initialHash, mvConsTestProposal, t)
@@ -514,7 +518,7 @@ func TestMvCons3UnitDecideSkip(t *testing.T) {
 			assert.Equal(t, ts, bct[idx-1].bcons.prevTimeoutState)
 		}
 
-		var initItems []*channelinterface.DeserializedItem
+		var initItems []*deserialized.DeserializedItem
 		if i == 2 {
 			// second init will point back to initial
 			initItems = createMvSendItems(messages.HdrMvInitSupport, types.SingleComputeConsensusIDShort(i), mvConsTestProposal, nil, bct[i-1].ConsTestItems, t)
@@ -541,7 +545,7 @@ func TestMvCons3UnitDecideSkip(t *testing.T) {
 			testobjects.CheckEchoMessage(bct[i-1].mainChannel, i, 0, prevSupport.Hash, t)
 		}
 
-		echoItems := createMvSendItems(messages.HdrMvEcho, types.SingleComputeConsensusIDShort(i), nil, prevSupport, bct[i-1].ConsTestItems, t)
+		echoItems := createMvSendItems(messages.HdrMvEchoHash, types.SingleComputeConsensusIDShort(i), nil, prevSupport, bct[i-1].ConsTestItems, t)
 		cons.MergeSigsForTest(echoItems)
 		_, err = bct[i-1].msgState.GotMsg(bct[i-1].bcons.GetHeader, echoItems[0], bct[i-1].gc, bct[i-1].memberChecker)
 		if err != nil {
@@ -561,7 +565,7 @@ func TestMvCons3UnitDecideSkip(t *testing.T) {
 				if !bct[idx-1].bcons.HasDecided() {
 					t.Error("should have decided by now")
 				}
-				_, decision, _ := bct[idx-1].bcons.GetDecision()
+				_, decision, _, _ := bct[idx-1].bcons.GetDecision()
 				if idx == 1 {
 					if len(decision) != 0 {
 						t.Errorf("should have decided nil, but decided %v", decision)

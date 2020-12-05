@@ -111,9 +111,11 @@ func (mc *BinRotateMemberChecker) FinishUpdateState() {
 // of all public keys (see BinRotateMemberChecker struct description).
 // func (mc *BinRotateMemberChecker) UpdateState(prevDec []byte, prevSM consinterface.StateMachineInterface, prevMember MemberChecker) []sig.Pub {
 func (mc *BinRotateMemberChecker) UpdateState(fixedCoord sig.Pub, prevDec []byte, randBytes [32]byte,
-	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface) (newMemberPubs,
-	newAllPubs []sig.Pub) {
+	prevMember consinterface.MemberChecker, prevSM consinterface.GeneralStateMachineInterface,
+	futureFixed types.ConsensusID) (newMemberPubs,
+	newAllPubs []sig.Pub, changedMembers bool) {
 
+	_ = futureFixed
 	if len(prevDec) == 0 {
 		prevDec = []byte{0} // a nil decision is assumed as a 0
 	}

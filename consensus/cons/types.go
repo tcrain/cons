@@ -21,14 +21,14 @@ package cons
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
-	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 )
 
 // DeserSortVRF must only contain sig.MultiSignedMessages with a single signature.
 // They will be sorted by the signature's VRFID.
 // This is used by cons who need to decide which leader message to echo when their timeout has run out
 // when random member selection is enabled.
-type DeserSortVRF []*channelinterface.DeserializedItem
+type DeserSortVRF []*deserialized.DeserializedItem
 
 func (a DeserSortVRF) Len() int      { return len(a) }
 func (a DeserSortVRF) Swap(i, j int) { a[i], a[j] = a[j], a[i] }

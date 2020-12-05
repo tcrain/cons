@@ -21,8 +21,8 @@ package statemachine
 
 import (
 	"fmt"
-	"github.com/tcrain/cons/config"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -31,11 +31,12 @@ import (
 
 type AbsStateMachine struct {
 	absGeneralStateMachine
-	doneCount       *types.ConsensusInt
-	lastProposal    types.ConsensusInt   // the consensus index to stop at
-	needsConcurrent types.ConsensusInt   // additional concurrent indecies to run as needed by the consensus
-	createdFrom     []types.ConsensusInt // the previous index from which this SM was created
-	isCoord         bool                 // if this node is the coordinator for this round
+	startedRecordingStats bool
+	doneCount             *types.ConsensusInt
+	lastProposal          types.ConsensusInt   // the consensus index to stop at
+	needsConcurrent       types.ConsensusInt   // additional concurrent indecies to run as needed by the consensus
+	createdFrom           []types.ConsensusInt // the previous index from which this SM was created
+	isCoord               bool                 // if this node is the coordinator for this round
 }
 
 // GetDone returns the done status of this SM.
@@ -49,6 +50,10 @@ func (spi *AbsStateMachine) GetDone() types.DoneType { // TODO cleanup
 	return types.NotDone
 }
 
+func (spi *AbsStateMachine) GetStartedRecordingStats() bool {
+	return spi.startedRecordingStats
+}
+
 func (spi *AbsStateMachine) AbsDoneKeep() {
 	if spi.doneKeep {
 		panic(fmt.Sprint("called done keep twice", spi.index))
@@ -57,7 +62,7 @@ func (spi *AbsStateMachine) AbsDoneKeep() {
 		panic(fmt.Sprint("called done clear after done keep", spi.index))
 	}
 	spi.doneKeep = true
-	if spi.index.Index.(types.ConsensusInt) == 0 { // We don't count the initiation object
+	if spi.index.Index.(types.ConsensusInt) == 0 { // We don't Increments the initiation object
 		return
 	}
 	*spi.doneCount++
@@ -144,7 +149,7 @@ func (spi *AbsStateMachine) AbsGetProposal(hdr messages.MsgHeader) {
 	if *spi.closed {
 		return
 	}
-	di := &channelinterface.DeserializedItem{
+	di := &deserialized.DeserializedItem{
 		Index:          spi.index,
 		HeaderType:     hdr.GetID(),
 		Header:         hdr,
@@ -163,7 +168,8 @@ func (spi *AbsStateMachine) Collect() {
 
 // CheckStartStatsRecording is called before allocating an index to check if stats recording should start.
 func (spi *AbsStateMachine) CheckStartStatsRecording(index types.ConsensusInt) {
-	if index >= config.WarmUpInstances {
+	if index > types.ConsensusInt(spi.GeneralConfig.WarmUpInstances) {
+		spi.startedRecordingStats = true
 		spi.GeneralConfig.Stats.StartRecording(spi.GeneralConfig.CPUProfile, spi.GeneralConfig.MemProfile,
 			spi.GeneralConfig.TestIndex, spi.GeneralConfig.TestID)
 	}

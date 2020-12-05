@@ -26,22 +26,24 @@ import (
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 )
 
 type RbBcast2 struct {
 	cons.AbsConsItem
 	cons.AbsMVRecover
-	myProposal          *messagetypes.MvProposeMessage                       // My proposal for this bcast
-	decisionHash        types.HashStr                                        // the hash of the decided value
-	decisionHashBytes   types.HashBytes                                      // the hash of the decided value
-	decisionInitMsg     *messagetypes.MvInitMessage                          // the actual decided value (should be same as proposal if nonfaulty coord)
-	decisionPub         sig.Pub                                              // the pub of the decisionInitMsg
-	validatedInitHashes map[types.HashStr]*channelinterface.DeserializedItem // hashes of init messages that have been validated by the state machine
+	myProposal          *messagetypes.MvProposeMessage                   // My proposal for this bcast
+	decisionHash        types.HashStr                                    // the hash of the decided value
+	decisionHashBytes   types.HashBytes                                  // the hash of the decided value
+	decisionInitMsg     *messagetypes.MvInitMessage                      // the actual decided value (should be same as proposal if nonfaulty coord)
+	decisionPub         sig.Pub                                          // the pub of the decisionInitMsg
+	validatedInitHashes map[types.HashStr]*deserialized.DeserializedItem // hashes of init messages that have been validated by the state machine
 	sentEcho            bool
 	sentCommit          bool
 	includeProofs       bool // if true then we should include proofs with our commit messages
@@ -63,10 +65,19 @@ func (*RbBcast2) GenerateNewItem(index types.ConsensusIndex, items *consinterfac
 	newItem := &RbBcast2{AbsConsItem: newAbsItem}
 	items.ConsItem = newItem
 	newItem.includeProofs = gc.Eis.(cons.ConsInitState).IncludeProofs
-	newItem.validatedInitHashes = make(map[types.HashStr]*channelinterface.DeserializedItem)
-	newItem.InitAbsMVRecover(index)
+	newItem.validatedInitHashes = make(map[types.HashStr]*deserialized.DeserializedItem)
+	newItem.InitAbsMVRecover(index, gc)
 
 	return newItem
+}
+
+// GetPrevCommitProof returns a signed message header that counts at the commit message for the previous consensus.
+// This should only be called after DoneKeep has been called on this instance.
+// cordPub is the expected public key of the coordinator of the current round (used for collect broadcast)
+func (sc *RbBcast2) GetPrevCommitProof() (cordPub sig.Pub, proof []messages.MsgHeader) {
+	cordPub = cons.GetCoordPubCollectBroadcastEnd(0, sc.ConsItems, sc.GeneralConfig)
+	_, proof = sc.AbsConsItem.GetPrevCommitProof()
+	return
 }
 
 // GetCommitProof returns a signed message header that counts at the commit message for this consensus.
@@ -209,17 +220,18 @@ func (sc *RbBcast2) HasDecided() bool {
 }
 
 // GetDecision returns the decided value as a byte slice.
-func (sc *RbBcast2) GetDecision() (sig.Pub, []byte, types.ConsensusIndex) {
+func (sc *RbBcast2) GetDecision() (sig.Pub, []byte, types.ConsensusIndex, types.ConsensusIndex) {
 	if sc.decisionInitMsg != nil {
 		if len(sc.decisionInitMsg.Proposal) == 0 {
 			panic(sc.Index)
 		}
-		var retIdx types.ConsensusIndex
+		var retIdx, futureIdx types.ConsensusIndex
 		switch v := sc.Index.Index.(type) {
 		case types.ConsensusInt:
 			retIdx = types.SingleComputeConsensusIDShort(v - 1)
+			futureIdx = types.SingleComputeConsensusIDShort(v + 1)
 		}
-		return sc.decisionPub, sc.decisionInitMsg.Proposal, retIdx
+		return sc.decisionPub, sc.decisionInitMsg.Proposal, retIdx, futureIdx
 	}
 	panic("should have decided")
 }
@@ -247,7 +259,8 @@ func (sc *RbBcast2) CanStartNext() bool {
 }
 
 // Start allows GetProposalIndex to return true.
-func (sc *RbBcast2) Start() {
+func (sc *RbBcast2) Start(finishedLastIndex bool) {
+	_ = finishedLastIndex
 	sc.AbsConsItem.AbsStart()
 	logging.Infof("Starting RbBcast2 index %v", sc.Index)
 	if sc.CheckMemberLocal() {
@@ -278,7 +291,7 @@ func (sc *RbBcast2) GetProposalIndex() (prevIdx types.ConsensusIndex, ready bool
 // If false is returned then the next is started, but the current instance has no state machine created. // TODO
 func (sc *RbBcast2) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasInfo bool) {
 	return types.SingleComputeConsensusIDShort(sc.Index.Index.(types.ConsensusInt) - 1),
-		nil, nil, true
+		nil, nil, sc.GeneralConfig.AllowConcurrent > 0
 }
 
 // ProcessMessage is called on every message once it has been checked that it is a valid message (using the static method ConsItem.DerserializeMessage), that it comes from a member
@@ -292,7 +305,7 @@ func (sc *RbBcast2) GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pu
 // messages.HdrMvRequestRecover a node terminated bin cons with 1, but didn't get the init message, so if we have it we send it.
 // messages.HdrMvRecoverTimeout if a node terminated bin cons with 1, but didn't get the init mesage this timeout is started, once it runs out, we ask other nodes to send the init message.
 func (sc *RbBcast2) ProcessMessage(
-	deser *channelinterface.DeserializedItem,
+	deser *deserialized.DeserializedItem,
 	isLocal bool,
 	senderChan *channelinterface.SendRecvChannel) (bool, bool) {
 
@@ -353,7 +366,7 @@ func (sc *RbBcast2) ProcessMessage(
 }
 
 // NeedsConcurrent returns 1.
-func (sc *RbBcast2) NeedsConcurrent() types.ConsensusInt {
+func (sc *RbBcast2) NeedsCompletionConcurrentProposals() types.ConsensusInt {
 	return 1
 }
 
@@ -398,18 +411,19 @@ func (sc *RbBcast2) checkProgress(t, nmt int, mainChannel channelinterface.MainC
 		}
 		if sc.decisionHashBytes == nil {
 			logging.Infof("Deciding index %v", sc.Index)
-			sc.ConsItems.MC.MC.GetStats().AddFinishRound(0, false)
+			sc.ConsItems.MC.MC.GetStats().AddFinishRound(1, false)
 			sc.decisionHashBytes = commitHash
 			sc.decisionHash = types.HashStr(commitHash)
 		}
 		// request recover if needed
 		if initMsg := sc.validatedInitHashes[sc.decisionHash]; initMsg == nil {
 			// we haven't yet received the init message for the hash, so we request it from other nodes after a timeout
-			sc.StartRecoverTimeout(sc.Index, mainChannel)
+			sc.StartRecoverTimeout(sc.Index, mainChannel, sc.ConsItems.MC)
 		} else {
 			// we have the init message so we decide
 			sc.decisionInitMsg = initMsg.Header.(messages.InternalSignedMsgHeader).GetBaseMsgHeader().(*messagetypes.MvInitMessage)
 			sc.decisionPub = sig.GetSingleSupporter(initMsg.Header)
+			sc.SetDecided()
 			logging.Infof("Have decision init message index %v", sc.Index)
 		}
 	}
@@ -423,6 +437,7 @@ func (sc *RbBcast2) checkProgress(t, nmt int, mainChannel channelinterface.MainC
 func (sc *RbBcast2) broadcastInit(initMsg *messagetypes.MvInitMessage,
 	mainChannel channelinterface.MainChannel) {
 
+	sc.ConsItems.MC.MC.GetStats().BroadcastProposal()
 	var forwardFunc channelinterface.NewForwardFuncFilter
 	if config.MvBroadcastInitForBufferForwarder { // we change who we broadcast to depending on the configuration
 		forwardFunc = channelinterface.ForwardAllPub // we broadcast the init message to all nodes directly
@@ -448,7 +463,7 @@ func (sc *RbBcast2) broadcastEcho(nmt int, proposalHash []byte,
 	newMsg.ProposalHash = proposalHash
 
 	// if sc.CheckMemberLocalMsg(newMsg.GetMsgID()) { // only send the message if we are a participant of consensus
-	cordPub := cons.GetCoordPubCollectBroadcast(0, sc.ConsItems, sc.GeneralConfig)
+	cordPub := cons.GetCoordPubCollectBroadcastEcho(0, sc.ConsItems, sc.GeneralConfig)
 	sc.BroadcastFunc(cordPub, sc.ConsItems, newMsg, !sc.NoSignatures,
 		sc.ConsItems.FwdChecker.GetNewForwardListFunc(),
 		mainChannel, sc.GeneralConfig, nil)
@@ -465,7 +480,7 @@ func (sc *RbBcast2) broadcastCommit(nmt int, proposalHash []byte,
 	newMsg := messagetypes.NewMvCommitMessage()
 	newMsg.ProposalHash = proposalHash
 
-	if sc.CheckMemberLocalMsg(newMsg.GetMsgID()) { // only send the message if we are a participant of consensus
+	if sc.CheckMemberLocalMsg(newMsg) { // only send the message if we are a participant of consensus
 
 		// Check if we should include proofs and who to broadcast to based on the BroadcastCollect settings
 		includeProofs, nxtCoordPub := cons.CheckIncludeEchoProofs(0, sc.ConsItems,
@@ -491,7 +506,7 @@ func (sc *RbBcast2) broadcastCommit(nmt int, proposalHash []byte,
 }
 
 // SetInitialState does noting for this algorithm.
-func (sc *RbBcast2) SetInitialState([]byte) {}
+func (sc *RbBcast2) SetInitialState([]byte, storage.StoreInterface) {}
 
 //////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -505,5 +520,6 @@ func (*RbBcast2) GenerateMessageState(gc *generalconfig.GeneralConfig) consinter
 
 // Collect is called when the item is being garbage collected.
 func (sc *RbBcast2) Collect() {
+	sc.AbsConsItem.Collect()
 	sc.StopRecoverTimeout()
 }

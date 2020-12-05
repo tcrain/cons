@@ -59,6 +59,10 @@ func TestBinConsRnd6Byz(t *testing.T) {
 }
 
 func TestBinConsRnd6MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(binTO, types.BinConsRnd6Type, &BinConsRnd6{},
 		Config{}, nil, t)
 }
@@ -69,6 +73,10 @@ func TestBinConsRnd6MsgDrop(t *testing.T) {
 }
 
 func TestBinConsRnd6P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunP2pNwTests(binTO, types.BinConsRnd6Type, &BinConsRnd6{},
 		Config{}, nil, t)
 }

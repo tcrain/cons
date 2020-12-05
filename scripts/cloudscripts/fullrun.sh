@@ -14,11 +14,12 @@ branch=${10:-$GITBRANCH} # git branch to use
 singleZoneRegion=${11:-0} # run nodes in the same region in the same zone
 homezone=${12:-us-central1-a} # zone from where the benchmarks will be launched
 homeinstancetype=${13:-n1-standard-2} # instance type that will launch the benchmarks
-goversion=${14:-1.14.2} # version of go to use
+goversion=${14:-1.15} # version of go to use
 user=${15:-$BENCHUSER} # user name to log onto instances
 key=${16:-$KEYPATH} # key to use to log onto instances
 project=${17:-$PROJECTID} # google cloud project to use
 credentialfile=${18:-$OAUTHPATH} # credential file for google cloud
+enableprofile=${19:-$PROF} # enable profiling
 
 # regions="europe-north1 europe-west3 us-central1 us-west1"
 
@@ -38,15 +39,20 @@ fi
 
 if [ "$launchNodes" -eq 1 ]
 then
-  # Launch the image that was set up
-  inip=$(go run ./cmd/instancesetup/instancesetup.go $singleZoneCmd -p "$project" -c "$credentialfile" -i "$homeinstancetype" -z "$homezone" -li -im cons-image)
+  # First check if the instance was already started
+  if ! inip=$(go run ./cmd/instancesetup/instancesetup.go $singleZoneCmd -p "$project" -c "$credentialfile" -i "$homeinstancetype" -z "$homezone" -ii -im cons-image)
+  then
+    # Launch the image that was set up
+    inip=$(go run ./cmd/instancesetup/instancesetup.go $singleZoneCmd -p "$project" -c "$credentialfile" -i "$homeinstancetype" -z "$homezone" -li -im cons-image)
+
+    # wait for start
+    until ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -o ConnectTimeout=5 -i "$key" "$user"@"$inip" "exit"; do sleep 5; done
+    sleep 25
+  fi
 else
   # The instance should already be started, just get the ip
   inip=$(go run ./cmd/instancesetup/instancesetup.go $singleZoneCmd -p "$project" -c "$credentialfile" -i "$homeinstancetype" -z "$homezone" -ii -im cons-image)
 fi
-
-# wait for start
-until ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -o ConnectTimeout=5 -i "$key" "$user"@"$inip" "exit"; do sleep 5; done
 
 # Copy the key
 scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$credentialfile" "$inip":~/go/src/github.com/tcrain/cons/cloud.json
@@ -70,7 +76,8 @@ $user
 $key
 $project
 $credentialfile
-$singleZoneCmd" > .fulllastrun
+$singleZoneCmd
+$enableprofile" > .fulllastrun
 
 # Format input
 printf -v inip %q "$inip"
@@ -85,15 +92,15 @@ printf -v key %q "${key}"
 printf -v project %q "${project}"
 printf -v credentialfile %q "${credentialfile}"
 
+echo Running rsync with inital instance
+bash ./scripts/cloudscripts/rsyncinit.sh "${inip}" "${user}" "${key}"
+
 # Run the bench
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" -i "$key" "$user"@"$inip" "
 bash --login -c \"
 cd ~/go/src/github.com/tcrain/cons/;
-git pull;
-git checkout ${branch};
-git pull;
-echo Running: bash ./scripts/cloudscripts/runcloudbench.sh ${inip} ${tofolders} ${singleZoneCmd} ${regions} ${nodesperregion} ${nodecounts} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${shutdownNodes};
-bash ./scripts/cloudscripts/runcloudbench.sh ${inip} ${tofolders} ${singleZoneCmd} ${regions} ${nodesperregion} ${nodecounts} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${shutdownNodes}\""
+echo Running: bash ./scripts/cloudscripts/runcloudbench.sh ${inip} ${tofolders} ${singleZoneCmd} ${regions} ${nodesperregion} ${nodecounts} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${shutdownNodes} ${enableprofile};
+bash ./scripts/cloudscripts/runcloudbench.sh ${inip} ${tofolders} ${singleZoneCmd} ${regions} ${nodesperregion} ${nodecounts} ${instancetype} ${user} ~/.ssh/id_rsa ${project} cloud.json ${launchNodes} ${shutdownNodes} ${enableprofile}\""
 
 # Get the results
 bash ./scripts/graphscripts/syncresults.sh "$inip" "$user" "$key"

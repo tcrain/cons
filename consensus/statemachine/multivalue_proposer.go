@@ -52,6 +52,18 @@ type MvCons1ProposalInfo struct {
 	AbsRandSM
 	rand              *rand.Rand
 	proposalSizeBytes int // size of the proposals in bytes
+	*MvPropserStats
+}
+
+type MvPropserStats struct {
+	ProposalsDecided int
+	BytesDecided     int
+	NilDecided       int
+}
+
+func (ps *MvPropserStats) StatsString(time.Duration) string {
+	return fmt.Sprintf("proposals decided: %v, nil decided: %v, bytes decided: %v",
+		ps.ProposalsDecided, ps.NilDecided, ps.BytesDecided)
 }
 
 // NewMvCons1ProposalInfo generates a new MvCons1ProposalInfo object.
@@ -61,15 +73,19 @@ func NewMvCons1ProposalInfo(useRand bool, initRandBytes [32]byte,
 	// rand := rand.New(rand.NewSource(atomic.AddInt64(&binconsSeed, 1)))
 	randlocal := rand.New(rand.NewSource(seed))
 	return &MvCons1ProposalInfo{
-		AbsRandSM: NewAbsRandSM(initRandBytes, useRand),
-		rand:      randlocal, proposalSizeBytes: proposalSizeBytes}
+		AbsRandSM:         NewAbsRandSM(initRandBytes, useRand),
+		rand:              randlocal,
+		proposalSizeBytes: proposalSizeBytes,
+		MvPropserStats:    &MvPropserStats{},
+	}
 }
 
 // Init initializes the object.
 func (spi *MvCons1ProposalInfo) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt,
 	needsConcurrent types.ConsensusInt, mainChannel channelinterface.MainChannel,
-	doneChan chan channelinterface.ChannelCloseType) {
+	doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
 
+	_ = basicInit
 	spi.AbsRandSM.AbsRandInit(gc)
 	spi.AbsInit(gc, lastProposal, needsConcurrent, mainChannel, doneChan)
 }
@@ -78,16 +94,26 @@ func (spi *MvCons1ProposalInfo) Init(gc *generalconfig.GeneralConfig, lastPropos
 func (spi *MvCons1ProposalInfo) HasDecided(proposer sig.Pub, nxt types.ConsensusInt, decision []byte) {
 	spi.AbsHasDecided(nxt, decision)
 
-	buf := bytes.NewReader(decision)
-	var err error
-	_, err = spi.RandHasDecided(proposer, buf, true)
-	if err != nil {
-		logging.Error("invalid mv vrf proof", err)
-	}
-
-	if buf.Len() != spi.proposalSizeBytes {
-		logging.Warning("invalid mv proposal length", buf.Len(), spi.proposalSizeBytes)
-		return
+	if len(decision) == 0 {
+		logging.Warning("Decided nil")
+		if spi.GetStartedRecordingStats() {
+			spi.NilDecided++
+		}
+	} else {
+		buf := bytes.NewReader(decision)
+		var err error
+		_, err = spi.RandHasDecided(proposer, buf, true)
+		if err != nil {
+			logging.Error("invalid mv vrf proof", err)
+		}
+		if buf.Len() != spi.proposalSizeBytes {
+			logging.Warning("invalid mv proposal length", buf.Len(), spi.proposalSizeBytes)
+			return
+		}
+		if spi.GetStartedRecordingStats() {
+			spi.BytesDecided += len(decision)
+			spi.ProposalsDecided++
+		}
 	}
 }
 
@@ -106,10 +132,6 @@ func (spi *MvCons1ProposalInfo) DoneKeep() {
 // GetInitialState returns []byte("initial state").
 func (spi *MvCons1ProposalInfo) GetInitialState() []byte {
 	return []byte("initial state")
-}
-
-func (spi *MvCons1ProposalInfo) StatsString(testDuration time.Duration) string {
-	return ""
 }
 
 // GetProposal is called when a consensus index is ready for a proposal.
@@ -136,7 +158,7 @@ func (spi *MvCons1ProposalInfo) GetProposal() {
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *MvCons1ProposalInfo) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
 	n := spi.GetRndNumBytes()
 
@@ -173,12 +195,18 @@ func (spi *MvCons1ProposalInfo) ValidateProposal(proposer sig.Pub, dec []byte) e
 	return nil
 }
 
+// GetSMStats returns the statistics object for the SM.
+func (spi *MvCons1ProposalInfo) GetSMStats() consinterface.SMStats {
+	return spi.MvPropserStats
+}
+
 // StartIndex is called when the previous consensus index has finished.
 func (spi *MvCons1ProposalInfo) StartIndex(nxt types.ConsensusInt) consinterface.StateMachineInterface {
 	ret := &MvCons1ProposalInfo{}
 	*ret = *spi
 
 	ret.AbsStartIndex(nxt)
+	ret.RandStartIndex(spi.randBytes)
 	return ret
 }
 

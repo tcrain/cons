@@ -1,6 +1,7 @@
 package sleep
 
 import (
+	"bytes"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/types"
 	"io"
@@ -18,7 +19,21 @@ func (vrfPub *vRFPub) NewVRFProof() sig.VRFProof {
 }
 
 // ProofToHash checks the VRF for the message and returns the random bytes if valid
-func (vrfPub *vRFPub) ProofToHash(_ sig.SignedMessage, proof sig.VRFProof) (index [32]byte, err error) {
+func (vrfPub *vRFPub) proofToHash(p sleepPub, msg sig.SignedMessage, proof sig.VRFProof) (index [32]byte, err error) {
+	h := types.GetNewHash()
+	id, err := p.GetRealPubBytes()
+	if err != nil {
+		panic(err)
+	}
+	h.Write(id)
+	h.Write(msg.GetSignedMessage())
+	buff := make([]byte, vrfPub.stats.VRFSize)
+	copy(buff, h.Sum(nil))
+	if !bytes.Equal(buff, proof.(*VRFProof).buff) {
+		err = types.ErrInvalidVRFProof
+		return
+	}
+
 	copy(index[:], proof.(*VRFProof).buff)
 	time.Sleep(vrfPub.stats.VRFVerifyTime)
 	return
@@ -33,11 +48,11 @@ type vrfPriv struct {
 // They are the hash of the key index and the message.
 func (p *vrfPriv) Evaluate(m sig.SignedMessage) (index [32]byte, proof sig.VRFProof) {
 	h := types.GetNewHash()
-	id, err := p.pub.GetPubID()
+	id, err := p.pub.GetRealPubBytes()
 	if err != nil {
 		panic(err)
 	}
-	h.Write([]byte(id))
+	h.Write(id)
 	h.Write(m.GetSignedMessage())
 	copy(index[:], h.Sum(nil))
 	prf := &VRFProof{size: p.stats.VRFSize}

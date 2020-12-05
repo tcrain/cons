@@ -1,3 +1,4 @@
+#!/bin/bash
 #regions="us-central1 us-east4 europe-north1 europe-west2"
 regions="us-central1 us-east4 us-west1 europe-north1 europe-west2 europe-west3 asia-east1 australia-southeast1"
 homezone="us-central1-a"

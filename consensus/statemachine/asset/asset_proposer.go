@@ -41,9 +41,14 @@ type assetGlobalState struct {
 
 	myProposalCount uint64
 	// Keep track of how many transfers each pub key has done
-	trafserCount map[sig.PubKeyStr]uint64
+	transferCount map[sig.PubKeyStr]uint64
 	// we finish the test when all pubs make lastProposal transfers
 	finishedMap map[sig.PubKeyStr]bool
+	// we finish the warmup when all pubs make warmupcount transfers
+	warmUpFinishedMap  map[sig.PubKeyStr]bool
+	warmUpFinished     bool
+	totalTransferCount uint64
+	maxProposals       uint64 // the process with the max proposals
 
 	isMember   bool // if this node is participating as a member
 	numMembers int  // number of members sending transactions in this experiment
@@ -152,8 +157,9 @@ func NewAssetProposer(useRand bool, initRandBytes [32]byte,
 	}
 
 	ret.initialState = buf.Bytes()
-	ret.trafserCount = make(map[sig.PubKeyStr]uint64, len(ret.initPubs))
+	ret.transferCount = make(map[sig.PubKeyStr]uint64, len(ret.initPubs))
 	ret.finishedMap = make(map[sig.PubKeyStr]bool, len(ret.initPubs))
+	ret.warmUpFinishedMap = make(map[sig.PubKeyStr]bool, len(ret.initPubs))
 
 	ret.validFunc = validFunc
 	ret.sendToSelf = sendtoSelf
@@ -161,12 +167,30 @@ func NewAssetProposer(useRand bool, initRandBytes [32]byte,
 	return ret
 }
 
+type BaseAssetStats struct {
+	AssetsTransfered uint64
+	AssetStats
+}
+
+func (as BaseAssetStats) StatsString(testDuration time.Duration) string {
+	return fmt.Sprintf("transfered assets: %v, per sec %v (test duration: %v seconds),\n %v, %v",
+		as.AssetsTransfered, float64(as.AssetsTransfered)/(float64(testDuration)/float64(time.Second)),
+		float64(testDuration)/float64(time.Second), as.AssetStats.String(), as.AssetStats.StatsString(testDuration))
+}
+
+// GetSMStats returns the statistics object for the SM.
+func (da *AssetProposer) GetSMStats() consinterface.SMStats {
+	return BaseAssetStats{AssetsTransfered: da.totalTransferCount,
+		AssetStats: da.assetTable.stats}
+}
+
 // Init is called to initialize the object, lastProposal is the number of consensus instances to run, after which a message should be sent
 // on doneChan telling the consensus to shut down.
 func (da *AssetProposer) Init(gc *generalconfig.GeneralConfig, endAfter types.ConsensusInt,
 	memberCheckerState consinterface.ConsStateInterface, mainChannel channelinterface.MainChannel,
-	doneChan chan channelinterface.ChannelCloseType) {
+	doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
 
+	_, _ = memberCheckerState, basicInit
 	da.lastProposal = uint64(endAfter)
 	da.AbsRandSM.AbsRandInit(gc)
 
@@ -177,7 +201,6 @@ func (da *AssetProposer) Init(gc *generalconfig.GeneralConfig, endAfter types.Co
 
 	da.AbsInit(myIndex, gc,
 		da.initAssetsIDs, mainChannel, doneChan)
-
 }
 
 // GenerateNewSM is called on this init SM to generate a new SM given the items to be consumed.
@@ -218,14 +241,10 @@ func (da *AssetProposer) GenerateNewSM(consumedIndices []types.ConsensusID,
 	*ret = *parentSMs[0].(*AssetProposer)
 	var startRecordingStats bool
 	if !ret.startedRecordingStats {
-		var txCount uint64
-		for _, nxt := range ret.trafserCount {
-			txCount += nxt
-			if txCount > (config.WarmUpInstances-1)*uint64(ret.numMembers) {
-				startRecordingStats = true
-				ret.startedRecordingStats = true
-				break
-			}
+		if da.warmUpFinished || da.maxProposals >= uint64(da.GeneralConfig.WarmUpInstances) {
+			startRecordingStats = true
+			ret.startedRecordingStats = true
+			ret.assetTable.StartRecordingStats()
 		}
 	}
 	ret.AbsStartIndex(consumedIndices, parentSMs, startRecordingStats)
@@ -309,8 +328,24 @@ func (da *AssetProposer) HasDecided(proposer sig.Pub, index types.ConsensusIndex
 		if err != nil {
 			panic(err)
 		}
-		da.trafserCount[pStr]++
-		if da.trafserCount[pStr] == da.lastProposal {
+		if da.startedRecordingStats {
+			da.totalTransferCount++
+		}
+		da.transferCount[pStr]++
+		trCount := da.transferCount[pStr]
+		if trCount > da.maxProposals {
+			da.maxProposals = trCount
+		}
+		if da.warmUpFinishedMap != nil {
+			if trCount == uint64(da.GeneralConfig.WarmUpInstances) {
+				da.warmUpFinishedMap[pStr] = true
+			}
+			if len(da.warmUpFinishedMap) == da.numMembers {
+				da.warmUpFinished = true
+			}
+		}
+
+		if trCount == da.lastProposal {
 			da.finishedMap[pStr] = true
 		}
 		end = len(da.finishedMap) == da.numMembers
@@ -378,7 +413,7 @@ func (da *AssetProposer) GetInitialFirstIndex() types.ConsensusID {
 }
 
 // StartInit is called on the init state machine to start the program.
-func (da *AssetProposer) StartInit(memberCheckerState consinterface.ConsStateInterface) {
+func (da *AssetProposer) StartInit(consinterface.ConsStateInterface) {
 	da.getProposal(da.myKey.GetPub(), false)
 }
 
@@ -386,16 +421,29 @@ func (da *AssetProposer) getProposal(lastProposer sig.Pub, decidedNil bool) {
 	if !da.isMember {
 		return
 	}
-	if da.myProposalCount < da.lastProposal {
+	pstr, err := lastProposer.GetPubString()
+	utils.PanicNonNil(err)
 
-		// for the experiment, we only make a proposal after we have completed our previous
-		if !sig.CheckPubsEqual(da.myKey.GetPub(), lastProposer) {
+	iAmProposer := sig.CheckPubsEqual(da.myKey.GetPub(), lastProposer)
+	if !decidedNil && iAmProposer {
+		da.myProposalCount++
+	}
+
+	// check if we just finished the warmup
+	if da.warmUpFinished && da.warmUpFinishedMap != nil {
+		da.warmUpFinishedMap = nil
+	} else {
+		// for the experiment, we only make a proposal after we have completed our previous transfer
+		if !iAmProposer {
 			return
 		}
-
-		if !decidedNil {
-			da.myProposalCount++
+		// if not all processes have not finished the warm up, but we have, then we wait
+		if da.warmUpFinishedMap != nil && !da.warmUpFinished && da.warmUpFinishedMap[pstr] {
+			return
 		}
+	}
+	if da.myProposalCount <= da.lastProposal {
+
 		if tr := da.genAssetTransferFunc(da.myKey, da.initPubs, da.assetTable); tr != nil {
 
 			buff := bytes.NewBuffer(nil)
@@ -434,7 +482,7 @@ func (da *AssetProposer) getProposal(lastProposer sig.Pub, decidedNil bool) {
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (da *AssetProposer) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
 	n := da.GetRndNumBytes()
 	buf := bytes.NewReader(originProposal[n:])
@@ -463,7 +511,7 @@ func (da *AssetProposer) GetByzProposal(originProposal []byte,
 	if _, err := buff.Write(originProposal[:n]); err != nil {
 		panic(err)
 	}
-	// Encode the txs
+	// DoEncode the txs
 	if _, err := tx.Encode(buff); err != nil {
 		panic(err)
 	}
@@ -504,7 +552,7 @@ func (da *AssetProposer) GetInitialState() []byte {
 
 // StatsString returns statistics for the state machine.
 func (da *AssetProposer) StatsString(testDuration time.Duration) string {
-	return ""
+	return da.GetSMStats().StatsString(testDuration)
 }
 
 // DoneClear should be called if the instance of the state machine will no longer be used (it should perform any cleanup).

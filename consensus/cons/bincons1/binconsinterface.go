@@ -21,10 +21,10 @@ package bincons1
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/cons"
 	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/consinterface/messagestate"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
@@ -56,8 +56,8 @@ type BinConsMessageStateInterface interface {
 	New(idx types.ConsensusIndex) consinterface.MessageState
 	// See as consinterface.MessageState.GotMsg
 	GotMsg(hdrFunc consinterface.HeaderFunc,
-		deser *channelinterface.DeserializedItem, gc *generalconfig.GeneralConfig,
-		mc *consinterface.MemCheckers) ([]*channelinterface.DeserializedItem, error)
+		deser *deserialized.DeserializedItem, gc *generalconfig.GeneralConfig,
+		mc *consinterface.MemCheckers) ([]*deserialized.DeserializedItem, error)
 
 	// SetMv0Valid is called by the multivalue reduction MvCons1, when 0 becomes valid for round 1
 	SetMv0Valid()

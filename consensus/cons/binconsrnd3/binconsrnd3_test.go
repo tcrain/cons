@@ -73,6 +73,10 @@ func TestBinConsRnd3Byz(t *testing.T) {
 }
 
 func TestBinConsRnd3MemStore(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunMemstoreTest(binTO, types.BinConsRnd3Type, &BinConsRnd3{},
 		Config{}, nil, t)
 }
@@ -83,6 +87,10 @@ func TestBinConsRnd3MsgDrop(t *testing.T) {
 }
 
 func TestBinConsRnd3P2p(t *testing.T) {
+	if !config.RunAllTests {
+		return
+	}
+
 	cons.RunP2pNwTests(binTO, types.BinConsRnd3Type, &BinConsRnd3{},
 		Config{}, nil, t)
 }

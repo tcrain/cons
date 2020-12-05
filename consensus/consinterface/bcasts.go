@@ -36,7 +36,7 @@ func NormalBroadcast(nextCoordPub sig.Pub,
 	additionalMsgs ...messages.MsgHeader) {
 
 	// Check if we are a member
-	if msg == nil || ci.ConsItem.CheckMemberLocalMsg(msg.GetMsgID()) {
+	if msg == nil || ci.ConsItem.CheckMemberLocalMsg(msg) {
 		ci.ConsItem.Broadcast(nextCoordPub, msg, signMessage, forwardFunc, mainChannel, additionalMsgs...)
 	}
 }

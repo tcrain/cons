@@ -15,5 +15,6 @@
     "SleepCrypto": true,
     "MCType": 0,
     "CheckDecisions": true,
+    "SharePubsRPC": true,
     "BinConsPercentOnes": 50
 }

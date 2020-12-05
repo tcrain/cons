@@ -20,8 +20,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 package csnet
 
 import (
+	"context"
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/stats"
+	"github.com/tcrain/cons/consensus/utils"
 	"math/rand"
 	"sync"
 	"time"
@@ -31,6 +33,11 @@ import (
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/types"
 )
+
+type connDetailsConnected struct {
+	channelinterface.ConnDetails
+	isConnected bool
+}
 
 // Connstats tracks and maintains open connections to other nodes
 // Each node may use multiple addresses, in this case the addresses are stored as a list, where the first element of the list
@@ -45,11 +52,12 @@ import (
 // - When a NetConnection connection has an error (TCP only), the connection will be removed from either sendCons or recvCons
 type ConnStatus struct {
 	sendCons                []channelinterface.SendChannel                 // List of connections for sending messages to (created from this local node)
-	cons                    map[sig.PubKeyStr]channelinterface.ConnDetails // Map from a connected node's pub key to its addresses (for sendCons)
+	cons                    map[sig.PubKeyStr]connDetailsConnected         // Map from a connected node's pub key to its addresses (for sendCons)
 	consPendingReconnection map[sig.PubKeyStr]bool                         // Nodes that have been disconnected, but will be started as soon as a timer runs out
 	removedMap              map[sig.PubKeyStr]channelinterface.NetNodeInfo // Map from a non-connected node's public key to its addresses
 	// List of removed nodes addresses (should correspond to the values of removedMap). Theses nodes will be retired to connect in order of the list.
-	removed []channelinterface.NetNodeInfo
+	removed               []channelinterface.NetNodeInfo
+	activeSendConnections int // number of send connections successfully made
 
 	// Map of connections from external nodes that will send messages to this node (i.e. opposite of sendCons)
 	recvCons map[channelinterface.NetConInfo]*rcvConTime
@@ -60,6 +68,11 @@ type ConnStatus struct {
 	isClosed      bool                                   // used during closing
 	udpMsgCountID uint64                                 // we give each udp packet an incremented id
 	nwType        types.NetworkProtocolType              // TCP or UDP
+
+	ctx       context.Context      // context used to terminate pending TCP dial connections
+	ctxCancel context.CancelFunc   // cancel function
+	wgChan    chan *sync.WaitGroup // for waiting for threads to close
+	myWg      sync.WaitGroup
 
 	udpMsgPool *udpMsgPool // used for allocating buffers to UDP connections
 }
@@ -75,18 +88,37 @@ func NewConnStatus(nwType types.NetworkProtocolType) *ConnStatus {
 	cs.nwType = nwType
 	cs.cond = sync.NewCond(&cs.mutex)
 	cs.closeChan = make(chan channelinterface.ChannelCloseType, 1)
-	cs.cons = make(map[sig.PubKeyStr]channelinterface.ConnDetails)
+	cs.cons = make(map[sig.PubKeyStr]connDetailsConnected)
 	cs.consPendingReconnection = make(map[sig.PubKeyStr]bool)
 	cs.recvCons = make(map[channelinterface.NetConInfo]*rcvConTime)
 	cs.removedMap = make(map[sig.PubKeyStr]channelinterface.NetNodeInfo)
-	cs.isClosed = false
 	cs.udpMsgPool = newUdpMsgPool()
+	cs.ctx, cs.ctxCancel = context.WithCancel(context.Background())
 
 	if cs.nwType == types.UDP {
 		go cs.checkKeepAliveLoop()
 	}
+	cs.runWaitThread()
 
 	return cs
+}
+
+func (cs *ConnStatus) runWaitThread() {
+	cs.wgChan = make(chan *sync.WaitGroup, 10)
+	cs.myWg.Add(1)
+	ctx, _ := context.WithCancel(cs.ctx)
+	doneChan := ctx.Done()
+	go func() {
+		for true {
+			select {
+			case wg := <-cs.wgChan:
+				wg.Wait()
+			case <-doneChan:
+				cs.myWg.Done()
+				return
+			}
+		}
+	}()
 }
 
 // Close unblocks anyone waiting on WaitUntilFewerSendCons and closes any connections.
@@ -94,12 +126,12 @@ func (cs *ConnStatus) Close() {
 	// This should only be called once
 	cs.mutex.Lock()
 	if cs.isClosed {
-		cs.mutex.Unlock()
-		return
+		panic("should not be called multiple times")
 	}
 	cs.isClosed = true
 	cs.mutex.Unlock()
 
+	cs.ctxCancel()      // Unblock TCP connections in progress
 	close(cs.closeChan) // This will force the select to return in WaitUntilFewerSendCons
 	cs.cond.Broadcast()
 
@@ -116,6 +148,10 @@ func (cs *ConnStatus) Close() {
 			logging.Error(err)
 		}
 	}
+	// wait for our wait group
+	cs.mutex.Lock()
+	cs.myWg.Wait()
+	cs.mutex.Unlock()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -156,7 +192,7 @@ func (cs *ConnStatus) addPendingSend(conInfo channelinterface.NetNodeInfo) error
 	return ret
 }
 
-// RemovePendingSend removes a connection to the pending list, returns an error if the connection is alread pending
+// RemovePendingSend removes a connection to the pending list, returns an error if the connection is already pending
 // Should be call to permanately remove a connection.
 func (cs *ConnStatus) removePendingSend(pub sig.Pub) error {
 	cs.mutex.Lock()
@@ -180,12 +216,13 @@ func (cs *ConnStatus) removePendingSend(pub sig.Pub) error {
 }
 
 // removeRecvConnection removes the connection from the list of recv connections.
-func (cs *ConnStatus) removeRecvConnection(conInfo channelinterface.NetConInfo) error {
+func (cs *ConnStatus) removeRecvConnection(conInfo channelinterface.NetConInfo, wg *sync.WaitGroup) error {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
 	if cs.isClosed {
 		return types.ErrClosingTime
 	}
+	cs.wgChan <- wg
 
 	if _, ok := cs.recvCons[conInfo]; !ok {
 		return types.ErrConnDoesntExist
@@ -299,7 +336,7 @@ func (cs *ConnStatus) WaitUntilAtLeastSendCons(n int) error {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
 
-	for len(cs.sendCons) < n {
+	for cs.activeSendConnections < n {
 		if cs.isClosed {
 			return types.ErrClosingTime
 		}
@@ -338,20 +375,24 @@ func (cs *ConnStatus) waitUntilFewerSendCons(n int) error {
 
 // SendTo sends the byte slice to the destination channel.
 // TODO should try to connect to on connection not existing?
-func (cs *ConnStatus) SendTo(buff []byte, dest channelinterface.SendChannel, stats stats.NwStatsInterface) {
+func (cs *ConnStatus) SendTo(buff []byte, dest channelinterface.SendChannel, stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface) {
+	buff = utils.CopyBuf(buff)
 	if config.LatencySend > 0 {
 		time.AfterFunc(time.Millisecond*time.Duration(rand.Intn(config.LatencySend)), func() {
-			cs.internalSendTo(buff, dest, stats)
+			cs.internalSendTo(buff, dest, stats, consStats)
 		})
 	} else {
-		cs.internalSendTo(buff, dest, stats)
+		cs.internalSendTo(buff, dest, stats, consStats)
 	}
 }
 
 // SendToPub sends buff to the node associated with the public key (if it exists), it returns an error if pub is not found
 // in the list of connections.
 // TODO should try to connect to on connection not existing?
-func (cs *ConnStatus) SendToPub(buff []byte, pub sig.Pub, stats stats.NwStatsInterface) error {
+func (cs *ConnStatus) SendToPub(buff []byte, pub sig.Pub, stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface) error {
+
 	pStr, err := pub.GetPubString()
 	if err != nil {
 		return err
@@ -364,15 +405,18 @@ func (cs *ConnStatus) SendToPub(buff []byte, pub sig.Pub, stats stats.NwStatsInt
 	conn, ok := cs.cons[pStr]
 	cs.mutex.Unlock()
 	if ok {
-		cs.SendTo(buff, conn.Conn, stats)
+		cs.SendTo(buff, conn.Conn, stats, consStats)
 		return nil
 	}
 	return types.ErrPubNotFound
 }
 
 // SendToPubList sends buf to the list of pub keys if connections to them exist
-func (cs *ConnStatus) SendToPubList(buf []byte, pubList []sig.PubKeyStr, stats stats.NwStatsInterface) (errs []error) {
+func (cs *ConnStatus) SendToPubList(buf []byte, pubList []sig.PubKeyStr, stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface) (errs []error) {
 	var destList []channelinterface.SendChannel
+
+	buf = utils.CopyBuf(buf)
 
 	cs.mutex.Lock()
 	if cs.isClosed {
@@ -389,7 +433,7 @@ func (cs *ConnStatus) SendToPubList(buf []byte, pubList []sig.PubKeyStr, stats s
 	}
 
 	cs.internalSendFunc(buf, destList, false, false,
-		channelinterface.FullSendRange, stats, false)
+		channelinterface.FullSendRange, stats, consStats, false)
 	cs.mutex.Unlock()
 	return errs
 }
@@ -402,8 +446,11 @@ func (cs *ConnStatus) SendToPubList(buf []byte, pubList []sig.PubKeyStr, stats s
 func (cs *ConnStatus) Send(buff []byte,
 	forwardChecker channelinterface.NewForwardFuncFilter,
 	allPubs []sig.Pub,
-	stats stats.NwStatsInterface) []sig.Pub {
+	stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface) []sig.Pub {
 
+	// we copy the buf because
+	buff = utils.CopyBuf(buff)
 	cs.mutex.Lock()
 	if cs.isClosed {
 		cs.mutex.Unlock()
@@ -432,10 +479,10 @@ func (cs *ConnStatus) Send(buff []byte,
 		cs.mutex.Unlock()
 		// the func must take the lock itself later
 		time.AfterFunc(time.Millisecond*time.Duration(rand.Intn(config.LatencySend)), func() {
-			cs.internalSendFunc(buff, dests, sendToRcv, sendToSend, sendRange, stats, true)
+			cs.internalSendFunc(buff, dests, sendToRcv, sendToSend, sendRange, stats, consStats, true)
 		})
 	} else {
-		cs.internalSendFunc(buff, dests, sendToRcv, sendToSend, sendRange, stats, false)
+		cs.internalSendFunc(buff, dests, sendToRcv, sendToSend, sendRange, stats, consStats, false)
 		cs.mutex.Unlock()
 	}
 	return unknownPubs
@@ -446,7 +493,8 @@ func (cs *ConnStatus) Send(buff []byte,
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 // internalSendTo sends buf to dest
-func (cs *ConnStatus) internalSendTo(buff []byte, dest channelinterface.SendChannel, stats stats.NwStatsInterface) {
+func (cs *ConnStatus) internalSendTo(buff []byte, dest channelinterface.SendChannel, stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface) {
 
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
@@ -457,7 +505,7 @@ func (cs *ConnStatus) internalSendTo(buff []byte, dest channelinterface.SendChan
 
 	if dest.GetType() == types.UDP { // udp we send directly
 		sendUDP(buff, cs.udpMsgPool, []channelinterface.SendChannel{dest}, nil, nil,
-			&cs.udpMsgCountID, channelinterface.FullSendRange, stats)
+			&cs.udpMsgCountID, channelinterface.FullSendRange, stats, consStats)
 		return
 	}
 
@@ -472,6 +520,9 @@ func (cs *ConnStatus) internalSendTo(buff []byte, dest channelinterface.SendChan
 			if stats != nil {
 				stats.Send(len(buff))
 			}
+			if consStats != nil {
+				consStats.ConsSend(len(buff))
+			}
 			err := conn.Conn.Send(buff)
 			if err != nil {
 				logging.Error(err)
@@ -482,6 +533,12 @@ func (cs *ConnStatus) internalSendTo(buff []byte, dest channelinterface.SendChan
 
 	// Next check if it is a received connection
 	if conn, ok := cs.recvCons[dest.GetConnInfos().AddrList[0]]; ok {
+		if stats != nil {
+			stats.Send(len(buff))
+		}
+		if consStats != nil {
+			consStats.ConsSend(len(buff))
+		}
 		err := conn.con.Send(buff)
 		if err != nil {
 			logging.Error(err)
@@ -498,6 +555,7 @@ func (cs *ConnStatus) internalSendFunc(buff []byte,
 	sendToSend bool,
 	sendRange channelinterface.SendRange,
 	stats stats.NwStatsInterface,
+	consStats stats.ConsNwStatsInterface,
 	shouldLock bool) {
 
 	// check we actually have send destinations
@@ -526,7 +584,7 @@ func (cs *ConnStatus) internalSendFunc(buff []byte,
 		if sendToSend {
 			sendCons = cs.sendCons
 		}
-		sendUDP(buff, cs.udpMsgPool, destList, sendCons, conMap, &cs.udpMsgCountID, sendRange, stats)
+		sendUDP(buff, cs.udpMsgPool, destList, sendCons, conMap, &cs.udpMsgCountID, sendRange, stats, consStats)
 	} else {
 		var numSends int
 		if sendRange != channelinterface.FullSendRange && len(destList) > 0 {
@@ -577,6 +635,9 @@ func (cs *ConnStatus) internalSendFunc(buff []byte,
 		if stats != nil {
 			stats.Broadcast(l, numSends)
 		}
+		if consStats != nil {
+			consStats.ConsBroadcast(l, numSends)
+		}
 
 	}
 }
@@ -625,7 +686,7 @@ func (cs *ConnStatus) makeNextSendConnection(netMainChannel *NetMainChannel, bt 
 		}
 
 		logging.Info("Connecting to", item)
-		nsc, err := NewNetSendConnection(item, cs, netMainChannel)
+		nsc, err := NewNetSendConnection(item, cs.ctx, cs, netMainChannel)
 		if err != nil {
 			logging.Error("Invalid conn item ", item)
 			continue
@@ -645,7 +706,13 @@ func (cs *ConnStatus) addSendConnection(conInfo channelinterface.NetNodeInfo, co
 		panic(err)
 	}
 	if _, ok := cs.cons[pubStr]; !ok {
-		cs.cons[pubStr] = channelinterface.ConnDetails{Addresses: conInfo, Conn: conn}
+		if cs.nwType == types.UDP {
+			cs.activeSendConnections++
+			cs.cond.Broadcast()
+		}
+		cs.cons[pubStr] = connDetailsConnected{
+			isConnected: cs.nwType == types.UDP,
+			ConnDetails: channelinterface.ConnDetails{Addresses: conInfo, Conn: conn}}
 
 		cs.sendCons = append(cs.sendCons, conn)
 	} else {
@@ -663,6 +730,22 @@ func (cs *ConnStatus) checkConPending(pStr sig.PubKeyStr) bool {
 	return false
 }
 
+func (cs *ConnStatus) FinishedMakingConnection(pub sig.Pub) {
+	pubStr, err := pub.GetPubString()
+	utils.PanicNonNil(err)
+
+	cs.mutex.Lock()
+	defer cs.mutex.Unlock()
+
+	if itm, ok := cs.cons[pubStr]; ok {
+		if itm.isConnected {
+			panic("tried to set connected twice")
+		}
+		cs.activeSendConnections++
+		cs.cond.Broadcast()
+	}
+}
+
 func (cs *ConnStatus) removeSendConnectionInternal(pub sig.Pub, allowReconnection bool) (conn channelinterface.SendChannel, err error) {
 	pubStr, perr := pub.GetPubString()
 	if perr != nil {
@@ -673,11 +756,14 @@ func (cs *ConnStatus) removeSendConnectionInternal(pub sig.Pub, allowReconnectio
 		delete(cs.consPendingReconnection, pubStr)
 	}
 	if infos, ok := cs.cons[pubStr]; ok {
+		if infos.isConnected {
+			cs.activeSendConnections--
+		}
 		delete(cs.cons, pubStr)
 		if allowReconnection {
 			// we add the connection back to the list after a second so we can reconnect
 			cs.consPendingReconnection[pubStr] = true
-			time.AfterFunc(1*time.Second, func() {
+			time.AfterFunc(config.RetryConnectionTimeout*time.Millisecond, func() {
 				cs.mutex.Lock()
 				defer cs.mutex.Unlock()
 				if cs.isClosed {
@@ -729,12 +815,13 @@ func (cs *ConnStatus) removeSendConnectionInternal(pub sig.Pub, allowReconnectio
 
 // removeSendConnection should be called when a connection to conInfo fails or is closed.
 // The connection will be added to the list to be reconnected to.
-func (cs *ConnStatus) removeSendConnection(pub sig.Pub) error {
+func (cs *ConnStatus) removeSendConnection(pub sig.Pub, wg *sync.WaitGroup) error {
 	cs.mutex.Lock()
 	defer cs.mutex.Unlock()
 	if cs.isClosed {
 		return types.ErrClosingTime
 	}
+	cs.wgChan <- wg
 
 	_, err := cs.removeSendConnectionInternal(pub, true)
 	return err
@@ -759,7 +846,7 @@ func (cs *ConnStatus) checkKeepAliveLoop() {
 			for k, c := range cs.recvCons {
 				if time.Since(c.rcvTime) > config.RcvConUDPTimeout*time.Millisecond {
 					logging.Error("ending UDP rcv conn because have not heard from it")
-					c.con.Close(channelinterface.CloseDuringTest)
+					_ = c.con.Close(channelinterface.CloseDuringTest)
 					delete(cs.recvCons, k)
 				}
 			}

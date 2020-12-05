@@ -27,11 +27,13 @@ package consinterface
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
 	"github.com/tcrain/cons/consensus/messagetypes"
 	"github.com/tcrain/cons/consensus/stats"
+	"github.com/tcrain/cons/consensus/storage"
 	"github.com/tcrain/cons/consensus/types"
 )
 
@@ -61,7 +63,7 @@ type ConsItem interface {
 	// of the consensus and that it is not a duplicate message (using the MemberChecker and MessageState objects). This function should process the message and update the
 	// state of the consensus.
 	// It should return true in first position if made progress towards decision, or false if already decided, and return true in second position if the message should be forwarded.
-	ProcessMessage(item *channelinterface.DeserializedItem, isLocal bool,
+	ProcessMessage(item *deserialized.DeserializedItem, isLocal bool,
 		senderChan *channelinterface.SendRecvChannel) (progress, shouldForward bool)
 	// HasDecided should return true if this consensus item has reached a decision.
 	HasDecided() bool
@@ -71,7 +73,11 @@ type ConsItem interface {
 	GetBinState(localOnly bool) ([]byte, error)
 	// PrintState()
 	// GetDecision should return the decided value of the consensus. It should only be called after HasDecided returns true.
-	GetDecision() (proposer sig.Pub, decision []byte, prvIdx types.ConsensusIndex)
+	// Proposer it the node that proposed the decision, prvIdx is the index of the decision that preceeded this decision
+	// (normally this is the current index - 1), futureFixed is the first larger index that this decision does not depend
+	// on (normally this is the current index + 1). prvIdx and futureFixed are different for MvCons3 as that
+	// consensus piggybacks consensus instances on top of eachother.
+	GetDecision() (proposer sig.Pub, decision []byte, prvIdx, futureFixed types.ConsensusIndex)
 	// GetPreHeader returns the serialized header that is attached to all messages sent by this consensus item.
 	// It is normally nil.
 	GetPreHeader() []messages.MsgHeader
@@ -80,7 +86,9 @@ type ConsItem interface {
 	// Start is called exactly once for each consensus instance, after start is called, the consensus may return
 	// true from GetProposalInfo as soon as it is ready for a proposal from the application.
 	// Note that messages may be sent to the consensus before Start is called, they should be processed as necessary.
-	Start()
+	// Finished last index is true once the last index has decided (some consensus instances may start after the last index
+	// has decided to ensure all items eventually decide)
+	Start(finishedLastIndex bool)
 	// HasStarted returns true if start has been called
 	HasStarted() bool
 	// GetProposalIndex returns the previous consensus index from which this index will use (must be at least 1
@@ -96,19 +104,43 @@ type ConsItem interface {
 		prevItem ConsItem, broadcastFunc ByzBroadcastFunc, gc *generalconfig.GeneralConfig) ConsItem
 	// SetNextConsItem gives a pointer to the next consensus item at the next consensus instance, it is called when the next instance is created
 	SetNextConsItem(next ConsItem)
-	// CanStartNext should return true if it is safe to start the next consensus instance (if parallel instances are enabled)
+	// CanStartNext should return true if it is safe to start the next consensus instance (if parallel instances are enabled),
+	// in most consensus algorithms this will always return true. In MvCons3 this will return true once this consensus instance
+	// know what instance it follows (i.e. the accepted init message points to), or when a timer has run out.
 	CanStartNext() bool
 	// GetNextInfo will be called after CanStartNext returns true.
-	// prevIdx should be the index that this cosensus index will follow (normally this is just idx - 1).
+	// It is used to get information about how the state machine for this instance will be generated.
+	// prevIdx should be the index that this consensus index will follow (normally this is just idx - 1).
 	// preDecision is either nil or the value that will be decided if a non-nil value is decided.
+	// hasInfo returns true if the values for proposer and preDecision are ready.
 	// If false is returned then the next is started, but the current instance has no state machine created.
+	// This function is mainly used for MvCons3 since the order of state machines depends on depends on the execution
+	// of the consensus instances.
+	// For other consensus algorithms prevIdx should return (idx - 1) and hasInfo should be false unless
+	// AllowConcurrent is enabled.
 	GetNextInfo() (prevIdx types.ConsensusIndex, proposer sig.Pub, preDecision []byte, hasInfo bool)
 	// SetInitialState should be called on the initial consensus index (1) to set the initial state.
-	SetInitialState([]byte)
+	SetInitialState([]byte, storage.StoreInterface)
 	GetIndex() types.ConsensusIndex // GetIndex returns the consensus index of the item.
 	// HasValidStarted returns true if this cons item has processed a valid proposal, or if it know other nodes
 	// have (i.e. if the binary reduction has terminated)
 	HasValidStarted() bool
+	// GetCustomRecoverMsg is called when there is no progress after a timeout. If the standard
+	// recovery message is used (messagetypes.NoProgressMessage) then the recovery is handled by the
+	// consensus state objects.
+	// Otherwise the returned message is sent to the peers and the consensus must handle
+	// the recovery itself.
+	// If createEmpty is true then the message will be used to deserialize a received message.
+	GetCustomRecoverMsg(createEmpty bool) messages.MsgHeader
+	// GetRecoverMsgType returns the HeaderID of the recovery messages used by this consensus.
+	// If messages.HdrNoProgress is returned then the default recover is used
+	GetRecoverMsgType() messages.HeaderID
+	// ProcessCustomRecoveryMessage is called when a valid custom recover message equal of the type
+	// returned by GetCustomRecoverMessage (that is not messagetypes.NoProgressMessage).
+	// The consensus should then perform the appropriate recovery.
+	// Note that the message is not checked with member checkers/signatures, etc.
+	ProcessCustomRecoveryMessage(item *deserialized.DeserializedItem,
+		senderChan *channelinterface.SendRecvChannel)
 	// GetCommitProof returns a signed message header that counts at the commit message for this consensus.
 	GetCommitProof() []messages.MsgHeader
 	// SetCommitProof takes the value returned from GetCommitProof of the previous consensus instance once it has decided.
@@ -116,7 +148,8 @@ type ConsItem interface {
 	SetCommitProof(prf []messages.MsgHeader)
 	// GetPrevCommitProof returns a signed message header that counts at the commit message for the previous consensus.
 	// This should only be called after DoneKeep has been called on this instance.
-	GetPrevCommitProof() []messages.MsgHeader
+	// cordPub is the expected public key of the coordinator of the current round (used for collect broadcast)
+	GetPrevCommitProof() (cordPub sig.Pub, proof []messages.MsgHeader)
 	// Broadcast a value.
 	// If nextCoordPub is nil the message will only be sent to that node, otherwise it will be sent
 	// as normal (nextCoordPub is used when CollectBroadcast is true in test options).
@@ -126,7 +159,7 @@ type ConsItem interface {
 		mainChannel channelinterface.MainChannel,
 		additionalMsgs ...messages.MsgHeader)
 	// CheckMemberLocalMsg checks if the local node is a member of the consensus for this message type
-	CheckMemberLocalMsg(msgID messages.MsgID) bool
+	CheckMemberLocalMsg(hdr messages.InternalSignedMsgHeader) bool
 	// CheckMemberLocal checks if the node is a member of the consensus.
 	CheckMemberLocal() bool
 	// GetConsInterfaceItems returns the ConsInterfaceItems for this consesnsus instance.
@@ -141,13 +174,20 @@ type ConsItem interface {
 	GetConsType() types.ConsType
 	// Collect is called when the item is about to be garbage collected.
 	Collect()
+	// ForwardOldIndices should return true if messages from old consensus indices should be forwarded
+	// even after decision.
+	ForwardOldIndices() bool
 
 	///////////////////////////////////////////////////////////////////////////
 	// Static methods
 	///////////////////////////////////////////////////////////////////////////
 
-	// NeedsConcurrent returns the number of concurrent instances the consensus needs to run correctly (this is usually 1).
-	NeedsConcurrent() types.ConsensusInt
+	// NeedsCompletionConcurrentProposals returns the number of concurrent instances the consensus needs to run correctly where
+	// the possible value that can be decided must be known before the next proposal is made (i.e. either that
+	// value or nil is decided). Normally this returns 1.
+	// Currently only MvCons3 needs a higher value since it makes concurrent proposals once the possible value
+	// of the previous proposal is known.
+	NeedsCompletionConcurrentProposals() types.ConsensusInt
 	// ComputeDecidedValue is a static method that should return the decided value, state comes from ConsItem.GetBinState, decision comes from ConsItem.GetDecision.
 	ComputeDecidedValue(state []byte, decision []byte) []byte
 	// GetProposeHeaderID returns the HeaderID for the message type that will be input to GotProposal.
@@ -195,6 +235,23 @@ func CreateGeneralConfig(testId int, eis generalconfig.ExtraInitState,
 	gc.CoinType = to.CoinType
 	gc.UseTp1CoinThresh = types.UseTp1CoinThresh(to)
 	gc.UseFixedCoinPresets = to.UseFixedCoinPresets
+	gc.MemCheckerBitIDType = to.MemCheckerBitIDType
+	gc.SigBitIDType = to.SigBitIDType
+	gc.WarmUpInstances = to.WarmUpInstances
+	gc.KeepPast = to.KeepPast
+	gc.ForwardTimeout = to.ForwardTimeout
+	gc.ProgressTimeout = to.ProgressTimeout
+	gc.MvConsTimeout = to.MvConsTimeout
+	gc.MvConsVRFTimeout = to.MvConsVRFTimeout
+	gc.MvConsRequestRecoverTimeout = to.MvConsRequestRecoverTimeout
+	gc.NodeChoiceVRFRelaxation = to.NodeChoiceVRFRelaxation
+	gc.CoordChoiceVRF = to.CoordChoiceVRF
+	gc.RandForwardTimeout = to.RandForwardTimeout
+	gc.UseRandCoord = to.UseRandCoord
+	gc.BufferForwardType = to.BufferForwardType
+	gc.MvCons4BcastType = to.MvCons4BcastType
+	gc.MCType = to.MCType
+
 	return gc
 }
 
@@ -207,10 +264,10 @@ func CreateGeneralConfig(testId int, eis generalconfig.ExtraInitState,
 // This is a static method, and can be called concurrently.
 func ProcessConsMessageList(isLocal types.LocalMessageType, unmarFunc types.ConsensusIndexFuncs,
 	ci ConsItem, msg sig.EncodedMsg,
-	memberCheckerState ConsStateInterface) ([]*channelinterface.DeserializedItem, []error) {
+	memberCheckerState ConsStateInterface) ([]*deserialized.DeserializedItem, []error) {
 
 	var errors []error
-	var items []*channelinterface.DeserializedItem
+	var items []*deserialized.DeserializedItem
 	// Break the message into seperate ones
 	for true {
 		ht, err := msg.PeekHeaderType()
@@ -240,7 +297,10 @@ func ProcessConsMessageList(isLocal types.LocalMessageType, unmarFunc types.Cons
 		deser, err := FinishUnwrapMessage(isLocal, hdrType, nxtMsg,
 			unmarFunc, ci, memberCheckerState)
 		if err != nil {
-			// logging.Info(err)
+			// if err != types.ErrAlreadyReceivedMessage {
+			//	panic(1)
+			// }
+			logging.Info(err)
 			errors = append(errors, err)
 			continue
 		}
@@ -261,18 +321,18 @@ func ProcessConsMessageList(isLocal types.LocalMessageType, unmarFunc types.Cons
 // This is a static method, and can be called concurrently.
 func UnwrapMessage(msg sig.EncodedMsg,
 	unmarFunc types.ConsensusIndexFuncs, isLocal types.LocalMessageType,
-	consItem ConsItem, memberCheckerState ConsStateInterface) ([]*channelinterface.DeserializedItem, []error) {
+	consItem ConsItem, memberCheckerState ConsStateInterface) ([]*deserialized.DeserializedItem, []error) {
 
 	ht, err := msg.PeekHeaderType()
 	if err != nil {
 		logging.Info("Got a bad message", err)
 		return nil, []error{err}
 	}
+	var ret []*deserialized.DeserializedItem
 	switch ht { // Check for general headers not made by the consensus, but by the outer layer
 	case messages.HdrNoProgress:
 		// A no progress message means that a node has not made any progress after a timeout.
 		// If we have any more advanced state then we should send this information to that process.
-		var ret []*channelinterface.DeserializedItem
 		for len(msg.GetBytes()) > 0 {
 			w := messagetypes.NewNoProgressMessage(types.ConsensusIndex{}, false, 0)
 			_, err := w.Deserialize(msg.Message, unmarFunc)
@@ -280,8 +340,27 @@ func UnwrapMessage(msg sig.EncodedMsg,
 				return ret, []error{err}
 			}
 			msg.Message.GetBytes()
-			ret = append(ret, &channelinterface.DeserializedItem{
+			ret = append(ret, &deserialized.DeserializedItem{
 				Index:          w.GetIndex(),
+				HeaderType:     ht,
+				Header:         w,
+				IsDeserialized: true})
+		}
+		return ret, nil
+	case consItem.GetRecoverMsgType():
+		for len(msg.GetBytes()) > 0 {
+			w := consItem.GetCustomRecoverMsg(true)
+			idx, err := w.PeekHeaders(msg.Message, unmarFunc)
+			if err != nil {
+				return ret, []error{err}
+			}
+			_, err = w.Deserialize(msg.Message, unmarFunc)
+			if err != nil {
+				return ret, []error{err}
+			}
+			msg.Message.GetBytes()
+			ret = append(ret, &deserialized.DeserializedItem{
+				Index:          idx,
 				HeaderType:     ht,
 				Header:         w,
 				IsDeserialized: true})
@@ -309,7 +388,7 @@ func UnwrapMessage(msg sig.EncodedMsg,
 // This is a static method, and can be called concurrently.
 func FinishUnwrapMessage(isLocal types.LocalMessageType, w messages.MsgHeader, msg sig.EncodedMsg, unmarFunc types.ConsensusIndexFuncs,
 	consItem ConsItem, memberCheckerState ConsStateInterface) (
-	[]*channelinterface.DeserializedItem, error) {
+	[]*deserialized.DeserializedItem, error) {
 
 	ht, err := msg.PeekHeaderType()
 	if err != nil {
@@ -329,12 +408,12 @@ func FinishUnwrapMessage(isLocal types.LocalMessageType, w messages.MsgHeader, m
 		return nil, err
 	}
 	// Check if you can generate the member checker
-	mc, ms, _, err := memberCheckerState.CheckGenMemberChecker(idx)
+	idxItem, err := memberCheckerState.CheckGenMemberChecker(idx)
 	if err != nil {
 		if err == types.ErrParentNotFound {
 			// we will try to process it later
 			logging.Infof("index not found for message, will process later %v", idx.Index)
-			return []*channelinterface.DeserializedItem{
+			return []*deserialized.DeserializedItem{
 				{
 					IsLocal:        isLocal,
 					Index:          idx,
@@ -343,18 +422,19 @@ func FinishUnwrapMessage(isLocal types.LocalMessageType, w messages.MsgHeader, m
 					IsDeserialized: false,
 					Message:        msg}}, nil
 		}
-		logging.Warning("error getting member checker for index %v, err %v", idx.Index, err)
+		logging.Info("error getting member checker for index %v, err %v", idx.Index, err)
 		return nil, err // TODO should keep message in certain cases?
 	}
 
-	if mc.MC.IsReady() {
+	if idxItem.MC.MC.IsReady() {
 		// deserialize the actual message
 		// return ConsItem.DeserializeMessage(idx, msg, MC, ms)
-		return DeserializeMessage(isLocal, idx, consItem, w, msg, unmarFunc, mc, ms, memberCheckerState.GetGeneralConfig())
+		return DeserializeMessage(isLocal, idx, consItem, w, msg, unmarFunc, idxItem.MC, idxItem.MsgState,
+			memberCheckerState.GetGeneralConfig())
 	}
 	// not ready so we try later
 	logging.Infof("member checker for index %v not ready, will try later", idx.Index)
-	return []*channelinterface.DeserializedItem{
+	return []*deserialized.DeserializedItem{
 		{
 			IsLocal:        isLocal,
 			Index:          idx,
@@ -368,7 +448,7 @@ func FinishUnwrapMessage(isLocal types.LocalMessageType, w messages.MsgHeader, m
 // This is a static method, and can be called concurrently.
 func DeserializeMessage(isLocal types.LocalMessageType, idx types.ConsensusIndex, ci ConsItem, w messages.MsgHeader, msg sig.EncodedMsg,
 	unmarFunc types.ConsensusIndexFuncs, mc *MemCheckers,
-	ms MessageState, gc *generalconfig.GeneralConfig) ([]*channelinterface.DeserializedItem, error) {
+	ms MessageState, gc *generalconfig.GeneralConfig) ([]*deserialized.DeserializedItem, error) {
 
 	encMsg := msg.ShallowCopy()
 	var err error
@@ -379,28 +459,29 @@ func DeserializeMessage(isLocal types.LocalMessageType, idx types.ConsensusIndex
 		_, err = w.Deserialize(msg.Message, unmarFunc)
 	}
 	if err != nil {
-		logging.Infof("deser error %v at index %v", err, idx)
+		logging.Infof("deserialization error %v at index %v", err, idx.Index)
 		return nil, err
 	}
-	logging.Info("Got a message of type:", w.GetID(), idx)
+	logging.Info("Got a message of type:", w.GetID(), idx.Index)
 
-	di := &channelinterface.DeserializedItem{
+	di := &deserialized.DeserializedItem{
 		IsLocal:        isLocal,
 		Index:          idx,
 		HeaderType:     w.GetID(),
 		Header:         w,
 		IsDeserialized: true,
+		MC:             mc,
 		Message:        encMsg}
 	return internalCheckDeserializedMessage(di, ci, mc, ms, gc)
 }
 
 // CheckLocalDeserializedMessage can be called after successful derserialization, it checks with the member checker and messages state
 // if the message is signed by a member and is not a duplicate.
-func CheckLocalDeserializedMessage(di *channelinterface.DeserializedItem, ci ConsItem, memberCheckerState ConsStateInterface) ([]*channelinterface.DeserializedItem, error) {
+func CheckLocalDeserializedMessage(di *deserialized.DeserializedItem, ci ConsItem, memberCheckerState ConsStateInterface) ([]*deserialized.DeserializedItem, error) {
 	if di.IsLocal != types.LocalMessage {
 		panic("should only be called with local messages")
 	}
-	mc, ms, _, err := memberCheckerState.GetMemberChecker(di.Index)
+	idxItem, err := memberCheckerState.GetMemberChecker(di.Index)
 	switch err {
 	// case types.ErrIndexTooOld:
 	// We have already finished and gc'd this cons instance, so drop the message
@@ -408,24 +489,24 @@ func CheckLocalDeserializedMessage(di *channelinterface.DeserializedItem, ci Con
 	case nil: //&&
 		switch di.Header.(type) {
 		case *sig.MultipleSignedMessage, *sig.UnsignedMessage:
-			if mc.MC.IsReady() {
-				return internalCheckDeserializedMessage(di, ci, mc, ms, memberCheckerState.GetGeneralConfig())
+			if idxItem.MC.MC.IsReady() {
+				return internalCheckDeserializedMessage(di, ci, idxItem.MC, idxItem.MsgState, memberCheckerState.GetGeneralConfig())
 			}
 			return nil, types.ErrMemCheckerNotReady
 		default:
 			// if it is not a signed message we dont keep state about it and just process it directly
-			return []*channelinterface.DeserializedItem{di}, nil
+			return []*deserialized.DeserializedItem{di}, nil
 		}
 	}
 	return nil, err
 }
-func internalCheckDeserializedMessage(di *channelinterface.DeserializedItem, ci ConsItem, mc *MemCheckers,
-	ms MessageState, gc *generalconfig.GeneralConfig) ([]*channelinterface.DeserializedItem, error) {
+func internalCheckDeserializedMessage(di *deserialized.DeserializedItem, ci ConsItem, mc *MemCheckers,
+	ms MessageState, gc *generalconfig.GeneralConfig) ([]*deserialized.DeserializedItem, error) {
 
 	// Check if you received this message already
 	ret, err := ms.GotMsg(ci.GetHeader, di, gc, mc)
 	if err != nil {
-		logging.Warning("Error with deserialized message: ", err, di.HeaderType, di.Index)
+		logging.Info("Error with deserialized message: ", err, di.HeaderType, di.Index)
 		return nil, err
 	}
 	return ret, nil

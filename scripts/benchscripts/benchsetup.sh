@@ -9,20 +9,25 @@ pregport=$5
 benchfolder=$6
 nwtest=$7
 tofolder=$8
+enableprofile=$9
 
 echo "Running: mkdir $benchfolder"
 mkdir -p "$benchfolder"
 
-echo "Building"
-bash ./scripts/buildgo.sh 1
-bash ./scripts/benchscripts/resetconfigs.sh "$tofolder"
+#echo "Building"
+#bash ./scripts/benchscripts/profilesetup.sh "$enableprofile"
+#bash ./scripts/buildgo.sh 1
+# bash ./scripts/benchscripts/resetconfigs.sh "$tofolder"
 
 echo "Starting nodes"
 if [ "$nwtest" -eq 1 ]
 then
-    bash ./scripts/setupnodes.sh "$user" "$ipfile" "$key" "$pregip" "$pregport"
+  bash ./scripts/setupnodes.sh "$user" "$ipfile" "$key" "$pregip" "$pregport"
 else
-    bash ./scripts/setuprpc.sh
+  echo "Building"
+  bash ./scripts/benchscripts/profilesetup.sh "$enableprofile"
+  bash ./scripts/buildgo.sh 1
+  bash ./scripts/setuprpc.sh
 fi
 
 sleep 3

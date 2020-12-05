@@ -8,6 +8,18 @@ TODO is there a way to do this?
 - More efficient no progress messages, especially when using many nodes
 over all to all connection
 - Way to add membership changing for MVCons3
+  - Currently MvCons3 only supports random membership change.
+  - This is done using the LaterMemberChecker type
+  - In this case the membership changes and only reflected in a fixed number
+  of consensus instances in the future.
+  - Any instances already started past this in the future are restarted with an
+  empty slate.
+  - In order to distinguish the old from the new, messages contain the random
+  bytes of the VRF that was used to generate the member set being used.
+  - TODO - only put random bytes in messages when enabled
+  - TODO - gen too many rand rounds in vrf per cons for this case
+  - TODO - also need to fix LaterMemberChecker for use with the SpecialMeberCheckerTypes
+  since they are updating in different objects
 - Cleanup the state transition and creation for member the abs member
 checkers.
 Currently it works as follows:
@@ -113,3 +125,33 @@ an echo message to ensure the slow ones get enough messages.
   - **TO ADD:** Currently when using consensus and causal ordered, the statemachine
   is the same as with the broadcast where only proposals can only contain the values
   from the proposer, should allow internal signed transactions from multiple proposers.
+  
+- When using Collect broadcast types, and we use a state machine that has unpredictable
+next coordinator, we dont use the state machine to calculate the next coordinator
+(except only MVCons3 does this correctly since it allows speculative executions).
+This is also an issue in cons state line 577 where we broadcast the last
+set of messages to end the test).
+
+- Causal: did I remove the part that checks echos aren't sent twice for the same assets?
+  - The part says its depricated, but I dont see where I would have fixed it?
+  - Because of this (add see causal above) the call to start the SM happens before the loading
+  from disk, instead of when start is called
+  
+- **MvCons4**
+  - Messages from old indicies may not be processesed since they are GC'd, but
+  they should be processesed in case they are a missing dependency, should
+  add an extra path for this.
+  - (Note for MvCons4 we call a "broadcast loop", the operations executed by a node to
+  propagte messages in differnt ways. For MvCons4BroadcastType = Direct, this means a node
+  will create a new event, then broadcast it to a random node with any needed dependencies,
+  once this message is received at the destination the destination node repeats the process
+  for a differnt randomly chosen node. For MvCons4BroadcastType = Indices, this means a node
+  will pick a random node and send its current indices to this node. The receiver will
+  then create a new event and send it plus any missing dependencies back to the original node.
+  The original node will then repeat the process for a new randomly chosen node.)
+  - Should add a timeout on Sync event when using Direct or Indices type broadcasts?
+  - For example, new loops are created when a noprogress message is created, or can be 
+  created by Byzantine nodes, thus we can have multiple loops per node going at the same time.
+  - In the normal configruation each node starts a broadcast loop at the very beginning,
+  so we have n loops going at once, this may want to be lower or higher to have different
+  effects on the performance.

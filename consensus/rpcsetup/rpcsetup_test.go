@@ -24,6 +24,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/auth/sig/ed"
 	"github.com/tcrain/cons/consensus/cons"
+	"github.com/tcrain/cons/consensus/consinterface"
 	"github.com/tcrain/cons/consensus/network"
 	"github.com/tcrain/cons/consensus/types"
 	"sync"
@@ -55,6 +56,7 @@ func TestRpcSetup(t *testing.T) {
 			SetInitialConfig: &sic,
 			SetInitialHash:   &sih,
 			Mutex:            mutex,
+			Shared:           &consinterface.Shared{},
 		}
 		running[i] = scs
 
@@ -77,9 +79,9 @@ type PregTestInterface struct {
 func (p *PregTestInterface) GenBlsShared(id, idx, numThresh int) error {
 	return p.pregs[id].GenBlsShared(idx, numThresh)
 }
-func (p *PregTestInterface) GetBlsShared(id, idx int) (*BlsSharedMarshalIndex, error) {
+func (p *PregTestInterface) GetBlsShared(id, idx int) (*network.BlsSharedMarshalIndex, error) {
 	idx, b := p.pregs[id].GetBlsShared(idx)
-	return &BlsSharedMarshalIndex{
+	return &network.BlsSharedMarshalIndex{
 		KeyIndex:  id,
 		Idx:       idx,
 		BlsShared: b,

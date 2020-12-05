@@ -4,7 +4,7 @@ set -o pipefail
 instancetype=${1:-n1-standard-2}
 branch=${2:-$GITBRANCH}
 zone=${3:-us-central1-a}
-goversion=${4:-1.14.2}
+goversion=${4:-1.15}
 user=${5:-$BENCHUSER}
 key=${6:-$KEYPATH}
 project=${7:-$PROJECTID}

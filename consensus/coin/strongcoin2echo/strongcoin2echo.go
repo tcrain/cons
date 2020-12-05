@@ -21,8 +21,8 @@ package strongcoin2echo
 
 import (
 	"github.com/tcrain/cons/consensus/auth/sig"
-	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -58,7 +58,7 @@ func (sc1 *StrongCoin2Echo) GenerateCoinMessage(round types.ConsensusRound, alwa
 
 		// Set to true before checking if we are a member, since check member will always
 		// give the same result for this round
-		if consItem.CheckMemberLocalMsg(coinMsg.GetMsgID()) || alwaysGenerate {
+		if consItem.CheckMemberLocalMsg(coinMsg) || alwaysGenerate {
 			// compute the coin
 			// Add any needed signatures
 			var err error
@@ -82,7 +82,7 @@ func (sc1 *StrongCoin2Echo) GenerateCoinMessage(round types.ConsensusRound, alwa
 // It returns the round the coin corresponds to and true in first boolean position if made progress towards decision,
 // or false if already decided, and return true in second position if the message should be forwarded.
 // If the message is invalid an error is returned.
-func (sc1 *StrongCoin2Echo) CheckCoinMessage(deser *channelinterface.DeserializedItem,
+func (sc1 *StrongCoin2Echo) CheckCoinMessage(deser *deserialized.DeserializedItem,
 	isLocal bool, alwaysGenerate bool, consItem consinterface.ConsItem, coinMsgState consinterface.CoinMessageStateInterface,
 	msgState consinterface.MessageState) (round types.ConsensusRound, ret messages.MsgHeader,
 	progress, shouldForward bool, err error) {
@@ -109,7 +109,7 @@ func (sc1 *StrongCoin2Echo) CheckCoinMessage(deser *channelinterface.Deserialize
 
 			// Set to true before checking if we are a member, since check member will always
 			// give the same result for this round
-			if consItem.CheckMemberLocalMsg(coinMsg.GetMsgID()) || alwaysGenerate {
+			if consItem.CheckMemberLocalMsg(coinMsg) || alwaysGenerate {
 				// compute the coin
 				// Add any needed signatures
 				var err error

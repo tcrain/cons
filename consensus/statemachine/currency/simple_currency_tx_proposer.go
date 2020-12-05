@@ -77,10 +77,11 @@ type SimpleCurrencyTxProposer struct {
 	accTable    *AccountTable
 	globalState *currencyGlobalState
 
-	myProposals  []*TransferTx
-	txRetChan    chan []transactionsm.TransactionInterface
-	initPubs     []sig.Pub
-	initialState []byte
+	myProposals           []*TransferTx
+	txRetChan             chan []transactionsm.TransactionInterface
+	initPubs              []sig.Pub
+	initialState          []byte
+	startedRecordingStats bool
 
 	hashes         *copywritemap.CopyWriteMap // map[types.ConsensusInt]messages.HashBytes
 	lastBlockIndex types.ConsensusInt
@@ -158,6 +159,24 @@ func NewSimpleTxProposer(useRand bool, initRandBytes [32]byte,
 	return ret
 }
 
+// GetSMStats returns the statistics object for the SM.
+func (spi *SimpleCurrencyTxProposer) GetSMStats() consinterface.SMStats {
+	return CurrencyStats{
+		AccStats:  *spi.accTable.stats,
+		PoolStats: spi.txPool.GetStats(),
+	}
+}
+
+type CurrencyStats struct {
+	AccStats  AccountStats
+	PoolStats transactionsm.PoolStats
+}
+
+func (cs CurrencyStats) StatsString(testDuration time.Duration) string {
+	return fmt.Sprintf("\n%v\nAccount stats: %v\nPool stats: %v", cs.AccStats.StatsString(testDuration),
+		cs.AccStats.String(), cs.PoolStats.String())
+}
+
 func (spi *SimpleCurrencyTxProposer) StatsString(testDuration time.Duration) string {
 	return fmt.Sprintf("\n%v\nAccount stats: %v\nPool stats: %v\n%v", spi.accTable.stats.StatsString(testDuration),
 		spi.accTable.stats.String(), spi.txPool.String(), spi.accTable.String())
@@ -214,14 +233,17 @@ func (spi *SimpleCurrencyTxProposer) runTxProposeThread(idx int, privKey sig.Pri
 }
 
 // Init initalizes the simple proposal object state.
-func (spi *SimpleCurrencyTxProposer) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt, needsConcurrent types.ConsensusInt,
-	mainChannel channelinterface.MainChannel, doneChan chan channelinterface.ChannelCloseType) {
+func (spi *SimpleCurrencyTxProposer) Init(gc *generalconfig.GeneralConfig, lastProposal types.ConsensusInt,
+	needsConcurrent types.ConsensusInt, mainChannel channelinterface.MainChannel,
+	doneChan chan channelinterface.ChannelCloseType, basicInit bool) {
 
 	spi.AbsInit(gc, lastProposal, needsConcurrent, mainChannel, doneChan)
 	spi.AbsRandSM.AbsRandInit(gc)
-	for i, priv := range spi.myKeys {
-		if c := spi.runTxProposeThread(gc.TestIndex+i, priv); c != nil {
-			spi.globalState.donePropose = append(spi.globalState.donePropose, c)
+	if !basicInit {
+		for i, priv := range spi.myKeys {
+			if c := spi.runTxProposeThread(gc.TestIndex+i, priv); c != nil {
+				spi.globalState.donePropose = append(spi.globalState.donePropose, c)
+			}
 		}
 	}
 	// spi.runTxProposeThread()
@@ -234,14 +256,19 @@ func (spi *SimpleCurrencyTxProposer) GetInitialState() []byte {
 
 // GetByzProposal should generate a byzantine proposal based on the configuration
 func (spi *SimpleCurrencyTxProposer) GetByzProposal(originProposal []byte,
-	gc *generalconfig.GeneralConfig) (byzProposal []byte) {
+	_ *generalconfig.GeneralConfig) (byzProposal []byte) {
 
-	n := spi.GetRndNumBytes()
+	var err error
+	var n int
+	buf := bytes.NewReader(originProposal)
+	n, err = spi.RandHasDecided(spi.GeneralConfig.Priv.GetPub(), buf, false)
+	if err != nil {
+		panic(err)
+	}
 
 	var validBlock bool
 	var txBlock *TxBlock
-	var err error
-	validBlock, txBlock, err = spi.deserializeBlock(bytes.NewReader(originProposal[n:]))
+	validBlock, txBlock, err = spi.deserializeBlock(buf)
 	if err != nil {
 		panic(err)
 	}
@@ -280,7 +307,7 @@ func (spi *SimpleCurrencyTxProposer) GetByzProposal(originProposal []byte,
 	if _, err := buff.Write(originProposal[:n]); err != nil {
 		panic(err)
 	}
-	// Encode the txs
+	// DoEncode the txs
 	if _, err := txBlock.Encode(buff); err != nil {
 		panic(err)
 	}
@@ -441,6 +468,13 @@ func (spi *SimpleCurrencyTxProposer) StartIndex(nxt types.ConsensusInt) consinte
 	ret.myProposals = nil
 
 	ret.AbsStartIndex(nxt)
+	ret.RandStartIndex(spi.AbsRandSM.GetRand())
+
+	if !spi.startedRecordingStats && ret.GetStartedRecordingStats() {
+		spi.startedRecordingStats = true
+		spi.accTable.stats.Reset()
+		spi.txPool.ResetStats()
+	}
 	return ret
 }
 
@@ -536,7 +570,7 @@ func (spi *SimpleCurrencyTxProposer) GetProposal() {
 	}
 	spi.myProposals = txs
 
-	// Encode the proposal
+	// DoEncode the proposal
 	ph, _ := spi.hashes.Read(spi.lastBlockIndex)
 	txBlock := &TxBlock{Index: spi.lastBlockIndex + 1,
 		PrevHash:     ph.(types.HashBytes),

@@ -24,6 +24,7 @@ import (
 	"github.com/tcrain/cons/consensus/auth/sig"
 	"github.com/tcrain/cons/consensus/channelinterface"
 	"github.com/tcrain/cons/consensus/consinterface"
+	"github.com/tcrain/cons/consensus/deserialized"
 	"github.com/tcrain/cons/consensus/generalconfig"
 	"github.com/tcrain/cons/consensus/logging"
 	"github.com/tcrain/cons/consensus/messages"
@@ -152,7 +153,7 @@ func (spi *absGeneralStateMachine) AbsGetProposal(hdr messages.MsgHeader) {
 	//if spi.index > spi.lastProposal+spi.needsConcurrent {
 	//	return
 	//}
-	di := &channelinterface.DeserializedItem{
+	di := &deserialized.DeserializedItem{
 		Index:          spi.GetIndex(),
 		HeaderType:     hdr.GetID(),
 		Header:         hdr,

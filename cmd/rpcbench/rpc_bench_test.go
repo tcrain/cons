@@ -24,7 +24,7 @@ package main
 	assert.Nil(t, err)
 	buf := bytes.NewBuffer(nil)
 	enc := gob.NewEncoder(buf)
-	assert.Nil(t, enc.Encode(to))
+	assert.Nil(t, enc.DoEncode(to))
 
 	dec := gob.NewDecoder(buf)
 	var to2 types.TestOptions

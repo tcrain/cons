@@ -69,7 +69,7 @@ func createBinConsTestItems(idx types.ConsensusIndex, to types.TestOptions) *bin
 		MC:  memberchecker.InitTrueMemberChecker(false, privKeys[0], gc).New(idx),
 		SMC: memberchecker.NewNoSpecialMembers().New(idx)}
 	forwardChecker := forwardchecker.NewAllToAllForwarder().New(idx, memberChecker.MC.GetParticipants(), memberChecker.MC.GetAllPubs())
-	memberChecker.MC.(*memberchecker.TrueMemberChecker).AddPubKeys(nil, pubKeys, nil, [32]byte{})
+	memberChecker.MC.(*memberchecker.TrueMemberChecker).AddPubKeys(nil, pubKeys, nil, [32]byte{}, nil)
 	mmc := &testobjects.MockMainChannel{}
 	consItems := &consinterface.ConsInterfaceItems{
 		MC:         memberChecker,
@@ -164,7 +164,7 @@ func TestBinCons1UnitProcessMsg1(t *testing.T) {
 
 	// proposal 1
 	p := messagetypes.NewBinProposeMessage(idx, 1)
-	bct.bcons.Start()
+	bct.bcons.Start(false)
 	assert.Nil(t, bct.bcons.GotProposal(p, bct.mainChannel))
 	testobjects.CheckAuxMessage(bct.mainChannel, 1, 0, 1, t)
 
@@ -200,7 +200,7 @@ func TestBinCons1UnitProcessMsg1(t *testing.T) {
 	if !bct.bcons.HasDecided() {
 		t.Error("should have decided")
 	}
-	_, decision, _ := bct.bcons.GetDecision()
+	_, decision, _, _ := bct.bcons.GetDecision()
 	if !bytes.Equal(decision, []byte{1}) {
 		t.Errorf("should have decided 1, but decided %v", decision)
 	}
@@ -245,7 +245,7 @@ func TestBinCons1UnitProcessMsg0(t *testing.T) {
 	bct := createBinConsTestItems(idx, to)
 
 	// proposal 0
-	bct.bcons.Start()
+	bct.bcons.Start(false)
 	p := messagetypes.NewBinProposeMessage(idx, 0)
 	assert.Nil(t, bct.bcons.GotProposal(p, bct.mainChannel))
 	testobjects.CheckAuxMessage(bct.mainChannel, 1, 0, 0, t)
@@ -310,7 +310,7 @@ func TestBinCons1UnitProcessMsg0(t *testing.T) {
 	if !bct.bcons.HasDecided() {
 		t.Error("should have decided")
 	}
-	_, decision, _ := bct.bcons.GetDecision()
+	_, decision, _, _ := bct.bcons.GetDecision()
 	if !bytes.Equal(decision, []byte{0}) {
 		t.Errorf("should have decided 0, but decided %v", decision)
 	}
