@@ -14,7 +14,7 @@ resulting in decision. If a decision is not made after a timeout, the coordinato
 is rotated, and decision is tried again. Messages from the previous
 round must be used to ensure all non-faulty processes decided the same value.
 Consensus messages must be signed.
-- [MvCons3](../consensus/cons/mvcons2) - HotStuff based consensus. Rotating
+- [MvCons3](../consensus/cons/mvcons3) - HotStuff based consensus. Rotating
 coordinator based consensus consisting of coodrinator broadcast and
 an echo where multiple consensus instances are "piggybacked" together.
 Allows more frequent decisions, but higher latency between proposal and decision.
@@ -23,7 +23,33 @@ in test options.
 Note that due to consensus instances being run in parallel,
 state machines implementations can become more complicated
 (see [statemachines](statemachines.md)).
-**Note that MvCons3 currently does not support membership changes.**
+**Note that MvCons3 currently does not support state machine membership
+changing, except when using randomly selected membership.**
+- [MvCons4](../consensus/cons/mvcons4) - Hash graph based consensus.
+All members propose a value during each consensus step, and multiple
+consensus instances are "piggybacked" together (i.e. this is similar
+to MvCons3, except all members make a proposal instead of having
+a leader).  During execution, nodes create events that contain hashes of
+the events that they have seen of events from external nodes, creating
+a directed acyclic graph. There are multiple ways messages can be broadcast
+using the MvCons4BroadcastType option, the possible values are:
+  - Normal: Messages are broadcast similar to other consensus algorithms.
+  I.e a node creates an event at an index in the graph once it has seen
+  events at the previous index from n-t distinct nodes. This then is broadcast
+  through whatever network type is selected. 
+  - Direct: When a node receives a new event from an external node, it creates
+  a new local event, then sends it to a randomly chosen node. It keeps track
+  of the events the receving node has seen so far based on local information
+  and sends any missing dependencies that the random receiver may need.
+  Each node is performing this operation concurrently (i.e at any point
+  in time n of these operations should be in progress).
+  - Sync: A node selects a random node, sending a vector clock of the
+  indicies it has seen at each node. The receiver node creates a new local
+  evnet, sending it back to the node, along with any dependines more advanced
+  than those given by the vector clock. Compared to Direct, this should use
+  less trafic, but creates an extra message step for every event creation.
+  Each node is performing this operation concurrently (i.e at any point
+  in time n of these operations should be in progress).
 
 ## Binary consensus
 
