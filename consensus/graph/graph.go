@@ -1133,7 +1133,7 @@ func (g *Graph) checkHasPath(from, to *Event) bool {
 
 // we choose the index of the remote ancestor given that there will be 1 less remote ancestors than the total number of ancestors
 func convertIdx(choose IndexType, otherEv *Event) IndexType {
-	if choose < otherEv.LocalInfo.ID {
+	if choose <= otherEv.LocalInfo.ID {
 		return choose
 	}
 	return choose - 1
